@@ -1,0 +1,15 @@
+/projects/
+/backup/
+*.DS_Store
+*.ipynb_checkpoints
+__pycache__/
+.env
+/datasets/*
+!/datasets/examples/
+!/datasets/examples/**
+slurm*
+/slurm/
+logs/
+tmp*
+try*
+/results/
