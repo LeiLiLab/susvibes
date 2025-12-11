@@ -31,7 +31,7 @@ def save_file(data, file_path: Path | str):
     """Save files based on their extension."""
     file_path = Path(file_path)
     if file_path.suffix == ".json":
-        file_path.write_text(json.dumps(data, ensure_ascii=False))
+        file_path.write_text(json.dumps(data, ensure_ascii=False, indent=2))
     elif file_path.suffix == ".jsonl":
         lines = [json.dumps(line, ensure_ascii=False) + "\n" for line in data]
         file_path.write_text("".join(lines))

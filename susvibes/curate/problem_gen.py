@@ -4,10 +4,10 @@ from tqdm import tqdm
 from pathlib import Path
 from jinja2 import Template
 
-from constants import LOCAL_REPOS_DIR
-from curate.prompts import ISSUE_GEN_PROMPT_TEMPLATE
-from curate.agents import SWEAgentPort
-from curate.utils import (
+from susvibes.constants import LOCAL_REPOS_DIR
+from susvibes.curate.prompts import ISSUE_GEN_PROMPT_TEMPLATE
+from susvibes.curate.agents import SWEAgentPort
+from susvibes.curate.utils import (
     load_file, 
     save_file, 
     get_repo_dir,

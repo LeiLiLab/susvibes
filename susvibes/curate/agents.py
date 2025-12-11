@@ -3,7 +3,7 @@ import subprocess
 import getpass
 from pathlib import Path
 
-from curate.utils import load_file, save_file, run
+from susvibes.curate.utils import load_file, save_file, run
 
 DEFAULT_MODELS = {
     "SWE-agent": {

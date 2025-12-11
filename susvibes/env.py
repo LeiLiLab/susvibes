@@ -12,8 +12,8 @@ import docker.errors
 from docker.models.containers import Container
 from docker.models.images import Image
 
-from env_specs import *
-from curate.utils import get_instance_id, save_file
+from susvibes.env_specs import *
+from susvibes.curate.utils import get_instance_id, save_file
 
 docker_client = docker.from_env()
 

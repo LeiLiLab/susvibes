@@ -6,15 +6,15 @@ from jinja2 import Template
 from litellm import completion, get_max_tokens
 from dotenv import load_dotenv
 
-from constants import *
-from env import Env
-from curate.prompts import LOGS_PARSER_PROMPT_TEMPLATE
-from env_specs import (
+from susvibes.constants import *
+from susvibes.env import Env
+from susvibes.curate.prompts import LOGS_PARSER_PROMPT_TEMPLATE
+from susvibes.env_specs import (
     FAILURE_STATUSES, 
     TestItemStatus, 
     TestStatus,
 )
-from curate.utils import load_file, save_file
+from susvibes.curate.utils import load_file, save_file
 
 load_dotenv()
 

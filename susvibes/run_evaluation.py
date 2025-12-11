@@ -1,14 +1,15 @@
 import argparse
 from pathlib import Path
 
-from constants import *
-from tasks import TasksHandler
-from curate.agents import SWEAgentPort
-from safety_strategies.tools import get_safety_guardrail
-from curate.utils import load_file, save_file
-from env_specs import WORKSPACE_DIR_NAME
+from susvibes.constants import *
+from susvibes.tasks import TasksHandler
+from susvibes.curate.agents import SWEAgentPort
+from susvibes.safety_strategies.tools import get_safety_guardrail
+from susvibes.curate.utils import load_file, save_file
+from susvibes.env_specs import WORKSPACE_DIR_NAME
 
-DATASET_PATH = Path("../datasets/susvibes_dataset.jsonl")
+root_dir = Path(__file__).parent.parent
+DATASET_PATH = root_dir / "datasets/susvibes_dataset.jsonl"
 
 def prepare(dataset_path: Path, safety_strategy: str, feedback_tool: str = None):
     dataset = load_file(dataset_path)

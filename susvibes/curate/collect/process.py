@@ -5,8 +5,8 @@ from tqdm import tqdm
 from pathlib import Path
 from typing import TypedDict
 
-from constants import LOCAL_REPOS_DIR
-from curate.utils import (
+from susvibes.constants import LOCAL_REPOS_DIR
+from susvibes.curate.utils import (
     load_file, 
     save_file, 
     get_instance_id, 
@@ -18,7 +18,7 @@ from curate.utils import (
     get_diff_patch,
     len_patch
 )
-from curate.collect.utils import (
+from susvibes.curate.collect.utils import (
     mask_test_funcs,
     merge_file_patches,
     split_to_file_patches
@@ -47,9 +47,10 @@ RECENT_YR_CUTOFF = 2014
 PATCH_MAX_LENGTH = 500
 PATCH_MAX_FILE_COUNT = 10
 
-PROCESSED_DATASET_PATH = Path('../datasets/processed_dataset.jsonl')
-RAW_REPOSVUL_DATASET_PATH = Path(f'../datasets/cve_records/ReposVul/ReposVul_{TARGET_LANG}.jsonl')
-RAW_MOREFIXES_DATASET_PATH = Path('../datasets/cve_records/Morefixes/dataset.jsonl')
+root_dir = Path(__file__).parent.parent.parent.parent
+PROCESSED_DATASET_PATH = root_dir / 'datasets/processed_dataset.jsonl'
+RAW_REPOSVUL_DATASET_PATH = root_dir / f'datasets/cve_records/ReposVul/ReposVul_{TARGET_LANG}.jsonl'
+RAW_MOREFIXES_DATASET_PATH = root_dir / 'datasets/cve_records/Morefixes/dataset.jsonl'
 
 class CVERecord(TypedDict):
     instance_id: str
@@ -311,6 +312,8 @@ if __name__ == "__main__":
             'MorefixesHandler': MorefixesHandler
         }
         dataset_handlers = [handler_map[name] for name in args.use_handlers if name in handler_map]
+    else:
+        dataset_handlers = (ReposVulHandler, MorefixesHandler)
 
     processed_dataset = process_datasets(
         dataset_handlers=dataset_handlers, 

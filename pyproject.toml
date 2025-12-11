@@ -112,13 +112,13 @@ dev = [
 ]
 
 [project.scripts]
-susvibes-eval = "src.run_evaluation:cli_main"
+susvibes-eval = "susvibes.run_evaluation:cli_main"
 
 [tool.setuptools]
 packages = {find = {}}
 
 [tool.setuptools.package-data]
-"src" = [
+"susvibes" = [
     "safety_strategies/*.yaml",
     "env_specs/*.json",
 ]

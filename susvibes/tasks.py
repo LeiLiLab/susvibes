@@ -3,10 +3,10 @@ from tqdm import tqdm
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from constants import *
-from env import Env
-from safety_strategies.tools import eval_selected_cwes, get_cwes_selection_stats
-from curate.utils import (
+from susvibes.constants import *
+from susvibes.env import Env
+from susvibes.safety_strategies.tools import eval_selected_cwes, get_cwes_selection_stats
+from susvibes.curate.utils import (
     RepoLocks, 
     clone_github_repo, 
     load_file, 

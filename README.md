@@ -22,6 +22,7 @@ cd susvibes-project
 conda create -n sv python=3.11
 conda activate sv
 pip install -r requirements.txt
+pip install -e .
 ```
 
 3. The SusVibes dataset is placed under `datasets/` directory for convenient usage:
@@ -70,11 +71,10 @@ For an example guideline on how to run Kimi CLI on SusVibes, see [tutorial](eval
 
 > **Note:** *SusVibes evaluation can be resource intensive. Recommended hardware settings for an accurate evaluation is to have at least 400GB of free storage, 4GB of RAM and 4 CPU cores per parallel worker on an `x86_64` machine.*
 
-Run the evaluation pipeline from the `src/` directory:
+Run the evaluation pipeline from the `susvibes/` directory:
 
 ```bash
-cd src/
-python -m run_evaluation \
+python -m susvibes.run_evaluation \
   --run_id="unique-run-identifier" \
   --predictions_path="path/to/agent/predictions.jsonl" \
   --max_workers="5" \
@@ -88,6 +88,19 @@ python -m run_evaluation \
 - `--max_workers`: Number of parallel workers (adjust based on available CPU cores)
 - `--summary_path`: Output path for evaluation results
 - `--force`: Force re-evaluation even if previous logs exist
+
+### Verify Setup with Examples:
+
+You can use our provided `datasets/examples/sample_predictions.json` to verify your setup. This should give you a summary in `datasets/examples/sample_predictions.summary.json`.
+
+```bash
+python -m susvibes.run_evaluation \
+  --run_id="test" \
+  --predictions_path="datasets/examples/sample_predictions.json" \
+  --max_workers="5" \
+  --summary_path="datasets/examples/sample_predictions.summary.json" \
+  --force
+```
 
 ## Advanced Usage
 
@@ -104,8 +117,7 @@ SusVibes supports evaluating agents with security-enhanced designs through promp
 First, enhance the dataset with your chosen safety strategy. This will generate a new dataset file `susvibes_dataset_{safety_strategy}.jsonl` in the `datasets/` directory.
 
 ```bash
-cd src/
-python -m run_evaluation \
+python -m susvibes.run_evaluation \
   --prepare \
   --safety_strategy="your-safety-strategy"
 ```
@@ -124,8 +136,7 @@ python -m run_evaluation \
 After preparing the security-enhanced dataset, use it to harness your agent instead. Evaluate with the same command as before plus the safety strategy option:
 
 ```bash
-cd src/
-python -m run_evaluation \
+python -m susvibes.run_evaluation \
   --safety_strategy="your-safety-strategy" 
   # ... other parameters
 ```
@@ -136,7 +147,7 @@ The evaluation will allows you to assess additional security measures and insigh
 
 ```
 susvibes/
-├── src/
+├── susvibes/
 │   ├── curate/             # Task curation
 │   ├── env_specs/          # Environment specifications
 │   ├── safety_strategies/  # Security-enhanced strategies (Advanced Usage)

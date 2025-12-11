@@ -2,16 +2,18 @@ import argparse
 import json
 from pathlib import Path
 
-from curate import mask, problem_gen, verifier
-from curate.utils import load_file, save_file, len_patch, display_task
+from susvibes.curate import mask, problem_gen, verifier
+from susvibes.curate.utils import load_file, save_file, len_patch, display_task
 
 LENGTH_RATIO_FUNC = [2, 5, 8, 10, 10, 15, 20, 50, 100]
 TASK_MAX_LENGTH = 1500
 
-PROCESSED_DATASET_PATH = Path('../datasets/processed_dataset.jsonl')
-TASK_DATASET_PATH = Path('../datasets/task_dataset.jsonl')
-STATS_PATH = Path("../datasets/stats.json")
-DISPLAY_PATH = Path("../datasets/task_examples")
+root_dir = Path(__file__).parent.parent.parent
+
+PROCESSED_DATASET_PATH = root_dir / 'datasets/processed_dataset.jsonl'
+TASK_DATASET_PATH = root_dir / 'datasets/task_dataset.jsonl'
+STATS_PATH = root_dir / 'datasets/stats.json'
+DISPLAY_PATH = root_dir / 'datasets/task_examples'
 
 def adaptive_task_gen(
     processed_dataset_path: Path, 

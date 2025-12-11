@@ -5,14 +5,14 @@ from tqdm import tqdm
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from constants import *
-from env import Deployment, Env
-from env_specs import (
+from susvibes.constants import *
+from susvibes.env import Deployment, Env
+from susvibes.env_specs import (
     GIT_UNIGNORE_PATTERNS,
     TestStatus,
 )
-from curate.env_setup.logs_parser import get_logs_parser
-from curate.utils import (
+from susvibes.curate.env_setup.logs_parser import get_logs_parser
+from susvibes.curate.utils import (
     RepoLocks,
     load_file, 
     save_file, 

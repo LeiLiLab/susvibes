@@ -2,11 +2,11 @@ import argparse
 import re
 from pathlib import Path
 
-from constants import *
-from env_specs import AVAILABLE_DEV_TOOL_VERSIONS
-from curate.prompts import DEV_TOOLS_PROMPT_TEMPLATE
-from curate.agents import EnvAgentPort
-from curate.utils import (
+from susvibes.constants import *
+from susvibes.env_specs import AVAILABLE_DEV_TOOL_VERSIONS
+from susvibes.curate.prompts import DEV_TOOLS_PROMPT_TEMPLATE
+from susvibes.curate.agents import EnvAgentPort
+from susvibes.curate.utils import (
     load_file, 
     save_file, 
     parse_instance_id,
@@ -16,6 +16,7 @@ from curate.utils import (
     apply_patch,
 )
 
+root_dir = Path(__file__).parent.parent.parent.parent
 TASK_DATASET_PATH = Path("../datasets/task_dataset.jsonl")
 
 def prologue(task_dataset_path: Path):

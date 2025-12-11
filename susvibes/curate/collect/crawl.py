@@ -6,14 +6,15 @@ from tqdm import tqdm
 from pathlib import Path
 from dotenv import load_dotenv
 
-from curate.utils import load_file, save_file
+from susvibes.curate.utils import load_file, save_file
 
 load_dotenv()
 token = os.getenv("GITHUB_TOKEN")
 
 RECENT_YR_CUTOFF = 2014
 
-RAW_MORE_FIXES_DIR = Path("../datasets/cve_records/Morefixes")
+root_dir = Path(__file__).parent.parent.parent.parent
+RAW_MORE_FIXES_DIR = root_dir / 'datasets/cve_records/Morefixes'
 URL_DATASET_NAME = "dataset_url.jsonl"
 DATASET_NAME = "dataset.jsonl"
 

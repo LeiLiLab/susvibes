@@ -4,12 +4,12 @@ from pathlib import Path
 from jinja2 import Template
 from typing import TypedDict
 
-from constants import *
-from env_specs import dockerfiles
-from curate.prompts import INSTALL_TEST_PROMPT_TEMPLATE
-from curate.agents import EnvAgentPort
-from curate.env_setup.create_env import create_env_threadpool
-from curate.utils import (
+from susvibes.constants import *
+from susvibes.env_specs import dockerfiles
+from susvibes.curate.prompts import INSTALL_TEST_PROMPT_TEMPLATE
+from susvibes.curate.agents import EnvAgentPort
+from susvibes.curate.env_setup.create_env import create_env_threadpool
+from susvibes.curate.utils import (
     load_file, 
     save_file, 
     get_repo_dir,
@@ -20,9 +20,10 @@ from curate.utils import (
     get_diff_patch
 )
 
-TASK_DATASET_PATH = Path("../datasets/task_dataset.jsonl")
-STATS_PATH = Path("../datasets/stats.json")
-DATASET_PATH = Path("../datasets/susvibes_dataset_debug.jsonl")
+root_dir = Path(__file__).parent.parent.parent.parent
+TASK_DATASET_PATH = root_dir / 'datasets/task_dataset.jsonl'
+STATS_PATH = root_dir / 'datasets/stats.json'
+DATASET_PATH = root_dir / 'datasets/susvibes_dataset_debug.jsonl'
 
 class SusVibesRecord(TypedDict):
     instance_id: str
