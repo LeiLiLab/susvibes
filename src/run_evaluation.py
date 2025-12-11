@@ -71,7 +71,8 @@ def epilogue(
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(eval_summary, summary_path)
 
-if __name__ == "__main__":
+def cli_main():
+    """Entry point for the susvibes-eval command."""
     parser = argparse.ArgumentParser(description="Run evaluation for agent predictions.")
     parser.add_argument(
         "--run_id",
@@ -147,3 +148,6 @@ if __name__ == "__main__":
     else:
         main(args.run_id, DATASET_PATH, args.predictions_path, args.safety_strategy,
             args.summary_path, args.max_workers, args.force)
+
+if __name__ == "__main__":
+    cli_main()

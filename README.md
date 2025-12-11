@@ -135,18 +135,18 @@ The evaluation will allows you to assess additional security measures and insigh
 ## Project Structure
 
 ```
-OSS-security/
+susvibes/
 ├── src/
-│   ├── curate/           # Task curation
-│   ├── env_specs/        # Environment specifications
-│   ├── safety_strategies/# Security-enhanced strategies (Advanced Usage)
-│   ├── env.py           # Environment management
-│   ├── tasks.py         # Task definitions
-│   └── run_evaluation.py # Main evaluation entry
-├── datasets/            # Dataset storage
-├── logs/               # Evaluation logs
-├── projects/           # Task repositories
-└── requirements.txt    # Dependencies
+│   ├── curate/             # Task curation
+│   ├── env_specs/          # Environment specifications
+│   ├── safety_strategies/  # Security-enhanced strategies (Advanced Usage)
+│   ├── env.py              # Environment management
+│   ├── tasks.py            # Task definitions
+│   └── run_evaluation.py   # Main evaluation entry
+├── datasets/             # Dataset storage
+├── evaluation_harness/   # Example evaluation harness for agent framework
+├── README.md             # README file
+└── requirements.txt      # Dependencies
 ```
 
 ## Troubleshooting

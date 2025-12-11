@@ -1,0 +1,6 @@
+include README.md
+include requirements.txt
+include LICENSE
+recursive-include datasets *.jsonl
+recursive-include evaluation_harness *.py *.md *.sh
+
