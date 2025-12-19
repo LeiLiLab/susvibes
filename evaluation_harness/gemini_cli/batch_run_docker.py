@@ -3,7 +3,7 @@
 Docker Batch Runner for Multiple Tasks
 
 This script reads instances from a JSONL file, processes each one
-with Docker-based Claude execution, and saves the git diff results to JSON files.
+with Docker-based Gemini execution, and saves the git diff results to JSON files.
 """
 
 import json
@@ -32,14 +32,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def get_options():
-    parser = argparse.ArgumentParser(description='Process multiple tasks with Docker-based Claude execution')
-    parser.add_argument('--jsonl_file', type=str, default='../datasets/susvibes_dataset.jsonl', help='Path to the JSONL file')
+    parser = argparse.ArgumentParser(description='Process multiple tasks with Docker-based Gemini execution')
+    parser.add_argument('--jsonl_file', type=str, default='../../datasets/susvibes_dataset.jsonl', help='Path to the JSONL file')
     parser.add_argument('--results_dir', type=str, default='results', help='Path to the results directory')
     parser.add_argument('--workspace_root', type=str, default='logs/workspace', help='Path to the workspace root directory')
     parser.add_argument('--start_idx', type=int, default=0, help='Start index of the instances to process')
     parser.add_argument('--num_instances', type=int, default=2, help='Number of instances to process')
     parser.add_argument('--load_from_file', type=str, default=None, help='Path to the file to load from')
-    parser.add_argument('--model', type=str, default="claude", help='Model to use')
+    parser.add_argument('--model', type=str, default="gemini", help='Model to use')
     parser.add_argument('--setup_script', type=str, default="setup-env.sh", help='Setup script to run in container')
     parser.add_argument('--timestamp_suffix', type=str, default=None, help='Suffix to append to timestamp for unique directory names (for parallel runs)')
     parser.add_argument('--keep_workspace', action='store_true', default=False, help='Whether to keep the workspace after cleanup')
@@ -99,7 +99,7 @@ def load_instances(jsonl_file: str) -> List[Dict[str, Any]]:
 
 async def process_instance(instance: Dict[str, Any], index: int, total: int, model: str, workspace_root: str = ".", setup_script: str = "setup-env.sh", keep_workspace: bool = True) -> Dict[str, Any]:
     """
-    Process a single instance with Docker-based Claude execution.
+    Process a single instance with Docker-based Gemini execution.
     
     Args:
         instance: Instance dictionary from JSONL
@@ -142,11 +142,8 @@ async def process_instance(instance: Dict[str, Any], index: int, total: int, mod
         logger.info(f"Starting Docker integration for {instance_id}")
         
         env = {}
-        env["ANTHROPIC_MODEL"] = os.environ.get("ANTHROPIC_MODEL", "")
-        env["ANTHROPIC_BASE_URL"] = os.environ.get("ANTHROPIC_BASE_URL", "")
-        env["ANTHROPIC_AUTH_TOKEN"] = os.environ.get("ANTHROPIC_AUTH_TOKEN", "")
-        env["ANTHROPIC_API_KEY"] = os.environ.get("ANTHROPIC_API_KEY", "")
-        env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = os.environ.get("CLAUDE_CODE_MAX_OUTPUT_TOKENS", 50000)
+        env["GEMINI_MODEL"] = os.environ.get("GEMINI_MODEL", "")
+        env["GEMINI_API_KEY"] = os.environ.get("GEMINI_API_KEY", "")
         print(f"🔧 Environment: {env}")
         
         # Escape the problem statement for shell execution
@@ -166,19 +163,19 @@ async def process_instance(instance: Dict[str, Any], index: int, total: int, mod
                 logger.warning(f"Environment setup failed for {instance_id}: {setup_result['stderr']}")
             
             
-            # Run Claude with the problem statement
-            logger.info(f"Running Claude for {instance_id}")
-            claude_command = (
-                "claude --verbose --output-format stream-json "
-                f"-p {escaped_instruction} --allowedTools {' '.join(ALLOWED_TOOLS)}"
+            # Run Gemini with the problem statement
+            logger.info(f"Running Gemini for {instance_id}")
+            gemini_command = (
+                "gemini --output-format stream-json "
+                f"-p {escaped_instruction} --yolo"
             )
             
-            result = integration.execute_in_container(claude_command, env=env)
+            result = integration.execute_in_container(gemini_command, env=env)
             
             if result["success"]:
-                logger.info(f"Claude execution completed successfully for {instance_id}")
+                logger.info(f"Gemini execution completed successfully for {instance_id}")
             else:
-                logger.error(f"Claude execution failed for {instance_id}: {result['stderr']}")
+                logger.error(f"Gemini execution failed for {instance_id}: {result['stderr']}")
 
 
             # Show final status
@@ -193,9 +190,9 @@ async def process_instance(instance: Dict[str, Any], index: int, total: int, mod
                 "model_name_or_path": model,
                 "model_patch": diff_text,
                 "workspace": str(workspace),
-                "claude_stdout": result.get("stdout", ""),
-                "claude_stderr": result.get("stderr", ""),
-                "claude_success": result.get("success", False)
+                "gemini_stdout": result.get("stdout", ""),
+                "gemini_stderr": result.get("stderr", ""),
+                "gemini_success": result.get("success", False)
             }
             
             # Clean up the integration

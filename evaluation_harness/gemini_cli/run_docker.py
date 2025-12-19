@@ -31,7 +31,7 @@ ALLOWED_TOOLS = [
 class DockerIntegration:
     def __init__(self, docker_image: str, container_work_dir: str = "/project", workspace_root: str = ".", keep_workspace: bool = True):
         """
-        Initialize Claude Docker Integration with execution feedback
+        Initialize Gemini Docker Integration with execution feedback
         
         Args:
             docker_image: Your Docker image with embedded code
@@ -53,7 +53,7 @@ class DockerIntegration:
         print(f"🚀 Setting up persistent workspace from {self.docker_image}")
         
         # Create local working directory
-        self.local_work_dir = Path(self.workspace_root).resolve() / f"claude_workspace_{int(time.time())}"
+        self.local_work_dir = Path(self.workspace_root).resolve() / f"gemini_workspace_{int(time.time())}"
         self.local_work_dir.mkdir(exist_ok=True)
         
         try:
@@ -103,7 +103,7 @@ class DockerIntegration:
         """Start a persistent container with volume mount for live sync"""
         print("🐳 Starting persistent container with live sync...")
         
-        container_name = f"claude_work_{int(time.time())}"  
+        container_name = f"gemini_work_{int(time.time())}"  
         
         # Start container with volume mount and keep it running
         run_result = subprocess.run([
@@ -132,16 +132,14 @@ class DockerIntegration:
         start_time = time.time()
 
         full_command = f"""
-        [ -f /root/.claude_env ] && source /root/.claude_env
+        [ -f /root/.gemini/.env ] && source /root/.gemini/.env
         [ -f /root/.nvm/nvm.sh ] && source /root/.nvm/nvm.sh
         [ -f /root/.bashrc ] && source /root/.bashrc
         """
-        print(f"🔧 Environment: {env}")
+
         if env:
             for key, value in env.items():
                 full_command += f"export {key}={value}\n"
-
-        print(f"🔧 Full command: {full_command}")
 
         full_command += f"{command}"
     
@@ -330,11 +328,9 @@ def main():
     DOCKER_IMAGE = EXAMPLE_IMAGE
 
     env = {}
-    env["ANTHROPIC_MODEL"] = os.environ.get("ANTHROPIC_MODEL", "")
-    env["ANTHROPIC_BASE_URL"] = os.environ.get("ANTHROPIC_BASE_URL", "")
-    env["ANTHROPIC_AUTH_TOKEN"] = os.environ.get("ANTHROPIC_AUTH_TOKEN", "")
-    env["ANTHROPIC_API_KEY"] = os.environ.get("ANTHROPIC_API_KEY", "")
-    env["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = os.environ.get("CLAUDE_CODE_MAX_OUTPUT_TOKENS", 50000)
+    env["GEMINI_MODEL"] = os.environ.get("GEMINI_MODEL", "")
+    env["GEMINI_API_KEY"] = os.environ.get("GEMINI_API_KEY", "")
+    
     print(f"🔧 Environment: {env}")
 
     prompt = USER_PROMPT_TEMPLATE.format(local_work_dir="/project", problem_statement=TASK)
@@ -348,15 +344,16 @@ def main():
 
         print(f"🔧 Setting up environment...")
 
-        print(f"🔧 Running Claude...")
+        print(f"🔧 Running Gemini...")
         print(f"🔧 Allowed Tools: {' '.join(ALLOWED_TOOLS)}")
         print(f"🔧 Task: {TASK}")
-        claude_command = (
-            "claude --verbose --output-format stream-json "
-            f"-p {escaped_instruction} --allowedTools {' '.join(ALLOWED_TOOLS)}"
+        gemini_command = (
+            "gemini --output-format stream-json "
+            f"-p {escaped_instruction} --yolo"
         )
+        print(f"🔧 Command: {gemini_command}")
 
-        result = integration.execute_in_container(claude_command, env=env)
+        result = integration.execute_in_container(gemini_command, env=env)
         print(f"🔧 Result: {result}")
 
         print(f"\n🎉 Session complete!")

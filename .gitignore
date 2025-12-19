@@ -20,4 +20,4 @@ slurm*
 logs/
 tmp*
 try*
-/results/
+results/
