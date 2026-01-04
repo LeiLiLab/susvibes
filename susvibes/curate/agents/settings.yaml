@@ -1,0 +1,21 @@
+# Agent configurations for curation tasks
+SWE-agent:
+  dir: ../../SWE-agent   # Path to the SWE-agent codebase
+  run_name: sweagent
+  model:
+    name: claude-sonnet-4-20250514
+    per_instance_cost_limit: 5.0
+    per_instance_call_limit: 100
+  agent_env: sweagent1.1.0
+  config_name: sweagent-curate
+  num_workers: 12
+# Environment agent configurations for building isolated env images
+Env-agent:
+  dir: ../../SWE-agent   # Path to the Env-agent codebase
+  model: 
+    name: claude-sonnet-4-20250514
+    per_instance_cost_limit: 5.0
+    per_instance_call_limit: 100
+  agent_env: envagent1.1.0
+  config_name: envagent-curate
+  num_workers: 6

@@ -6,7 +6,7 @@ from jinja2 import Template
 
 from susvibes.constants import LOCAL_REPOS_DIR
 from susvibes.curate.prompts import ISSUE_GEN_PROMPT_TEMPLATE
-from susvibes.curate.agents import SWEAgentPort
+from susvibes.curate.agents.ports import SWEAgentPort
 from susvibes.curate.utils import (
     load_file, 
     save_file, 
@@ -16,8 +16,8 @@ from susvibes.curate.utils import (
     rollback
 )
 
-def prologue(task_dataset_path: Path, instance_ids: list = None, model: dict = None):
-    SWEAgentPort.init(run_name=__spec__.name, model=model)
+def prologue(task_dataset_path: Path, instance_ids: list = None):
+    SWEAgentPort.init(run_name=__spec__.name)
     task_dataset = load_file(task_dataset_path)
     if instance_ids != None:
         task_dataset = [data_record for data_record in task_dataset 
@@ -69,13 +69,9 @@ def epilogue(agent_output_dir: Path, task_dataset_path: Path):
     save_file(task_dataset_by_id.values(), task_dataset_path)
     return successful_instance_ids
 
-def pipeline(
-    task_dataset_path: Path,
-    instance_ids: list = None,
-    model: dict = None
-):
-    print(f"Issue generation pipeline started.")
-    prologue(task_dataset_path, instance_ids, model=model)
+def pipeline(task_dataset_path: Path, instance_ids: list = None):
+    print(f"Problem generation pipeline started.")
+    prologue(task_dataset_path, instance_ids)
     agent_output_dir = SWEAgentPort.run_batch()
     successful_instance_ids = epilogue(
         agent_output_dir=agent_output_dir,
@@ -83,9 +79,7 @@ def pipeline(
     )
     return successful_instance_ids
 
-def remove_results(
-    instance_ids: list,
-):
+def remove_results(instance_ids: list):
     SWEAgentPort.init(run_name=__spec__.name)
     SWEAgentPort.remove_results(instance_ids)
 

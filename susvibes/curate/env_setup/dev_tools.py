@@ -5,7 +5,7 @@ from pathlib import Path
 from susvibes.constants import *
 from susvibes.env_specs import AVAILABLE_DEV_TOOL_VERSIONS
 from susvibes.curate.prompts import DEV_TOOLS_PROMPT_TEMPLATE
-from susvibes.curate.agents import EnvAgentPort
+from susvibes.curate.agents.ports import EnvAgentPort
 from susvibes.curate.utils import (
     load_file, 
     save_file, 

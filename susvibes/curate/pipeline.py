@@ -19,7 +19,6 @@ def adaptive_task_gen(
     processed_dataset_path: Path, 
     task_dataset_path: Path, 
     max_iters: int = None,
-    model: dict = None
 ):
     processed_dataset = load_file(processed_dataset_path)
     instance_ids = [data_record["instance_id"] for data_record in processed_dataset]
@@ -41,7 +40,6 @@ def adaptive_task_gen(
             length_ratio=LENGTH_RATIO_FUNC[iter_id],
             max_length=TASK_MAX_LENGTH,
             instance_ids=pending_instance_ids,
-            model=model
         )
         print(STAGE_PROGRESS_MSG.format(len(successful_instance_ids), len(pending_instance_ids)))
         failed_instances = [id for id in pending_instance_ids if id not in successful_instance_ids]
@@ -54,7 +52,6 @@ def adaptive_task_gen(
         successful_instance_ids = problem_gen.pipeline(
             task_dataset_path=TASK_DATASET_PATH,
             instance_ids=pending_instance_ids,
-            model=model
         )
         print(STAGE_PROGRESS_MSG.format(len(successful_instance_ids), len(pending_instance_ids)))
         failed_instances += [id for id in pending_instance_ids if id not in successful_instance_ids]
@@ -67,7 +64,6 @@ def adaptive_task_gen(
         successful_instance_ids, verified_instance_ids = verifier.pipeline(
             task_dataset_path=task_dataset_path,
             instance_ids=pending_instance_ids,
-            model=model
         )
         print(STAGE_PROGRESS_MSG.format(len(successful_instance_ids), len(pending_instance_ids)))
         failed_instances += [id for id in pending_instance_ids if id not in successful_instance_ids]
@@ -120,12 +116,6 @@ if __name__ == "__main__":
         action='store_true', 
         help='Display all tasks created'
     )
-    parser.add_argument(
-        '--model', 
-        type=json.loads, 
-        default=None, 
-        help='Model configuration as JSON dictionary'
-    )
     args = parser.parse_args()
 
     if args.debug:
@@ -138,7 +128,6 @@ if __name__ == "__main__":
         processed_dataset_path=PROCESSED_DATASET_PATH,
         task_dataset_path=TASK_DATASET_PATH,
         max_iters=args.max_iters,
-        model=args.model
     )
     get_task_stats(
         task_dataset_path=TASK_DATASET_PATH,

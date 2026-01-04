@@ -1,50 +1,57 @@
 import shutil
 import subprocess
 import getpass
+from typing import ClassVar
 from pathlib import Path
 
 from susvibes.curate.utils import load_file, save_file, run
 
-DEFAULT_MODELS = {
-    "SWE-agent": {
-        "name": "claude-sonnet-4-20250514",
-        "per_instance_cost_limit": 5.0,
-        "per_instance_call_limit": 100,
-    },
-    "Env-agent": {
-        "name": "claude-sonnet-4-20250514",
-        "per_instance_cost_limit": 5.0,
-        "per_instance_call_limit": 150,
-    }
-}
+AGENT_SETTINGS_PATH = Path(__file__).parent / "settings.yaml"
+# {
+#     "SWE-agent": {
+#         "name": "claude-sonnet-4-20250514",
+#         "per_instance_cost_limit": 5.0,
+#         "per_instance_call_limit": 100,
+#     },
+#     "Env-agent": {
+#         "name": "claude-sonnet-4-20250514",
+#         "per_instance_cost_limit": 5.0,
+#         "per_instance_call_limit": 150,
+#     }
+# }
 
 class SWEAgentPort:
-    name: str = "SWE-agent"
-    dir: Path = Path("../../SWE-agent")
-    run_name: str = "sweagent"
-    task_instances: list = [] 
-    exec_env: str = "sweagent1.1.0"
-    config_name: str = "agentsec_challenge"
-    model: dict = DEFAULT_MODELS["SWE-agent"]
-    num_workers: int = 12
+    name: ClassVar[str] = "SWE-agent"
+    dir: ClassVar[Path]
+    run_name: ClassVar[str]
+    task_instances: ClassVar[list]
+    agent_env: ClassVar[str]
+    config_name: ClassVar[str]
+    model: ClassVar[dict]
+    num_workers: ClassVar[int]
     
     @classmethod
-    def init(cls, 
+    def init(
+        cls, 
         run_name: str = None,
+        agent_env: str = None,
         config_name: str = None,
         model: dict = None,
         num_workers: int = None
     ):
-        cls.run_name = run_name if run_name else cls.run_name
+        settings = load_file(AGENT_SETTINGS_PATH)[cls.name]
+        
+        cls.dir = Path(settings["dir"])
+        cls.run_name = run_name or settings["run_name"]
+        cls.agent_env = agent_env or settings["agent_env"]
+        cls.config_name = config_name or settings["config_name"]
+        cls.model = model or settings["model"]
+        cls.num_workers = num_workers or settings["num_workers"]
         cls.task_instances = []
-        cls.get_tasks_path().parent.mkdir(parents=True, exist_ok=True)
-        cls.config_name = config_name if config_name else cls.config_name
-        if model:
-            cls.model.update(model)
-        cls.num_workers = num_workers if num_workers else cls.num_workers
+        cls.get_instances_path().parent.mkdir(parents=True, exist_ok=True)
         
     @classmethod
-    def get_tasks_path(cls):
+    def get_instances_path(cls):
         return Path("../logs/curate/agent_runs/{}_instances.yaml".format(cls.run_name))
     
     @classmethod
@@ -83,8 +90,8 @@ class SWEAgentPort:
         
     @classmethod
     def before_start(cls):
-        save_file(cls.task_instances, cls.get_tasks_path())
-        print(f"{cls.name} tasks saved to {cls.get_tasks_path()}")
+        save_file(cls.task_instances, cls.get_instances_path())
+        print(f"{cls.name} tasks saved to {cls.get_instances_path()}")
 
     @classmethod
     def after_completion(cls, agent_output_dir: Path, submitted_only: bool = False):
@@ -120,14 +127,14 @@ class SWEAgentPort:
     def run_batch(cls):
         print(f"Running {cls.run_name} on {cls.name} with {len(cls.task_instances)} tasks...")
         cmd = (
-            f"conda run -n {cls.exec_env} --live-stream "
+            f"conda run -n {cls.agent_env} --live-stream "
             "sweagent run-batch "
             f"--config=config/{cls.config_name}.yaml "
             f"--agent.model.name={cls.model['name']} "
             f"--agent.model.per_instance_cost_limit={cls.model['per_instance_cost_limit']} "
             f"--agent.model.per_instance_call_limit={cls.model['per_instance_call_limit']} "
             "--instances.type=expert_file "
-            f"--instances.path={cls.get_tasks_path().resolve()} "
+            f"--instances.path={cls.get_instances_path().resolve()} "
             f"--num_workers={cls.num_workers}"
         )
         run(
@@ -142,9 +149,6 @@ class SWEAgentPort:
 
 class EnvAgentPort(SWEAgentPort):
     name: str = "Env-agent"
-    dir: Path = Path("../../SWE-agent")
-    run_name: str = "envagent"
-    model: dict = DEFAULT_MODELS["Env-agent"]
 
     @classmethod
     def add_task(cls, **kwargs):

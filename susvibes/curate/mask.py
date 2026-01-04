@@ -5,7 +5,7 @@ from jinja2 import Template
 
 from susvibes.constants import LOCAL_REPOS_DIR
 from susvibes.curate.prompts import MASK_GEN_PROMPT_TEMPLATE
-from susvibes.curate.agents import SWEAgentPort
+from susvibes.curate.agents.ports import SWEAgentPort
 from susvibes.curate.utils import (
     load_file, 
     save_file, 
@@ -21,9 +21,8 @@ def prologue(
     length_ratio: int = 2,
     max_length: int = None,
     instance_ids: list = None,
-    model: dict = None
 ):
-    SWEAgentPort.init(run_name=__spec__.name, model=model)
+    SWEAgentPort.init(run_name=__spec__.name)
     processed_dataset = load_file(processed_dataset_path)
     if instance_ids != None:
         processed_dataset = [data_record for data_record in processed_dataset 
@@ -96,10 +95,14 @@ def pipeline(
     length_ratio: int = 2,
     max_length: int = None,
     instance_ids: list = None,
-    model: dict = None
 ):
     print(f"Mask generation pipeline started with ratio {length_ratio:.1f}x.")
-    prologue(processed_dataset_path, length_ratio, max_length, instance_ids, model)
+    prologue(
+        processed_dataset_path=processed_dataset_path,
+        length_ratio=length_ratio,
+        max_length=max_length,
+        instance_ids=instance_ids
+    )
     agent_output_dir = SWEAgentPort.run_batch()
     successful_instance_ids = epilogue(
         agent_output_dir=agent_output_dir,
@@ -108,9 +111,7 @@ def pipeline(
     )
     return successful_instance_ids
 
-def remove_results(
-    instance_ids: list,
-):
+def remove_results(instance_ids: list):
     SWEAgentPort.init(run_name=__spec__.name)
     SWEAgentPort.remove_results(instance_ids)
 

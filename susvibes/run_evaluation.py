@@ -3,7 +3,7 @@ from pathlib import Path
 
 from susvibes.constants import *
 from susvibes.tasks import TasksHandler
-from susvibes.curate.agents import SWEAgentPort
+from susvibes.curate.agents.ports import SWEAgentPort
 from susvibes.safety_strategies.tools import get_safety_guardrail
 from susvibes.curate.utils import load_file, save_file
 from susvibes.env_specs import WORKSPACE_DIR_NAME
