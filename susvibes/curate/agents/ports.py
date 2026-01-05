@@ -8,6 +8,8 @@ from susvibes.utils import load_file, save_file
 from susvibes.curate.utils import run
 
 AGENT_SETTINGS_PATH = Path(__file__).parent / "settings.yaml"
+ROOT_DIR = Path(__file__).parent.parent.parent.parent
+AGENT_RUN_LOG_DIR = ROOT_DIR / "logs" / "agent_runs"
 
 class SWEAgentPort:
     name: ClassVar[str] = "SWE-agent"
@@ -41,7 +43,7 @@ class SWEAgentPort:
         
     @classmethod
     def get_instances_path(cls):
-        return Path("../logs/agent_runs/{}_instances.yaml".format(cls.run_name))
+        return AGENT_RUN_LOG_DIR / "{}_instances.yaml".format(cls.run_name)
     
     @classmethod
     def add_task(

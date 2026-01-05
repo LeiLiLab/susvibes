@@ -10,7 +10,8 @@ LOG_TEST_OUTPUT = "test_outputs/{}.txt"
 LOG_REPORT = "report.json"
 EVALUATION_RUNS = ["func", "sec"]
 
-CWES_DESC_PATH = Path("safety_strategies/cwes.yaml")
+root_dir = Path(__file__).parent.parent
+CWES_DESC_PATH = root_dir / "safety_strategies/cwes.yaml"
 
 def get_safety_guardrail(
     problem_statement: str, 

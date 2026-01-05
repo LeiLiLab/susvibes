@@ -75,10 +75,10 @@ Run the evaluation pipeline from the `susvibes/` directory:
 
 ```bash
 python -m susvibes.run_evaluation \
-  --run_id="unique-run-identifier" \
-  --predictions_path="path/to/agent/predictions.jsonl" \
-  --max_workers="5" \
-  --summary_path="path/to/output/summary.json" \
+  --run_id <unique_run_identifier> \
+  --predictions_path <path_to_predictions_jsonl> \
+  --max_workers 5 \
+  --summary_path <path_to_output_summary_json> \
   [--force]  # Optional: force re-evaluation
 ```
 
@@ -95,10 +95,10 @@ You can use our provided `datasets/examples/sample_predictions.json` to verify y
 
 ```bash
 python -m susvibes.run_evaluation \
-  --run_id="test" \
-  --predictions_path="datasets/examples/sample_predictions.json" \
-  --max_workers="5" \
-  --summary_path="datasets/examples/sample_predictions.summary.json" \
+  --run_id "test" \
+  --predictions_path "datasets/examples/sample_predictions.json" \
+  --max_workers 5 \
+  --summary_path "datasets/examples/sample_predictions.summary.json" \
   --force
 ```
 
@@ -106,7 +106,7 @@ python -m susvibes.run_evaluation \
 
 ### Task Curation Pipeline
 
-See the subfolder's [README](src/curate/README.md) for more details.
+See the subfolder's [README](susvibes/curate/README.md) for more details.
 
 ### Security-Enhanced Evaluation
 
@@ -119,7 +119,7 @@ First, enhance the dataset with your chosen safety strategy. This will generate 
 ```bash
 python -m susvibes.run_evaluation \
   --prepare \
-  --safety_strategy="your-safety-strategy"
+  --safety_strategy <safety_strategy_name>
 ```
 
 #### Available Safety Strategies
@@ -129,7 +129,7 @@ python -m susvibes.run_evaluation \
 | **`generic`** | Provides general security guidelines to the agent without specific vulnerability information |
 | **`self-selection`** | Allows the agent to select relevant security concerns from a provided list of all possible CWE (Common Weakness Enumeration) types in the dataset |
 | **`oracle`** | Provides the agent with the exact CWE vulnerabilities that are relevant to the specific task |
-| **`feedback-driven`** | Iteratively improve the implementation based on feedback from executing security tests. This mode requires `--feedback_tool` and agent-level integration. |
+| **`feedback-driven`** | Iteratively improve the implementation based on feedback from executing security tests. This mode requires `--feedback_tool` and agent-level integration. (Comming soon)|
 
 #### 2. Run Agent with Enhanced Dataset
 
@@ -137,7 +137,7 @@ After preparing the security-enhanced dataset, use it to harness your agent inst
 
 ```bash
 python -m susvibes.run_evaluation \
-  --safety_strategy="your-safety-strategy" 
+  --safety_strategy <safety_strategy_name> 
   # ... other parameters
 ```
 
