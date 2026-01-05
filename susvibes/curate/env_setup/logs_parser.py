@@ -14,7 +14,7 @@ from susvibes.env_specs import (
     TestItemStatus, 
     TestStatus,
 )
-from susvibes.curate.utils import load_file, save_file
+from susvibes.utils import load_file, save_file
 
 load_dotenv()
 

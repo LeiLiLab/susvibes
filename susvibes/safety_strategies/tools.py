@@ -4,7 +4,7 @@ from jinja2 import Template
 
 from susvibes.constants import *
 from susvibes.safety_strategies.prompts import *
-from susvibes.curate.utils import load_file
+from susvibes.utils import load_file
 
 LOG_TEST_OUTPUT = "test_outputs/{}.txt"
 LOG_REPORT = "report.json"

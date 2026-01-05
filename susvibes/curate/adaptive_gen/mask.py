@@ -6,9 +6,8 @@ from jinja2 import Template
 from susvibes.constants import LOCAL_REPOS_DIR
 from susvibes.curate.prompts import MASK_GEN_PROMPT_TEMPLATE
 from susvibes.curate.agents.ports import SWEAgentPort
+from susvibes.utils import load_file, save_file
 from susvibes.curate.utils import (
-    load_file, 
-    save_file, 
     get_repo_dir,
     clone_github_repo,
     apply_patch,

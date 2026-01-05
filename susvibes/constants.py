@@ -4,6 +4,7 @@ from pathlib import Path
 root_dir = Path(__file__).parent.parent
 current_dir = Path(__file__).parent
 
+DATASETS_DIR = root_dir / "datasets"
 LOCAL_REPOS_DIR = root_dir / "projects"
 
 DEV_TOOLS_PATH = current_dir / "env_specs/dev_tools.json"

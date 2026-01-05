@@ -3,15 +3,15 @@ from pathlib import Path
 
 from susvibes.constants import *
 from susvibes.tasks import TasksHandler
-from susvibes.curate.agents.ports import SWEAgentPort
 from susvibes.safety_strategies.tools import get_safety_guardrail
-from susvibes.curate.utils import load_file, save_file
+from susvibes.utils import load_file, save_file
 from susvibes.env_specs import WORKSPACE_DIR_NAME
+from susvibes.curate.agents.ports import SWEAgentPort
 
 root_dir = Path(__file__).parent.parent
 DATASET_PATH = root_dir / "datasets/susvibes_dataset.jsonl"
 
-def prepare(dataset_path: Path, safety_strategy: str, feedback_tool: str = None):
+def prepare_dataset(dataset_path: Path, safety_strategy: str, feedback_tool: str = None):
     dataset = load_file(dataset_path)
     for data_record in dataset:
         problem_statement = get_safety_guardrail(data_record["problem_statement"], 
@@ -20,23 +20,6 @@ def prepare(dataset_path: Path, safety_strategy: str, feedback_tool: str = None)
     eval_dataset_path = dataset_path.parent / \
         (dataset_path.stem + f"_{safety_strategy}" + dataset_path.suffix)
     save_file(dataset, eval_dataset_path)
-
-def main(
-    run_id: str,
-    dataset_path: Path,
-    predictions_path: Path,
-    safety_strategy: str,
-    summary_path: Path,
-    max_workers: int,
-    force: bool = False
-):
-    predictions = load_file(predictions_path)
-    dataset = load_file(dataset_path)
-    handler = TasksHandler(dataset, safety_strategy)
-    handler.run_evaluation_threadpool(run_id, predictions, max_workers, force)
-    eval_summary = handler.get_eval_summary()
-    summary_path.parent.mkdir(parents=True, exist_ok=True)
-    save_file(eval_summary, summary_path)
 
 def prologue(dataset_path: Path, safety_strategy: str, feedback_tool: str = None):
     run_name = f"{__spec__.name}_{safety_strategy}"
@@ -54,7 +37,36 @@ def prologue(dataset_path: Path, safety_strategy: str, feedback_tool: str = None
             instance_id=data_record["instance_id"],
         )
     SWEAgentPort.before_start()
-
+    
+def _run_evaluation(
+    run_id: str,
+    dataset_path: Path,
+    predictions: list,
+    safety_strategy: str,
+    summary_path: Path,
+    max_workers: int,
+    force: bool = False
+):
+    dataset = load_file(dataset_path)
+    handler = TasksHandler(dataset, safety_strategy)
+    handler.run_evaluation_threadpool(run_id, predictions, max_workers, force)
+    eval_summary = handler.get_eval_summary()
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    save_file(eval_summary, summary_path)
+    
+def run_evaluation(
+    run_id: str,
+    dataset_path: Path,
+    predictions_path: Path,
+    safety_strategy: str,
+    summary_path: Path,
+    max_workers: int,
+    force: bool = False
+):
+    predictions = load_file(predictions_path)
+    _run_evaluation(run_id, dataset_path, predictions, safety_strategy, 
+              summary_path, max_workers, force)
+    
 def epilogue(
     run_id: str,
     dataset_path: Path,
@@ -65,14 +77,10 @@ def epilogue(
     force: bool = False
 ):
     predictions = SWEAgentPort.after_completion(agent_output_dir)
-    dataset = load_file(dataset_path)
-    handler = TasksHandler(dataset, safety_strategy)
-    handler.run_evaluation_threadpool(run_id, predictions, max_workers, force)
-    eval_summary = handler.get_eval_summary()
-    summary_path.parent.mkdir(parents=True, exist_ok=True)
-    save_file(eval_summary, summary_path)
+    _run_evaluation(run_id, dataset_path, predictions, safety_strategy,
+              summary_path, max_workers, force)
 
-def cli_main():
+def main():
     """Entry point for the susvibes-eval command."""
     parser = argparse.ArgumentParser(description="Run evaluation for agent predictions.")
     parser.add_argument(
@@ -104,7 +112,7 @@ def cli_main():
     
     # Advanced usage
     parser.add_argument(
-        "--prepare",
+        "--prepare_dataset",
         action="store_true",
         help="[Advanced Usage] Prepare the evaluation dataset with safety guardrails.",
     )
@@ -125,12 +133,12 @@ def cli_main():
     parser.add_argument(
         "--prologue",
         action="store_true",
-        help="[SWE-agent] Run the prologue to set up the environment.",
+        help="[SWE-agent] Set up tasks before running SWE-agent.",
     )
     parser.add_argument(
         "--epilogue",
         action="store_true",
-        help="[SWE-agent] Run the epilogue to finalize the environment setup.",
+        help="[SWE-agent] Evaluate solutions after SWE-agent completes.",
     )
     parser.add_argument(
         "--agent_output_dir",
@@ -144,11 +152,11 @@ def cli_main():
     elif args.epilogue:
         epilogue(args.run_id, DATASET_PATH, args.agent_output_dir, args.safety_strategy, 
             args.summary_path, args.max_workers, args.force)
-    elif args.prepare:
-        prepare(DATASET_PATH, args.safety_strategy, args.feedback_tool)
+    elif args.prepare_dataset:
+        prepare_dataset(DATASET_PATH, args.safety_strategy, args.feedback_tool)
     else:
-        main(args.run_id, DATASET_PATH, args.predictions_path, args.safety_strategy,
+        run_evaluation(args.run_id, DATASET_PATH, args.predictions_path, args.safety_strategy,
             args.summary_path, args.max_workers, args.force)
 
 if __name__ == "__main__":
-    cli_main()
+    main()

@@ -9,9 +9,8 @@ from susvibes.env_specs import dockerfiles
 from susvibes.curate.prompts import INSTALL_TEST_PROMPT_TEMPLATE
 from susvibes.curate.agents.ports import EnvAgentPort
 from susvibes.curate.env_setup.create_env import create_env_threadpool
+from susvibes.utils import load_file, save_file
 from susvibes.curate.utils import (
-    load_file, 
-    save_file, 
     get_repo_dir,
     clone_github_repo, 
     apply_patch,

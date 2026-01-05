@@ -6,10 +6,8 @@ from susvibes.constants import *
 from susvibes.env_specs import AVAILABLE_DEV_TOOL_VERSIONS
 from susvibes.curate.prompts import DEV_TOOLS_PROMPT_TEMPLATE
 from susvibes.curate.agents.ports import EnvAgentPort
+from susvibes.utils import load_file, save_file, parse_instance_id
 from susvibes.curate.utils import (
-    load_file, 
-    save_file, 
-    parse_instance_id,
     get_repo_dir,
     clone_github_repo,
     reset_to_commit,

@@ -6,11 +6,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from susvibes.constants import *
 from susvibes.env import Env
 from susvibes.safety_strategies.tools import eval_selected_cwes, get_cwes_selection_stats
-from susvibes.curate.utils import (
-    RepoLocks, 
-    clone_github_repo, 
-    load_file, 
-    save_file, 
+from susvibes.utils import (
+    load_file,
+    save_file,
     touched_files,
     filter_patch,
     setup_logger
@@ -23,7 +21,6 @@ EVALUATION_RUNS = ["func", "sec"]
 
 class Task:
     project: str
-    repo_dir: Path
     base_commit: str
     cwe_ids: str
     language: str
@@ -33,14 +30,12 @@ class Task:
     env: Env
 
     def __init__(
-        self, 
+        self,
         logger: logging.Logger,
-        data_record: dict, 
-        repo_dir: Path, 
+        data_record: dict,
         env_spec: dict
     ):
         self.project = data_record['project']
-        self.repo_dir = repo_dir
         self.base_commit = data_record['base_commit']
         self.cwe_ids = data_record['cwe_ids']
         self.language = data_record['language']
@@ -50,7 +45,6 @@ class Task:
         self.env = Env(
             logger=logger,
             project=self.project,
-            repo_dir=self.repo_dir,
             image_name=data_record['image_name'],
             image_loc="remote",
             **env_spec,
@@ -64,12 +58,11 @@ class Task:
         logger: logging.Logger
     ):
         try:
-            with RepoLocks.locked(self.project):
-                deployment = self.env.build_instance_deployment(
-                    base_commit=self.base_commit, 
-                    patches={"pre_install": patches[:-1], "post_install": patches[-1:]},
-                    logger=logger
-                )
+            deployment = self.env.build_instance_deployment(
+                base_commit=self.base_commit,
+                patches={"pre_install": patches[:-1], "post_install": patches[-1:]},
+                logger=logger
+            )
         except Exception as e:
             return "", EvalStatus.MODEL_PATCH_ERROR.value
         deployment.create_container()
@@ -184,8 +177,7 @@ class TasksHandler:
         
         logger.info(f"Initializing task {instance_id}...")
         env_spec = self.env_specs[instance_id]
-        repo_dir = clone_github_repo(data_record["project"], root_dir=LOCAL_REPOS_DIR)
-        task = Task(logger, data_record, repo_dir, env_spec)
+        task = Task(logger, data_record, env_spec)
 
         logger.info(f"Evaluating task {instance_id}...")
         report = task.evaluate(prediction, log_dir, logger, force)

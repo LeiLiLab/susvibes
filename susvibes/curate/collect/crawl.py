@@ -6,15 +6,15 @@ from tqdm import tqdm
 from pathlib import Path
 from dotenv import load_dotenv
 
-from susvibes.curate.utils import load_file, save_file
+from susvibes.curate.constants import get_path
+from susvibes.utils import load_file, save_file
 
 load_dotenv()
 token = os.getenv("GITHUB_TOKEN")
 
 RECENT_YR_CUTOFF = 2014
 
-root_dir = Path(__file__).parent.parent.parent.parent
-RAW_MORE_FIXES_DIR = root_dir / 'datasets/cve_records/Morefixes'
+RAW_MOREFIXES_DIR = get_path('cve_records') / 'Morefixes'
 URL_DATASET_NAME = "dataset_url.jsonl"
 DATASET_NAME = "dataset.jsonl"
 
@@ -71,7 +71,7 @@ def fetch_github_commit_patch(owner: str, repo: str, sha: str,
     return None
 
 if __name__ == "__main__":
-    url_dataset = load_file(RAW_MORE_FIXES_DIR / URL_DATASET_NAME)
+    url_dataset = load_file(RAW_MOREFIXES_DIR / URL_DATASET_NAME)
     dataset = []
     for data_record in url_dataset:
         if int(data_record['cve_id'].split('-')[1]) >= RECENT_YR_CUTOFF and len(data_record['commits']) == 1:
@@ -83,4 +83,4 @@ if __name__ == "__main__":
                 repo=data_record["repo"],
                 sha=data_record["commits"][0]["commit_sha"],
             )
-    save_file(dataset, RAW_MORE_FIXES_DIR / DATASET_NAME)
+    save_file(dataset, RAW_MOREFIXES_DIR / DATASET_NAME)

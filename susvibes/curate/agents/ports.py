@@ -4,21 +4,10 @@ import getpass
 from typing import ClassVar
 from pathlib import Path
 
-from susvibes.curate.utils import load_file, save_file, run
+from susvibes.utils import load_file, save_file
+from susvibes.curate.utils import run
 
 AGENT_SETTINGS_PATH = Path(__file__).parent / "settings.yaml"
-# {
-#     "SWE-agent": {
-#         "name": "claude-sonnet-4-20250514",
-#         "per_instance_cost_limit": 5.0,
-#         "per_instance_call_limit": 100,
-#     },
-#     "Env-agent": {
-#         "name": "claude-sonnet-4-20250514",
-#         "per_instance_cost_limit": 5.0,
-#         "per_instance_call_limit": 150,
-#     }
-# }
 
 class SWEAgentPort:
     name: ClassVar[str] = "SWE-agent"
@@ -52,7 +41,7 @@ class SWEAgentPort:
         
     @classmethod
     def get_instances_path(cls):
-        return Path("../logs/curate/agent_runs/{}_instances.yaml".format(cls.run_name))
+        return Path("../logs/agent_runs/{}_instances.yaml".format(cls.run_name))
     
     @classmethod
     def add_task(

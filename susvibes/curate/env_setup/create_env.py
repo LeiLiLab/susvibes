@@ -12,16 +12,18 @@ from susvibes.env_specs import (
     TestStatus,
 )
 from susvibes.curate.env_setup.logs_parser import get_logs_parser
-from susvibes.curate.utils import (
-    RepoLocks,
+from susvibes.utils import (
     load_file, 
     save_file, 
-    reset_to_commit, 
-    apply_patch, 
-    get_repo_dir, 
-    parse_instance_id,
-    filter_patch,
+    filter_patch, 
     setup_logger,
+    parse_instance_id
+)
+from susvibes.curate.utils import (
+    RepoLocks,
+    reset_to_commit,
+    apply_patch,
+    get_repo_dir,
     get_on_hub_image_name
 )
 
@@ -115,12 +117,11 @@ def run_test_suite_multi(
                     test_status_dict[k] = v
         else:
             try:
-                with RepoLocks.locked(data_record["project"]):
-                    deployment: Deployment = env.build_instance_deployment(
-                        base_commit=data_record["base_commit"],
-                        patches={"pre_install": run_patches},
-                        logger=logger,
-                    )
+                deployment: Deployment = env.build_instance_deployment(
+                    base_commit=data_record["base_commit"],
+                    patches={"pre_install": run_patches},
+                    logger=logger,
+                )
             except docker.errors.BuildError as e:
                 msg = "Failed to build instance deployment."
                 logger.error(msg)
@@ -258,13 +259,12 @@ def create_env(
         return None
     expected_failures, test_stats = test_info
 
-    with RepoLocks.locked(project):
-        logger.info(f"Building evaluation image for {instance_id}...")
-        task_deployment = env.build_instance_deployment(
-            base_commit=data_record["base_commit"],
-            patches={"pre_install": (data_record["task_patch"],)},
-            logger=logger
-        )
+    logger.info(f"Building evaluation image for {instance_id}...")
+    task_deployment = env.build_instance_deployment(
+        base_commit=data_record["base_commit"],
+        patches={"pre_install": (data_record["task_patch"],)},
+        logger=logger
+    )
     eval_image_name = f"eval_{instance_id.lower()}"
     assert task_deployment.image.tag(eval_image_name)
     dockerhub_image_name = get_on_hub_image_name(
