@@ -1,0 +1,13 @@
+- env:
+    deployment:
+      type: docker
+      image: <image_name>
+      python_standalone_dir: /root
+    repo:
+      type: preexisting
+      base_commit: HEAD
+      repo_name: project
+  problem_statement:
+    type: text
+    text: <problem_statement>
+    id: <instance_id>

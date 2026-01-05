@@ -1,0 +1,22 @@
+# SWE-agent setting for curation tasks
+SWE-agent:
+  dir: ../../SWE-agent   # Path to the SWE-agent codebase
+  run_name: sweagent     # Default run name for the SWE-agent
+  model:
+    name: claude-sonnet-4-20250514
+    per_instance_cost_limit: 5.0
+    per_instance_call_limit: 100
+  agent_env: sweagent1.1.0   # Conda environment name for the SWE-agent
+  config_name: sweagent-curate   # Name of configuration file for the SWE-agent
+  num_workers: 12
+# Env-agent setting for creating isolated execution environment images
+Env-agent:
+  dir: ../../SWE-agent   # Path to the Env-agent codebase
+  run_name: envagent     # Default run name for the Env-agent
+  model: 
+    name: claude-sonnet-4-20250514
+    per_instance_cost_limit: 5.0
+    per_instance_call_limit: 100
+  agent_env: envagent1.1.0   # Conda environment name for the Env-agent
+  config_name: envagent-curate   # Name of configuration file for the Env-agent
+  num_workers: 6

@@ -1,25 +1,19 @@
+import random
 import argparse
-import json
 from pathlib import Path
 
-from susvibes.curate import mask, problem_gen, verifier
-from susvibes.curate.utils import load_file, save_file, len_patch, display_task
+from susvibes.curate.constants import get_path
+from susvibes.curate.adaptive_gen import mask, problem_gen, verifier
+from susvibes.utils import load_file, save_file
+from susvibes.curate.utils import len_patch, display_task
 
 LENGTH_RATIO_FUNC = [2, 5, 8, 10, 10, 15, 20, 50, 100]
 TASK_MAX_LENGTH = 1500
-
-root_dir = Path(__file__).parent.parent.parent
-
-PROCESSED_DATASET_PATH = root_dir / 'datasets/processed_dataset.jsonl'
-TASK_DATASET_PATH = root_dir / 'datasets/task_dataset.jsonl'
-STATS_PATH = root_dir / 'datasets/stats.json'
-DISPLAY_PATH = root_dir / 'datasets/task_examples'
 
 def adaptive_task_gen(
     processed_dataset_path: Path, 
     task_dataset_path: Path, 
     max_iters: int = None,
-    model: dict = None
 ):
     processed_dataset = load_file(processed_dataset_path)
     instance_ids = [data_record["instance_id"] for data_record in processed_dataset]
@@ -41,7 +35,6 @@ def adaptive_task_gen(
             length_ratio=LENGTH_RATIO_FUNC[iter_id],
             max_length=TASK_MAX_LENGTH,
             instance_ids=pending_instance_ids,
-            model=model
         )
         print(STAGE_PROGRESS_MSG.format(len(successful_instance_ids), len(pending_instance_ids)))
         failed_instances = [id for id in pending_instance_ids if id not in successful_instance_ids]
@@ -52,9 +45,8 @@ def adaptive_task_gen(
         
         # generate task description
         successful_instance_ids = problem_gen.pipeline(
-            task_dataset_path=TASK_DATASET_PATH,
+            task_dataset_path=task_dataset_path,
             instance_ids=pending_instance_ids,
-            model=model
         )
         print(STAGE_PROGRESS_MSG.format(len(successful_instance_ids), len(pending_instance_ids)))
         failed_instances += [id for id in pending_instance_ids if id not in successful_instance_ids]
@@ -67,7 +59,6 @@ def adaptive_task_gen(
         successful_instance_ids, verified_instance_ids = verifier.pipeline(
             task_dataset_path=task_dataset_path,
             instance_ids=pending_instance_ids,
-            model=model
         )
         print(STAGE_PROGRESS_MSG.format(len(successful_instance_ids), len(pending_instance_ids)))
         failed_instances += [id for id in pending_instance_ids if id not in successful_instance_ids]
@@ -105,47 +96,42 @@ def get_task_stats(task_dataset_path: Path, stats_path: Path):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--debug', 
-        action='store_true', 
-        help='Use debug dataset paths'
-    )
-    parser.add_argument(
         '--max_iters', 
         type=int, 
         default=None, 
         help='Maximum number of iterations'
     )
     parser.add_argument(
-        '--display_tasks', 
-        action='store_true', 
-        help='Display all tasks created'
+        '--preview',
+        type=int,
+        default=0,
+        help='Number of tasks to preview after generation'
     )
     parser.add_argument(
-        '--model', 
-        type=json.loads, 
+        '--subset', 
+        type=str, 
         default=None, 
-        help='Model configuration as JSON dictionary'
+        help='Subset name for output subdirectory (datasets/<subset>/...)'
     )
     args = parser.parse_args()
-
-    if args.debug:
-        PROCESSED_DATASET_PATH = PROCESSED_DATASET_PATH.with_stem(PROCESSED_DATASET_PATH.stem + '_debug')
-        TASK_DATASET_PATH = TASK_DATASET_PATH.with_stem(TASK_DATASET_PATH.stem + '_debug')
-        STATS_PATH = STATS_PATH.with_stem(STATS_PATH.stem + '_debug')
-        DISPLAY_PATH = Path(str(DISPLAY_PATH) + '_debug')
+    
+    processed_dataset_path = get_path('processed_dataset', args.subset)
+    task_dataset_path = get_path('task_dataset', args.subset)
+    stats_path = get_path('stats', args.subset)
+    examples_path = get_path('examples', args.subset)
 
     adaptive_task_gen(
-        processed_dataset_path=PROCESSED_DATASET_PATH,
-        task_dataset_path=TASK_DATASET_PATH,
+        processed_dataset_path=processed_dataset_path,
+        task_dataset_path=task_dataset_path,
         max_iters=args.max_iters,
-        model=args.model
     )
     get_task_stats(
-        task_dataset_path=TASK_DATASET_PATH,
-        stats_path=STATS_PATH
+        task_dataset_path=task_dataset_path,
+        stats_path=stats_path
     )
 
-    if args.display_tasks:
-        task_dataset = load_file(TASK_DATASET_PATH)
-        for task in task_dataset:
-            display_task(task, DISPLAY_PATH)
+    if args.preview > 0:
+        task_dataset = load_file(task_dataset_path)
+        samples = random.sample(task_dataset, min(args.preview, len(task_dataset)))
+        for data_record in samples:
+            display_task(data_record, examples_path)

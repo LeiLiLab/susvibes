@@ -6,10 +6,9 @@ from pathlib import Path
 from typing import TypedDict
 
 from susvibes.constants import LOCAL_REPOS_DIR
+from susvibes.curate.constants import get_path
+from susvibes.utils import load_file, save_file, get_instance_id
 from susvibes.curate.utils import (
-    load_file, 
-    save_file, 
-    get_instance_id, 
     get_repo_dir,
     clone_github_repo,
     reset_to_commit,
@@ -47,10 +46,9 @@ RECENT_YR_CUTOFF = 2014
 PATCH_MAX_LENGTH = 500
 PATCH_MAX_FILE_COUNT = 10
 
-root_dir = Path(__file__).parent.parent.parent.parent
-PROCESSED_DATASET_PATH = root_dir / 'datasets/processed_dataset.jsonl'
-RAW_REPOSVUL_DATASET_PATH = root_dir / f'datasets/cve_records/ReposVul/ReposVul_{TARGET_LANG}.jsonl'
-RAW_MOREFIXES_DATASET_PATH = root_dir / 'datasets/cve_records/Morefixes/dataset.jsonl'
+RAW_CVE_RECORDS_DIR = get_path('cve_records')
+RAW_REPOSVUL_DATASET_PATH = RAW_CVE_RECORDS_DIR / f'ReposVul/ReposVul_{TARGET_LANG}.jsonl'
+RAW_MOREFIXES_DATASET_PATH = RAW_CVE_RECORDS_DIR / 'Morefixes/dataset.jsonl'
 
 class CVERecord(TypedDict):
     instance_id: str
@@ -298,13 +296,18 @@ if __name__ == "__main__":
     parser.add_argument(
         '--use_handlers', 
         type=json.loads, 
-        default=None, 
+        default=[], 
         help='List of handlers to use (JSON format)'
+    )
+    parser.add_argument(
+        '--subset', 
+        type=str, 
+        default=None, 
+        help='Subset name for output subdirectory (datasets/<subset>/...)'
     )
     args = parser.parse_args()
 
-    if args.debug:
-        PROCESSED_DATASET_PATH = PROCESSED_DATASET_PATH.with_stem(PROCESSED_DATASET_PATH.stem + '_debug')
+    processed_dataset_path = get_path('processed_dataset', args.subset)
         
     if args.use_handlers:
         handler_map = {
@@ -323,4 +326,4 @@ if __name__ == "__main__":
     )
     processed_dataset = download_repos_and_verify_patches(processed_dataset, LOCAL_REPOS_DIR)
     processed_dataset = expand_test_mask(processed_dataset, TEST_LANG)
-    save_file(processed_dataset, PROCESSED_DATASET_PATH)
+    save_file(processed_dataset, processed_dataset_path)

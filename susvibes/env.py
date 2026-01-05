@@ -13,7 +13,7 @@ from docker.models.containers import Container
 from docker.models.images import Image
 
 from susvibes.env_specs import *
-from susvibes.curate.utils import get_instance_id, save_file
+from susvibes.utils import get_instance_id, save_file
 
 docker_client = docker.from_env()
 
@@ -230,17 +230,15 @@ class Deployment():
     
 class Env:
     project: str
-    repo_dir: Path
     deployment: Deployment
     dockerfile: str
     dockerignore: str
     logs_parser: dict[str, str]
 
     def __init__(
-        self, 
+        self,
         logger: logging.Logger,
-        project: str, 
-        repo_dir: Path, 
+        project: str,
         image_name: str,
         dockerfile: str,
         dockerignore: str,
@@ -250,7 +248,6 @@ class Env:
         remove_container: bool = True
     ):
         self.project = project
-        self.repo_dir = repo_dir
         self.dockerfile = dockerfile
         self.dockerignore = dockerignore
         self.logs_parser = logs_parser
