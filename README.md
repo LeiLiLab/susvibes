@@ -1,6 +1,6 @@
 <div align="center">
 
-# SusVibes: Benchmarking Vulnerability of Agent-Generated Code in Real-World Tasks
+# SusVibes: Benchmarking Vulnerability of Agent-Generated Code in Real-World Software Engineering Tasks
 
 <p>
 <a href="https://arxiv.org/pdf/2512.03262"><b>📃 Paper</b></a>
@@ -205,7 +205,7 @@ This project is licensed under the terms specified in the LICENSE file.
 
 For questions, issues, or collaboration opportunities, please:
 - Open an issue on GitHub
-- Contact the maintainers at songwenz@andrew.cmu.edu
+- Contact the maintainers at sz3296@columbia.edu or danqingw@cs.cmu.edu
 
 ## 🙏 Acknowledgments
 
