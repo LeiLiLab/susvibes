@@ -1,6 +1,6 @@
 # SWE-agent setting for curation tasks
 SWE-agent:
-  dir: ../../SWE-agent   # Path to the SWE-agent codebase
+  dir: ../SWE-agent   # Path to the SWE-agent codebase
   run_name: sweagent     # Default run name for the SWE-agent
   model:
     name: claude-sonnet-4-20250514
@@ -11,7 +11,7 @@ SWE-agent:
   num_workers: 12
 # Env-agent setting for creating isolated execution environment images
 Env-agent:
-  dir: ../../SWE-agent   # Path to the Env-agent codebase
+  dir: ../SWE-agent   # Path to the Env-agent codebase
   run_name: envagent     # Default run name for the Env-agent
   model: 
     name: claude-sonnet-4-20250514

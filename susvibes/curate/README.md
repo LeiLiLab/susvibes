@@ -30,7 +30,7 @@ With that, you're ready to run:
 
 ```bash
 python -m susvibes.curate.adaptive_gen.pipeline \
-  --max_iters <num_adaptive_iterations> \ 
+  --max_iters <num_adaptive_iterations> \
   --preview 2 \
   --subset playground 
 ```

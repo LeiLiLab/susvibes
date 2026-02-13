@@ -326,4 +326,5 @@ if __name__ == "__main__":
     )
     processed_dataset = download_repos_and_verify_patches(processed_dataset, LOCAL_REPOS_DIR)
     processed_dataset = expand_test_mask(processed_dataset, TEST_LANG)
+    processed_dataset_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(processed_dataset, processed_dataset_path)
