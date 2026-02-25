@@ -1,8 +1,9 @@
 
 from pathlib import Path
 
-ROOT_DIR = Path(__file__).parent.parent.parent
-DATASETS_DIR = ROOT_DIR / 'datasets'
+root_dir = Path(__file__).parent.parent.parent
+DATASETS_DIR = root_dir / 'datasets'
+LOCAL_REPOS_DIR = root_dir / 'projects'
 
 def get_path(name: str, subset: str = None) -> Path:
     base = DATASETS_DIR / subset if subset else DATASETS_DIR

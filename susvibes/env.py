@@ -12,6 +12,7 @@ import docker.errors
 from docker.models.containers import Container
 from docker.models.images import Image
 
+from susvibes.constants import CONTAINER_RUN_TIMEOUT
 from susvibes.env_specs import *
 from susvibes.utils import get_instance_id, save_file
 
@@ -206,7 +207,7 @@ class Deployment():
         elif self.remove_container:
             self._remove_container()
 
-    def run_with_timeout(self, timeout: int = 1800):
+    def run_with_timeout(self, timeout: int = CONTAINER_RUN_TIMEOUT) -> tuple[str, bool]:
         self.start()
         run_logs, timed_out = b"", False
         def run():

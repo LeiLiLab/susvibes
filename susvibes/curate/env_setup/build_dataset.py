@@ -1,28 +1,26 @@
 import argparse
+import json
 from tqdm import tqdm
 from pathlib import Path
 from jinja2 import Template
 from typing import TypedDict
 
 from susvibes.constants import *
+from susvibes.curate.constants import LOCAL_REPOS_DIR
 from susvibes.env_specs import dockerfiles
+from susvibes.curate.constants import get_path
 from susvibes.curate.prompts import INSTALL_TEST_PROMPT_TEMPLATE
 from susvibes.curate.agents.ports import EnvAgentPort
 from susvibes.curate.env_setup.create_env import create_env_threadpool
 from susvibes.utils import load_file, save_file
 from susvibes.curate.utils import (
     get_repo_dir,
-    clone_github_repo, 
+    clone_github_repo,
     apply_patch,
     commit_changes,
-    reset_to_commit, 
+    reset_to_commit,
     get_diff_patch
 )
-
-root_dir = Path(__file__).parent.parent.parent.parent
-TASK_DATASET_PATH = root_dir / 'datasets/task_dataset.jsonl'
-STATS_PATH = root_dir / 'datasets/stats.json'
-DATASET_PATH = root_dir / 'datasets/susvibes_dataset_debug.jsonl'
 
 class SusVibesRecord(TypedDict):
     instance_id: str
@@ -93,17 +91,20 @@ def make_susvibes_record(data_record: dict) -> SusVibesRecord:
     return data_record
 
 def epilogue(
-    agent_output_dir: Path, 
     task_dataset_path: Path,
     dataset_path: Path,
     stats_path: Path,
     max_workers: int,
-    force: bool = False
+    agent_output_dir: Path = None,
+    force: bool = False,
+    save_specs: bool = True,
+    instance_ids: list = None,
 ):
-    predictions = EnvAgentPort.after_completion(agent_output_dir)
+    predictions = EnvAgentPort.after_completion(agent_output_dir) if agent_output_dir else None
     task_dataset = load_file(task_dataset_path)
-    stats = load_file(stats_path)
-    dataset_env = create_env_threadpool(predictions, task_dataset, stats, max_workers, force)
+    stats = load_file(stats_path) if stats_path.exists() else {}
+    dataset_env = create_env_threadpool(task_dataset, stats, max_workers, predictions, force,
+                                        save_specs=save_specs, instance_ids=instance_ids)
     dataset = [make_susvibes_record(data_record)
         for data_record in tqdm(dataset_env, desc="Wrapping up")]
     
@@ -131,6 +132,11 @@ if __name__ == "__main__":
         help="Directory where the agent output is stored.",
     )
     parser.add_argument(
+        "--from_existing_specs",
+        action="store_true",
+        help="Use existing env specs instead of agent output.",
+    )
+    parser.add_argument(
         "--max_workers",
         type=int,
         default=5,
@@ -141,11 +147,35 @@ if __name__ == "__main__":
         action="store_true",
         help="Force re-run the environment creation.",
     )
+    parser.add_argument(
+        "--skip_specs",
+        action="store_true",
+        help="Skip saving environment specs to file.",
+    )
+    parser.add_argument(
+        "--instance_ids",
+        type=json.loads, 
+        default=None,
+        help="Only run for the given instance IDs.",
+    )
+    parser.add_argument(
+        "--subset",
+        type=str,
+        default=None,
+        help="Subset name for output subdirectory (datasets/<subset>/...)",
+    )
     args = parser.parse_args()
+
+    task_dataset_path = get_path('task_dataset', args.subset)
+    dataset_path = get_path('dataset', args.subset)
+    stats_path = get_path('stats', args.subset)
+
     if args.prologue:
-        prologue(TASK_DATASET_PATH)
+        prologue(task_dataset_path)
     elif args.epilogue:
-        epilogue(args.agent_output_dir, TASK_DATASET_PATH,
-            DATASET_PATH, STATS_PATH, args.max_workers, args.force)
+        agent_output_dir = None if args.from_existing_specs else args.agent_output_dir
+        epilogue(task_dataset_path, dataset_path, stats_path,
+                 args.max_workers, agent_output_dir, args.force,
+                 save_specs=not args.skip_specs, instance_ids=args.instance_ids)
     else:
         print("Please specify either --prologue or --epilogue.")

@@ -82,5 +82,11 @@ BANNED_REINSTALL_FOR_INSTANCE = {
     ],
     "gitpython-developers/gitpython": [
         "ca965ec"
+    ],
+    "sqlalchemy/mako": [
+        "9257602"
+    ],
+    "celery/celery": [
+        "1f7ad7e"
     ]
 }

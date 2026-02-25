@@ -4,14 +4,13 @@ from pathlib import Path
 root_dir = Path(__file__).parent.parent
 current_dir = Path(__file__).parent
 
-DATASETS_DIR = root_dir / "datasets"
-LOCAL_REPOS_DIR = root_dir / "projects"
-
 DEV_TOOLS_PATH = current_dir / "env_specs/dev_tools.json"
 ENV_SPECS_PATH = current_dir / "env_specs/components.json"
 
 ENV_SETUP_LOG_DIR = root_dir / "logs/curate/env_setup"
 EVALUATION_LOG_DIR = root_dir / "logs/run_evaluation"
+
+CONTAINER_RUN_TIMEOUT = 1800
 
 class SafetyStrategies(Enum):
     GENERIC = "generic"

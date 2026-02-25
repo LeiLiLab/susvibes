@@ -6,6 +6,7 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from susvibes.constants import *
+from susvibes.curate.constants import LOCAL_REPOS_DIR
 from susvibes.env import Deployment, Env
 from susvibes.env_specs import (
     GIT_UNIGNORE_PATTERNS,
@@ -59,11 +60,11 @@ def extract_dockerfile(prediction, logger):
         return RuntimeError(msg)
     return dockerfile, dockerignore
 
-def handle_env_image(prediction, dockerfile, dockerignore, logger):
-    """Handle the environment image."""
-    project, base_commit = parse_instance_id(prediction["instance_id"])
+def build_env_deployment(instance_id, dockerfile, dockerignore, logger):
+    """Build a environment Docker image."""
+    project, base_commit = parse_instance_id(instance_id)
     repo_dir = get_repo_dir(project, root_dir=LOCAL_REPOS_DIR)
-    env_image_name = f"env_{prediction['instance_id'].lower()}"
+    env_image_name = f"env_{instance_id.lower()}"
     try:
         reset_to_commit(repo_dir, base_commit)
         env_deployment = Deployment.from_build(
@@ -77,7 +78,7 @@ def handle_env_image(prediction, dockerfile, dockerignore, logger):
         msg = "Failed to get environment deployment."
         logger.error(msg)
         raise RuntimeError(msg)
-    return env_image_name         
+    return env_deployment         
 
 def run_test_suite_multi(
     env: Env, 
@@ -213,15 +214,15 @@ def verify_test_breaks(
     return True, (expected_failures, stats)
 
 def create_env(
-    prediction: dict, 
-    data_record: dict, 
-    instance_stats: dict, 
-    force: bool = False
+    data_record: dict,
+    instance_stats: dict,
+    prediction: dict = None,
+    env_spec: dict = None,
+    force: bool = False,
 ) -> dict | None:
     """Create environment components and conduct tests verification."""
-    instance_id = prediction["instance_id"]
+    instance_id = data_record["instance_id"]
     project, _ = parse_instance_id(instance_id)
-    repo_dir = get_repo_dir(project, root_dir=LOCAL_REPOS_DIR)
 
     log_dir = ENV_SETUP_LOG_DIR / instance_id
     log_file = log_dir / LOG_INSTANCE
@@ -229,21 +230,30 @@ def create_env(
     logger.info(f"Creating environment for {instance_id}...")
     
     try:
-        with RepoLocks.locked(project):
-            dockerfile, dockerignore = extract_dockerfile(prediction, logger)
-            env_image_name = handle_env_image(prediction, dockerfile, dockerignore, logger)
+        if prediction: 
+            with RepoLocks.locked(project):
+                dockerfile, dockerignore = extract_dockerfile(prediction, logger)
+                env_deployment = build_env_deployment(instance_id, dockerfile, dockerignore, logger)
+        elif env_spec:
+            dockerfile = env_spec["dockerfile"]
+            dockerignore = env_spec["dockerignore"]
+            with RepoLocks.locked(project):
+                env_deployment = build_env_deployment(instance_id, dockerfile, dockerignore, logger)
+        else:
+            msg = "No environment prediction or specification provided."
+            logger.error(msg)
+            raise RuntimeError(msg)
     except RuntimeError as e:
         return None
     
-    env_spec = {}
-    env_spec["dockerfile"] = dockerfile
-    env_spec["dockerignore"] = dockerignore
+    new_env_spec = {}
+    new_env_spec["dockerfile"] = dockerfile
+    new_env_spec["dockerignore"] = dockerignore
     env = Env(
         logger=logger,
         project=project,
-        repo_dir=repo_dir,
-        image_name=env_image_name,
-        **env_spec
+        image_name=env_deployment.image.tags[0],
+        **new_env_spec
     )
     try:
         run_result = run_test_suite_multi(env, data_record, log_dir, logger, force)
@@ -259,12 +269,13 @@ def create_env(
         return None
     expected_failures, test_stats = test_info
 
-    logger.info(f"Building evaluation image for {instance_id}...")
-    task_deployment = env.build_instance_deployment(
-        base_commit=data_record["base_commit"],
-        patches={"pre_install": (data_record["task_patch"],)},
-        logger=logger
-    )
+    with RepoLocks.locked(project):
+        logger.info(f"Building evaluation image for {instance_id}...")
+        task_deployment = env.build_instance_deployment(
+            base_commit=data_record["base_commit"],
+            patches={"pre_install": (data_record["task_patch"],)},
+            logger=logger
+        )
     eval_image_name = f"eval_{instance_id.lower()}"
     assert task_deployment.image.tag(eval_image_name)
     dockerhub_image_name = get_on_hub_image_name(
@@ -272,42 +283,54 @@ def create_env(
     )
     assert task_deployment.image.tag(dockerhub_image_name)
 
-    env_spec["logs_parser"] = env.logs_parser
+    new_env_spec["logs_parser"] = env.logs_parser
     data_record["expected_failures"] = expected_failures
     data_record["image_name"] = dockerhub_image_name
     instance_stats.update(test_stats)
-    return env_spec
+    return new_env_spec
 
 def create_env_threadpool(
-    predictions: list,
     task_dataset: list,
     stats: dict,
     max_workers: int,
+    predictions: list = None,
     force: bool = False,
+    save_specs: bool = True,
+    instance_ids: list = None,
 ):
-    pred_by_id = {pred["instance_id"]: pred for pred in predictions}
-    task_dataset_by_id = {data_record["instance_id"]: data_record 
+    pred_by_id = {pred["instance_id"]: pred for pred in predictions} if predictions else {}
+    task_dataset_by_id = {data_record["instance_id"]: data_record
         for data_record in task_dataset}
     env_specs = load_file(ENV_SPECS_PATH) if ENV_SPECS_PATH.exists() else {}
-    
+    candidate_ids = pred_by_id if pred_by_id else env_specs
+    candidate_ids = candidate_ids.keys() & task_dataset_by_id.keys()
+    if instance_ids is not None:
+        candidate_ids = candidate_ids & set(instance_ids)
+
     dataset = []
     succeeded, failed = [], []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(create_env, pred_by_id[instance_id], 
-                task_dataset_by_id[instance_id], stats[instance_id], force): instance_id
-            for instance_id in pred_by_id if instance_id in task_dataset_by_id
+            executor.submit(
+                create_env,
+                task_dataset_by_id[instance_id],
+                stats.get(instance_id, {}),
+                prediction=pred_by_id.get(instance_id),
+                env_spec=env_specs.get(instance_id),
+                force=force
+            ): instance_id
+            for instance_id in candidate_ids
         }
         with tqdm(total=len(futures), dynamic_ncols=True, 
             desc=f"Building components [{max_workers} threads]") as pbar:
             for future in as_completed(futures):
                 instance_id = futures[future]
                 try:
-                    env_spec = future.result()
+                    new_env_spec = future.result()
                 except Exception as e:
                     raise RuntimeError(f"Internal error for {instance_id}: {e}")
-                if env_spec:
-                    env_specs[instance_id] = env_spec
+                if new_env_spec:
+                    env_specs[instance_id] = new_env_spec
                     dataset.append(task_dataset_by_id[instance_id])
                     succeeded.append(instance_id)
                 else:
@@ -316,8 +339,10 @@ def create_env_threadpool(
                 pbar.set_description(
                     f"{len(succeeded)} ran successfully, {len(failed)} failed"
                 )
-                save_file(env_specs, ENV_SPECS_PATH)
-    if failed:              
-        print("failed: \n" + "\n".join(failed))           
-    print(f"Environments saved to {ENV_SPECS_PATH}.")   
+                if save_specs:
+                    save_file(env_specs, ENV_SPECS_PATH)
+    if failed:
+        print("failed: \n" + "\n".join(failed))
+    if save_specs:
+        print(f"Environments saved to {ENV_SPECS_PATH}.")   
     return dataset

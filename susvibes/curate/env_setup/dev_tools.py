@@ -3,6 +3,7 @@ import re
 from pathlib import Path
 
 from susvibes.constants import *
+from susvibes.curate.constants import LOCAL_REPOS_DIR
 from susvibes.env_specs import AVAILABLE_DEV_TOOL_VERSIONS
 from susvibes.curate.prompts import DEV_TOOLS_PROMPT_TEMPLATE
 from susvibes.curate.agents.ports import EnvAgentPort
