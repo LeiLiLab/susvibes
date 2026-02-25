@@ -194,7 +194,11 @@ class TasksHandler:
         max_workers: int,
         force: bool = False
     ):
-        pred_by_id = {pred[PredictionKeys.INSTANCE_ID.value]: pred for pred in predictions}
+        pred_by_id = {
+            pred[PredictionKeys.INSTANCE_ID.value]: pred
+            for pred in predictions
+            if pred[PredictionKeys.PREDICTION.value]
+        }
         dataset_by_id = {data_record["instance_id"]: data_record for data_record in self.dataset}
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
