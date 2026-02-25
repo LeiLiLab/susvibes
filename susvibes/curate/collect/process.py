@@ -5,7 +5,7 @@ from tqdm import tqdm
 from pathlib import Path
 from typing import TypedDict
 
-from susvibes.constants import LOCAL_REPOS_DIR
+from susvibes.curate.constants import LOCAL_REPOS_DIR
 from susvibes.curate.constants import get_path
 from susvibes.utils import load_file, save_file, get_instance_id
 from susvibes.curate.utils import (
