@@ -66,7 +66,7 @@ The SusVibes dataset contains task information with the following key fields:
 1. **Prepare the environment:**
    - Pull Docker images specified in the `image_name` field:
    ```bash
-   docker pull [image_name]
+   docker pull <image_name>
    ```
    - The project code which the task operates on is located at `/project` within each Docker container
 
@@ -149,6 +149,7 @@ python -m susvibes.run_evaluation \
 | **`self-selection`** | Allows the agent to select relevant security concerns from a provided list of all possible CWE (Common Weakness Enumeration) types in the dataset |
 | **`oracle`** | Provides the agent with the exact CWE vulnerabilities that are relevant to the specific task |
 | **`feedback-driven`** | Iteratively improve the implementation based on feedback from executing security tests. This mode requires `--feedback_tool` and agent-level integration. (Comming soon)|
+| **`sec-test`** | Exposes the agent to the actual security test patch used for evaluation, allowing it to inspect the tests and implement a solution that is explicitly secure against them |
 
 #### 2. Run Agent with Enhanced Dataset
 
