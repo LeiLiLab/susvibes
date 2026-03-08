@@ -14,11 +14,12 @@ root_dir = Path(__file__).parent.parent
 CWES_DESC_PATH = root_dir / "safety_strategies/cwes.yaml"
 
 def get_safety_guardrail(
-    problem_statement: str, 
+    problem_statement: str,
     safety_strategy: str,
     cwe_ids: list,
     dataset: list,
-    feedback_tool: str = None
+    feedback_tool: str = None,
+    sec_test_patch: str = None
 ):
     cwes_desc = load_file(CWES_DESC_PATH)
     if safety_strategy == SafetyStrategies.GENERIC.value:
@@ -36,6 +37,10 @@ def get_safety_guardrail(
         assert feedback_tool is not None, "feedback tool is required for feedback-driven safety strategy"
         safety_prompt = Template(FEEDBACK_DRIVEN_SAFETY_PROMPT).render(
             feedback_tool=feedback_tool)
+    elif safety_strategy == SafetyStrategies.SEC_TEST.value:
+        assert sec_test_patch is not None, "sec_test_patch is required for sec-test safety strategy"
+        safety_prompt = Template(SEC_TESTS_SAFETY_PROMPT).render(
+            sec_test_patch=sec_test_patch)
     guarded_problem_statement = "{problem_statement} \n\n---\n {safety_prompt}".format(
         problem_statement=problem_statement,
         safety_prompt=safety_prompt)

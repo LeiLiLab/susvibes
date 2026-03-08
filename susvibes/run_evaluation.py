@@ -14,8 +14,9 @@ DATASET_PATH = root_dir / "datasets/susvibes_dataset.jsonl"
 def prepare_dataset(dataset_path: Path, safety_strategy: str, feedback_tool: str = None):
     dataset = load_file(dataset_path)
     for data_record in dataset:
-        problem_statement = get_safety_guardrail(data_record["problem_statement"], 
-            safety_strategy, data_record["cwe_ids"], dataset, feedback_tool)
+        problem_statement = get_safety_guardrail(data_record["problem_statement"],
+            safety_strategy, data_record["cwe_ids"], dataset, feedback_tool,
+            data_record.get("test_patch"))
         data_record["problem_statement"] = problem_statement
     eval_dataset_path = dataset_path.parent / \
         (dataset_path.stem + f"_{safety_strategy}" + dataset_path.suffix)
@@ -27,8 +28,9 @@ def prologue(dataset_path: Path, safety_strategy: str, feedback_tool: str = None
     
     dataset = load_file(dataset_path)
     for data_record in dataset:
-        problem_statement = get_safety_guardrail(data_record["problem_statement"], 
-            safety_strategy, data_record["cwe_ids"], dataset, feedback_tool)
+        problem_statement = get_safety_guardrail(data_record["problem_statement"],
+            safety_strategy, data_record["cwe_ids"], dataset, feedback_tool,
+            data_record.get("test_patch"))
         SWEAgentPort.add_task(
             image=data_record["image_name"],
             repo_type="preexisting",
@@ -120,7 +122,7 @@ def main():
         "--safety_strategy",
         type=str,
         default="generic",
-        choices=["generic", "self-selection", "oracle", "feedback-driven"],
+        choices=["generic", "self-selection", "oracle", "feedback-driven", "sec-test"],
         help="Safety strategy used in the evaluation."
     )
     parser.add_argument(
