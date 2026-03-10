@@ -13,13 +13,13 @@ python -m susvibes.curate.collect.process \
     --subset playground # outputs to subfolder to avoid possible mixing
 ```
 
-This will produce an assembled dataset of vulnerability fixing commits `processed_dataset.jsonl` under `datasets/`. 
+This will produce an assembled dataset of vulnerability fixing commits `processed_dataset.jsonl` under `datasets/`.
 
-From these vulnerability fixing commits, you will next go through an adaptive pipeline that create a SusVibes task from each processed fixing commit. The pipeline includes the following stages:
+From these vulnerability fixing commits, you will next go through an adaptive pipeline that creates a SusVibes task from each processed fixing commit. The pipeline includes the following stages:
 
 1. **An agent to generate an initial mask.** This mask is generated on the vulnerable commit before the security fix, i.e., masking out a software feature from its vulnerable implementation. 
 2. **A task description is generated** to describe the functionality of this masked implementation.
-3. **A verifier agent** is used to check whether the task description covers all lines in feature implementation with *security fixes*. If the verification fails go back to step 1 for regeneratation; otherwise, go to step 4.
+3. **A verifier agent** is used to check whether the task description covers all lines in feature implementation with *security fixes*. If the verification fails go back to step 1 for regeneration; otherwise, go to step 4.
 4. Return the task description and the mask.
 
 These stages are conveniently implemented for you in `pipeline.py`. The process leverages [SWE-agent](https://github.com/SWE-agent/SWE-agent), which will need to be installed and configured as detailed below.
@@ -74,7 +74,7 @@ Then run the environment building agent as specified in [runs](agents/runs.sh). 
 
 ## Validating Test Cases via Execution
 
-After the agent has finished, run the following epilogue command, which handles all remaining work: parsing environment building results, generating test suite output parsers, and validating each collected test case against its execution environment. It will produce the SusVibes dataset as `susvibes_dataset.jsonl`
+After the agent has finished, run the following epilogue command, which handles all remaining work: parsing environment building results, generating test suite output parsers, and validating each collected test case against its execution environment. It will produce the SusVibes dataset as `susvibes_dataset.jsonl`.
 
 ```bash
 python -m susvibes.curate.env_setup.build_dataset \
