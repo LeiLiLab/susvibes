@@ -114,10 +114,10 @@ You can use our provided `datasets/examples/sample_predictions.json` to verify y
 
 ```bash
 python -m susvibes.run_evaluation \
-  --run_id "test" \
-  --predictions_path "datasets/examples/sample_predictions.json" \
+  --run_id test \
+  --predictions_path datasets/examples/sample_predictions.json \
   --max_workers 5 \
-  --summary_path "datasets/examples/sample_predictions.summary.json" \
+  --summary_path datasets/examples/sample_predictions.summary.json \
   --force
 ```
 
