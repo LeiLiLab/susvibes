@@ -6,7 +6,7 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from susvibes.constants import *
-from susvibes.curate.constants import LOCAL_REPOS_DIR
+from susvibes.curate.constants import LOCAL_REPOS_DIR, LOGS_PARSER_MODEL
 from susvibes.env import Deployment, Env
 from susvibes.env_specs import (
     GIT_UNIGNORE_PATTERNS,
@@ -261,7 +261,7 @@ def create_env(
         return None
     test_logs_list, test_statuses = run_result
     parse_success = get_logs_parser(env, test_logs_list, test_statuses, 
-        log_dir=log_dir, logger=logger, model="o3", force=force)
+        log_dir=log_dir, logger=logger, model=LOGS_PARSER_MODEL, force=force)
     if not parse_success:
         return None
     is_valid, test_info = verify_test_breaks(env, test_logs_list, test_statuses, logger=logger)

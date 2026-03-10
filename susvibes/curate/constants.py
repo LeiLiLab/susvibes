@@ -5,6 +5,8 @@ root_dir = Path(__file__).parent.parent.parent
 DATASETS_DIR = root_dir / 'datasets'
 LOCAL_REPOS_DIR = root_dir / 'projects'
 
+LOGS_PARSER_MODEL = "o3"
+
 def get_path(name: str, subset: str = None) -> Path:
     base = DATASETS_DIR / subset if subset else DATASETS_DIR
     paths = {

@@ -3,7 +3,7 @@ import re
 from pathlib import Path
 
 from susvibes.constants import *
-from susvibes.curate.constants import LOCAL_REPOS_DIR
+from susvibes.curate.constants import LOCAL_REPOS_DIR, get_path
 from susvibes.env_specs import AVAILABLE_DEV_TOOL_VERSIONS
 from susvibes.curate.prompts import DEV_TOOLS_PROMPT_TEMPLATE
 from susvibes.curate.agents.ports import EnvAgentPort
@@ -16,7 +16,6 @@ from susvibes.curate.utils import (
 )
 
 root_dir = Path(__file__).parent.parent.parent.parent
-TASK_DATASET_PATH = Path("../datasets/task_dataset.jsonl")
 
 def prologue(task_dataset_path: Path):
     EnvAgentPort.init(run_name=__spec__.name)
@@ -66,6 +65,12 @@ def epilogue(agent_output_dir: Path):
 
     save_file(dev_tools, DEV_TOOLS_PATH)
 
+def pipeline(task_dataset_path: Path):
+    print("Dev tools pipeline started.")
+    prologue(task_dataset_path)
+    agent_output_dir = EnvAgentPort.run_batch()
+    epilogue(agent_output_dir)
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run prologue or epilogue for determining environment dev tools.")
     parser.add_argument(
@@ -83,10 +88,17 @@ if __name__ == "__main__":
         type=Path,
         help="Directory where the agent output is stored.",
     )
+    parser.add_argument(
+        "--subset",
+        type=str,
+        default=None,
+    )
     args = parser.parse_args()
     if args.prologue:
-        prologue(TASK_DATASET_PATH)
+        task_dataset_path = get_path('task_dataset', args.subset)
+        prologue(task_dataset_path)
     elif args.epilogue:
         epilogue(args.agent_output_dir)
     else:
-        print("Please specify either --prologue or --epilogue.")
+        task_dataset_path = get_path('task_dataset', args.subset)
+        pipeline(task_dataset_path)
