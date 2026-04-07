@@ -122,7 +122,7 @@ def main():
         "--safety_strategy",
         type=str,
         default="generic",
-        choices=["generic", "self-selection", "oracle", "feedback-driven", "sec-test"],
+        choices=["generic", "self-selection", "oracle", "hidden-oracle", "feedback-driven", "sec-test", "hidden-sec-test"],
         help="Safety strategy used in the evaluation."
     )
     parser.add_argument(

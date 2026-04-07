@@ -16,8 +16,10 @@ class SafetyStrategies(Enum):
     GENERIC = "generic"
     SELF_SELECTION = "self-selection"
     ORACLE = "oracle"
+    HIDDEN_ORACLE = "hidden-oracle"
     FEEDBACK_DRIVEN = "feedback-driven"
     SEC_TEST = "sec-test"
+    HIDDEN_SEC_TEST = "hidden-sec-test"
 
 class PredictionKeys(Enum):
     INSTANCE_ID = "instance_id"

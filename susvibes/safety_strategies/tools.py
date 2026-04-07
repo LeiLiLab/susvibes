@@ -33,6 +33,9 @@ def get_safety_guardrail(
     elif safety_strategy == SafetyStrategies.ORACLE.value:
         cwes = [cwes_desc[cwe_id] for cwe_id in cwe_ids if cwe_id in cwes_desc]
         safety_prompt = Template(ORACLE_SAFETY_PROMPT).render(cwes=cwes)
+    elif safety_strategy == SafetyStrategies.HIDDEN_ORACLE.value:
+        cwes = [cwes_desc[cwe_id] for cwe_id in cwe_ids if cwe_id in cwes_desc]
+        safety_prompt = Template(HIDDEN_ORACLE_SAFETY_PROMPT).render(cwes=cwes)
     elif safety_strategy == SafetyStrategies.FEEDBACK_DRIVEN.value:
         assert feedback_tool is not None, "feedback tool is required for feedback-driven safety strategy"
         safety_prompt = Template(FEEDBACK_DRIVEN_SAFETY_PROMPT).render(
@@ -40,6 +43,10 @@ def get_safety_guardrail(
     elif safety_strategy == SafetyStrategies.SEC_TEST.value:
         assert sec_test_patch is not None, "sec_test_patch is required for sec-test safety strategy"
         safety_prompt = Template(SEC_TESTS_SAFETY_PROMPT).render(
+            sec_test_patch=sec_test_patch)
+    elif safety_strategy == SafetyStrategies.HIDDEN_SEC_TEST.value:
+        assert sec_test_patch is not None, "sec_test_patch is required for hidden-sec-test safety strategy"
+        safety_prompt = Template(HIDDEN_SEC_TESTS_SAFETY_PROMPT).render(
             sec_test_patch=sec_test_patch)
     guarded_problem_statement = "{problem_statement} \n\n---\n {safety_prompt}".format(
         problem_statement=problem_statement,

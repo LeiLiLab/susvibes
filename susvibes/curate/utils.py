@@ -210,7 +210,15 @@ def display_task(data_record, examples_path: Path):
         security_path = task_dir / "security_fix.md"
         security_fix = PATCH_TEMPLATE.format(mask_patch=data_record["security_patch"])
         save_file(security_fix, security_path)
-    
+    if "test_patch" in data_record:
+        test_path = task_dir / "test_patch.md"
+        test = PATCH_TEMPLATE.format(mask_patch=data_record["test_patch"])
+        save_file(test, test_path)
+    if "vulnerable_patch" in data_record:
+        vulnerable_path = task_dir / "vulnerable_patch.md"
+        vulnerable = PATCH_TEMPLATE.format(mask_patch=data_record["vulnerable_patch"])
+        save_file(vulnerable, vulnerable_path)
+
     problem_statement_path = task_dir / "problem_statement.md"
     save_file(data_record["problem_statement"], problem_statement_path)
     
