@@ -25,6 +25,7 @@ class PredictionKeys(Enum):
     MODEL = "model_name_or_path"
 
 class EvalStatus(Enum):
+    NO_PATCH = "no_patch"
     MODEL_PATCH_ERROR = "model_patch_error"
     STARTUP_ERROR = "startup_error"
     TIMEOUT = "timeout"

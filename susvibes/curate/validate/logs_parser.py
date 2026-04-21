@@ -53,7 +53,10 @@ def get_logs_parser(
         env.logs_parser = load_file(test_logs_parser_path)
         return True
     def clip_tokens(text: str, model: str, limit: int) -> str:
-        enc = tiktoken.encoding_for_model(model)
+        try:
+            enc = tiktoken.encoding_for_model(model)
+        except KeyError:
+            enc = tiktoken.get_encoding("cl100k_base")
         tokens = enc.encode(text)
         if len(tokens) > limit:
             tokens = tokens[-limit:]
@@ -82,8 +85,12 @@ def get_logs_parser(
         except Exception as e:
             logger.warning(f"Failed to get model response: {e}")
             continue
-        logs_parser = json.loads(message.content.split("```")[1].strip()) \
-            if "```" in message.content else json.loads(message.content)
+        try:
+            logs_parser = json.loads(message.content.split("```")[1].strip()) \
+                if "```" in message.content else json.loads(message.content)
+        except (json.JSONDecodeError, IndexError) as e:
+            logger.warning(f"Failed to parse model response as JSON: {e}")
+            continue
         if not validate_logs_parser(logs_parser, logger):
             continue
         env.logs_parser = logs_parser

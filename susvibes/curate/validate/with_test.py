@@ -1,4 +1,14 @@
-import re
+"""
+Purpose: Validate task instances by running the test suite, synthesizing a logs parser,
+and verifying the expected test break patterns (security + functional).
+
+python -m susvibes.curate.validate.with_test \
+    --max_workers 5 \
+    --run_id playground
+"""
+
+import argparse
+import json
 import logging
 import docker.errors
 from tqdm import tqdm
@@ -6,84 +16,27 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from susvibes.constants import *
-from susvibes.curate.constants import LOCAL_REPOS_DIR, LOGS_PARSER_MODEL
+from susvibes.curate.constants import ENV_SETUP_LOG_DIR, LOGS_PARSER_MODEL, get_path
 from susvibes.env import Deployment, Env
-from susvibes.env_specs import (
-    GIT_UNIGNORE_PATTERNS,
-    TestStatus,
-)
-from susvibes.curate.env_setup.logs_parser import get_logs_parser
-from susvibes.utils import (
-    load_file, 
-    save_file, 
-    filter_patch, 
-    setup_logger,
-    parse_instance_id
-)
+from susvibes.env_specs import TestStatus
+from susvibes.curate.validate.logs_parser import get_logs_parser
+from susvibes.utils import load_file, save_file, setup_instance_logger, parse_instance_id
 from susvibes.curate.utils import (
     RepoLocks,
-    reset_to_commit,
-    apply_patch,
-    get_repo_dir,
-    get_on_hub_image_name
+    get_on_hub_image_name,
 )
 
-LOG_INSTANCE = "run_instance.log"
+LOG_INSTANCE = "validate.log"
 LOG_TEST_OUTPUT = "test_outputs/{}.txt"
 LOG_TEST_STATUSES = "test_statuses.json"
 
 ENV_SETUP_RUNS = ["base", "rollback", "sec_patch", "sec_test", "task"]
 
-def extract_dockerfile(prediction, logger):
-    """Extract the Dockerfile from the model prediction patch."""
-    project, base_commit = parse_instance_id(prediction["instance_id"])
-    repo_dir = get_repo_dir(project, root_dir=LOCAL_REPOS_DIR)
-    reset_to_commit(repo_dir, base_commit, new_branch=False)
-    try:
-        targets = {"Dockerfile", ".dockerignore"}
-        apply_patch(repo_dir, filter_patch(prediction["model_patch"], targets))
-    except Exception as e:
-        msg = f"Error applying model patch: {e}"
-        logger.error(msg)
-        raise RuntimeError(msg)
-        
-    try:
-        dockerfile = load_file(repo_dir / "Dockerfile")
-        if (repo_dir / ".dockerignore").exists():
-            dockerignore = load_file(repo_dir / ".dockerignore") + "\n" \
-                + "\n".join(GIT_UNIGNORE_PATTERNS)
-        else:
-            dockerignore = ""
-    except FileNotFoundError:
-        msg = "Dockerfile corresponding to the environment not found."
-        logger.error(msg)
-        return RuntimeError(msg)
-    return dockerfile, dockerignore
-
-def build_env_deployment(instance_id, dockerfile, dockerignore, logger):
-    """Build a environment Docker image."""
-    project, base_commit = parse_instance_id(instance_id)
-    repo_dir = get_repo_dir(project, root_dir=LOCAL_REPOS_DIR)
-    env_image_name = f"env_{instance_id.lower()}"
-    try:
-        reset_to_commit(repo_dir, base_commit)
-        env_deployment = Deployment.from_build(
-            logger=logger,
-            context_path=repo_dir,
-            dockerfile=dockerfile,
-            dockerignore=dockerignore, 
-            image_name=env_image_name,
-        )
-    except docker.errors.BuildError as e:
-        msg = "Failed to get environment deployment."
-        logger.error(msg)
-        raise RuntimeError(msg)
-    return env_deployment         
 
 def run_test_suite_multi(
-    env: Env, 
+    env: Env,
     data_record: dict,
-    log_dir: Path, 
+    log_dir: Path,
     logger: logging.Logger,
     force: bool = False
 ) -> list:
@@ -91,28 +44,27 @@ def run_test_suite_multi(
     logger.info(f"Running tests in environment deployment {env.deployment.image.tags[0]}...")
     runs_list = [
         (), (data_record["security_patch"], data_record["test_patch"], "-R"),
-        (data_record["test_patch"], "-R"), (data_record["security_patch"], "-R"), 
+        (data_record["test_patch"], "-R"), (data_record["security_patch"], "-R"),
         (data_record["task_patch"],)
     ]
-    allow_timeout = lambda run_id: run_id >= 3
-    allow_startup_error = lambda run_id: run_id == 4
-    # force_rerun = lambda run_id: run_id in [4,]
-    
+    allow_timeout = lambda id: id >= 3
+    allow_startup_error = lambda id: id == 4
+
     test_logs_list, test_status_dict = [], {}
     test_statuses_path = log_dir / LOG_TEST_STATUSES
-    for run_id, (run_patches, run_name) in enumerate(zip(runs_list, ENV_SETUP_RUNS)):
+    for id, (run_patches, run_name) in enumerate(zip(runs_list, ENV_SETUP_RUNS)):
         test_output_path = log_dir / LOG_TEST_OUTPUT.format(run_name)
         test_status_dict_from_log = {}
         if test_statuses_path.exists():
             test_status_dict_from_log = load_file(test_statuses_path)
-            
+
         with_log = test_output_path.exists() and run_name in test_status_dict_from_log
         if not force and with_log:
             logger.info("Container logs found; reusing.")
             test_logs = load_file(test_output_path)
             test_logs_list.append(test_logs)
             test_status_dict[run_name] = test_status_dict_from_log[run_name]
-            
+
             for k, v in test_status_dict_from_log.items():
                 if k not in test_status_dict:
                     test_status_dict[k] = v
@@ -127,23 +79,23 @@ def run_test_suite_multi(
                 msg = "Failed to build instance deployment."
                 logger.error(msg)
                 raise RuntimeError(msg)
-            deployment.create_container()
+            deployment.create_container(mem_limit=CONTAINER_MEM_LIMIT, cpu_limit=CONTAINER_CPU_LIMIT)
             test_logs, timed_out = deployment.run_with_timeout()
             test_status = env.get_test_status(test_logs, timed_out)
             test_logs_list.append(test_logs)
-            test_status_dict[run_name] = test_status            
+            test_status_dict[run_name] = test_status
 
             test_output_path.parent.mkdir(parents=True, exist_ok=True)
             save_file(test_logs, test_output_path)
             save_file(test_status_dict, test_statuses_path)
-            
+
         if test_status_dict[run_name] == TestStatus.TIMEOUT.value \
-            and not allow_timeout(run_id):
+            and not allow_timeout(id):
             msg = "Failed to run tests because of critical timeout."
             logger.error(msg)
             raise RuntimeError(msg)
         if test_status_dict[run_name] == TestStatus.STARTUP_ERROR.value \
-            and not allow_startup_error(run_id):
+            and not allow_startup_error(id):
             msg = "Failed to run tests because of critical startup error."
             logger.error(msg)
             raise RuntimeError(msg)
@@ -151,8 +103,8 @@ def run_test_suite_multi(
     test_statuses = [test_status_dict[run_name] for run_name in ENV_SETUP_RUNS]
     return test_logs_list, test_statuses
 
-def verify_test_breaks(
-    env: Env, 
+def validate_test_breaks(
+    env: Env,
     test_logs_list: list,
     test_statuses: list,
     logger: logging.Logger
@@ -173,11 +125,11 @@ def verify_test_breaks(
             logger.error(f"Failed to parse test logs: {e}")
             return False, ()
         test_failures_list.append(env.get_test_failures(test_result))
-        
+
     base_tf, rollback_tf, sec_patch_tf, sec_test_tf, task_tf = test_failures_list
     test_completed_list = [ts == TestStatus.COMPLETION.value for ts in test_statuses]
     _, _, _, sec_test_completed, task_completed = test_completed_list
-    
+
     test_symbres_errs_list = []
     for logs in test_logs_list:
         test_symbres_errs_list.append(env.get_symbol_resolution_errors(logs))
@@ -202,72 +154,55 @@ def verify_test_breaks(
         logger.error("Failed to verify task on functional test breaks: rollback-{}, task-{}".format(
             rollback_tf, task_tf if task_completed else "N/A"))
         return False, ()
-    
+
     expected_failures = {
         "func": rollback_tf,
         "sec": base_tf - sec_patch_tf
     }
     stats["num_func_tests"] = task_tf - rollback_tf \
         if task_completed else -1
-    logger.info("Task verified successfully, expected_failures-{}, num_sec_tests-{}, num_func_tests-{}".format(
-        expected_failures, stats["num_sec_tests"], stats["num_func_tests"]))
     return True, (expected_failures, stats)
 
-def create_env(
+
+def validate_single(
     data_record: dict,
     instance_stats: dict,
-    prediction: dict = None,
-    env_spec: dict = None,
+    env_spec: dict,
+    env_setup_log_dir: Path,
     force: bool = False,
 ) -> dict | None:
-    """Create environment components and conduct tests verification."""
+    """Validate a single instance via test execution.
+    Returns updated env_spec on success, None on failure.
+    On success, data_record is updated in-place with expected_failures and image_name."""
     instance_id = data_record["instance_id"]
     project, _ = parse_instance_id(instance_id)
 
-    log_dir = ENV_SETUP_LOG_DIR / instance_id
+    log_dir = env_setup_log_dir / instance_id
     log_file = log_dir / LOG_INSTANCE
-    logger = setup_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
-    logger.info(f"Creating environment for {instance_id}...")
-    
-    try:
-        if prediction: 
-            with RepoLocks.locked(project):
-                dockerfile, dockerignore = extract_dockerfile(prediction, logger)
-                env_deployment = build_env_deployment(instance_id, dockerfile, dockerignore, logger)
-        elif env_spec:
-            dockerfile = env_spec["dockerfile"]
-            dockerignore = env_spec["dockerignore"]
-            with RepoLocks.locked(project):
-                env_deployment = build_env_deployment(instance_id, dockerfile, dockerignore, logger)
-        else:
-            msg = "No environment prediction or specification provided."
-            logger.error(msg)
-            raise RuntimeError(msg)
-    except RuntimeError as e:
-        return None
-    
-    new_env_spec = {}
-    new_env_spec["dockerfile"] = dockerfile
-    new_env_spec["dockerignore"] = dockerignore
+    logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
+    logger.info(f"Validating environment for {instance_id}...")
+
     env = Env(
         logger=logger,
         project=project,
-        image_name=env_deployment.image.tags[0],
-        **new_env_spec
+        image_name=data_record["image_name"],
+        **env_spec
     )
     try:
         run_result = run_test_suite_multi(env, data_record, log_dir, logger, force)
     except RuntimeError as e:
         return None
     test_logs_list, test_statuses = run_result
-    parse_success = get_logs_parser(env, test_logs_list, test_statuses, 
+    parse_success = get_logs_parser(env, test_logs_list, test_statuses,
         log_dir=log_dir, logger=logger, model=LOGS_PARSER_MODEL, force=force)
     if not parse_success:
         return None
-    is_valid, test_info = verify_test_breaks(env, test_logs_list, test_statuses, logger=logger)
+    is_valid, test_info = validate_test_breaks(env, test_logs_list, test_statuses, logger=logger)
     if not is_valid:
         return None
     expected_failures, test_stats = test_info
+    logger.info("Task verified successfully, expected_failures-{}, num_sec_tests-{}, num_func_tests-{}".format(
+        expected_failures, test_stats["num_sec_tests"], test_stats["num_func_tests"]))
 
     with RepoLocks.locked(project):
         logger.info(f"Building evaluation image for {instance_id}...")
@@ -283,55 +218,53 @@ def create_env(
     )
     assert task_deployment.image.tag(dockerhub_image_name)
 
-    new_env_spec["logs_parser"] = env.logs_parser
+    env_spec["logs_parser"] = env.logs_parser
     data_record["expected_failures"] = expected_failures
     data_record["image_name"] = dockerhub_image_name
     instance_stats.update(test_stats)
-    return new_env_spec
+    return env_spec
 
-def create_env_threadpool(
-    task_dataset: list,
+
+def validate_threadpool(
+    dataset: list,
     stats: dict,
     max_workers: int,
-    predictions: list = None,
+    env_specs_path: Path,
+    env_setup_log_dir: Path,
     force: bool = False,
     save_specs: bool = True,
     instance_ids: list = None,
 ):
-    pred_by_id = {pred["instance_id"]: pred for pred in predictions} if predictions else {}
-    task_dataset_by_id = {data_record["instance_id"]: data_record
-        for data_record in task_dataset}
-    env_specs = load_file(ENV_SPECS_PATH) if ENV_SPECS_PATH.exists() else {}
-    candidate_ids = pred_by_id if pred_by_id else env_specs
-    candidate_ids = candidate_ids.keys() & task_dataset_by_id.keys()
+    env_specs = load_file(env_specs_path) if env_specs_path.exists() else {}
+    dataset_by_id = {data_record["instance_id"]: data_record
+        for data_record in dataset}
+    candidate_ids = set(dataset_by_id.keys()) & set(env_specs.keys())
     if instance_ids is not None:
         candidate_ids = candidate_ids & set(instance_ids)
 
-    dataset = []
     succeeded, failed = [], []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(
-                create_env,
-                task_dataset_by_id[instance_id],
+                validate_single,
+                dataset_by_id[instance_id],
                 stats.get(instance_id, {}),
-                prediction=pred_by_id.get(instance_id),
-                env_spec=env_specs.get(instance_id),
-                force=force
+                env_specs[instance_id],
+                env_setup_log_dir,
+                force=force,
             ): instance_id
             for instance_id in candidate_ids
         }
-        with tqdm(total=len(futures), dynamic_ncols=True, 
-            desc=f"Building components [{max_workers} threads]") as pbar:
+        with tqdm(total=len(futures), dynamic_ncols=True,
+            desc=f"Validating [{max_workers} threads]") as pbar:
             for future in as_completed(futures):
                 instance_id = futures[future]
                 try:
-                    new_env_spec = future.result()
+                    updated_spec = future.result()
                 except Exception as e:
                     raise RuntimeError(f"Internal error for {instance_id}: {e}")
-                if new_env_spec:
-                    env_specs[instance_id] = new_env_spec
-                    dataset.append(task_dataset_by_id[instance_id])
+                if updated_spec:
+                    env_specs[instance_id] = updated_spec
                     succeeded.append(instance_id)
                 else:
                     failed.append(instance_id)
@@ -340,9 +273,61 @@ def create_env_threadpool(
                     f"{len(succeeded)} ran successfully, {len(failed)} failed"
                 )
                 if save_specs:
-                    save_file(env_specs, ENV_SPECS_PATH)
+                    save_file(env_specs, env_specs_path)
     if failed:
         print("failed: \n" + "\n".join(failed))
     if save_specs:
-        print(f"Environments saved to {ENV_SPECS_PATH}.")   
-    return dataset
+        print(f"Environments saved to {env_specs_path}.")
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Validate task instances via test execution.")
+    parser.add_argument(
+        "--max_workers",
+        type=int,
+        default=5,
+        help="Number of threads to use for validation.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force re-run the validation.",
+    )
+    parser.add_argument(
+        "--skip_specs",
+        action="store_true",
+        help="Skip saving environment specs to file.",
+    )
+    parser.add_argument(
+        "--instance_ids",
+        type=json.loads,
+        default=None,
+        help="Only run for the given instance IDs.",
+    )
+    parser.add_argument(
+        "--run_id",
+        type=str,
+        default="default",
+        help="Run ID for output subdirectory (datasets/<run_id>/...)",
+    )
+    args = parser.parse_args()
+
+    dataset_path = get_path('dataset', args.run_id)
+    stats_path = get_path('stats', args.run_id)
+    env_specs_path = get_env_spec_path('components', args.run_id)
+    env_setup_log_dir = ENV_SETUP_LOG_DIR / args.run_id
+
+    dataset = load_file(dataset_path)
+    stats = load_file(stats_path) if stats_path.exists() else {}
+
+    validate_threadpool(
+        dataset, stats, args.max_workers, env_specs_path, env_setup_log_dir,
+        force=args.force,
+        save_specs=not args.skip_specs,
+        instance_ids=args.instance_ids,
+    )
+
+    save_file(dataset, dataset_path)
+    print(f"Dataset updated at {dataset_path}.")
+    save_file(stats, stats_path)
+    print(f"Stats saved to {stats_path}.")

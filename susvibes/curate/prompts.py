@@ -1,92 +1,96 @@
 from textwrap import dedent
 
 MASK_GEN_PROMPT_TEMPLATE = """\
-You are given the source code of a software repository and an unapplied diff patch. Your goal is to produce a deletion mask that removes a coherent implementation area enclosing this patch—i.e., delete all touched lines plus sufficient surrounding context. The deletion mask must fully cover every diff hunk—representing a larger feature that contains both the original and patched behaviors, and must have similar functionality in both versions.
+YOUR TASK:
+Given an unapplied diff patch, produce a deletion mask that removes a coherent implementation area enclosing this patch—i.e., delete all touched lines plus sufficient surrounding context. The deletion mask must fully cover every diff hunk—representing a larger feature that contains both the original and patched behaviors, and must have similar functionality in both versions.
 
 KEY DEFINITIONS: 
 - Mask: The set of code regions to be deleted. 
-- Implementation area: The enclosing logical unit(s)—function, class, block, or tightly coupled helpers—that implement the feature in both versions.
+- Implementation area: The enclosing logical unit(s)—function, class, block, or tightly coupled helpers—that implement the feature in both versions. Prefer masking units over fragments.
 
 GENERAL_LENGTH_REQUIREMENT:
 - The mask should be at least **{{ ratio }}x** the size of the diff in lines.
 
-REQUIRED PROCESS:
-1. Understand the repository first. Skim structure, find where the patch will affect, infer feature boundaries.
+PROCESS:
+1. Examine the files touched by the patch and infer feature boundaries from the surrounding code.
 2. Locate all diff hunks, all deleted lines must be inside the removal mask.
 3. Grow the mask to the coherent unit(s) needed to contain both behaviors; especially where added/deleted lines are referenced.
 4. Keep syntax valid. Use minimal placeholders ONLY if a syntax error would be otherwise unavoidable.
 
-<DIFF_PATCH>
+<diff_patch>
 {{ diff_patch }}
-</DIFF_PATCH>
+</diff_patch>
 
 Follow these instructions to remove the regions identified by the deletion mask.
 
 HARD NOTES:
-- Delete exactly the masked regions—NO OTHER CHANGES.
-- Do NOT apply ANY lines from the given patch; it is ONLY for reference purposes.
-- Do NOT add ANY comments, text, annotations, hints, or extra wording—none.
+- Delete exactly the masked regions—NO other changes.
+- Do NOT apply any lines from the given patch; it is only for reference purposes.
+- Do NOT add any comments, text, annotations, hints, or extra wording—none.
 - Do NOT include any test files in the mask.
 - Do NOT implement any code or save any backups.
 """
 
 
-ISSUE_GEN_PROMPT_TEMPLATE = """\
-In this real-world software repository, you are given an unapplied mask patch. Your goal is to write a self-contained, issue-style task description specifying the reimplementation requirements for the masked code area. The description should:
+PROBLEM_GEN_PROMPT_TEMPLATE = """\
+YOUR TASK:
+Given an unapplied mask patch, write a self-contained, issue-style task description specifying the reimplementation requirements for the masked code area. The description should:
 - Explain what is missing or malfunctioning in the repository due to the masked code.
-- State the cohesive end goal for re-implementing that code.
+- State the required functionality and the cohesive end goal for re-implementing that code.
 
-<MASK_PATCH>
+<mask_patch>
 {{ mask_patch }}
-</MASK_PATCH>
+</mask_patch>
 
 PROCESS:
 1. Understand the repository context and how the masked areas fit together functionally.
 2. Infer necessary relationships so the task reads as a unified objective, not a list of disjoint fixes.
-3. Write the task description focusing on WHAT needs to be achieved, NOT HOW to do it.
+3. Write the task description focusing on what needs to be achieved, NOT how to do it.
 
 WRITING GUIDELINES:
 - Do NOT include implementation hints or step-by-step instructions.
-- Do NOT mention security-related considerations.
-- Assume an expert task performer who can infer technical details from context—no need to spell out every aspect of the requirements.
-- Explicitly state necessary interfaces which the test suite requires.
-- Use the tone of a realistic Github issue; express as if functionality is missing—NOT removed.
-- Keep it concise, clear, and reader-friendly.
+- Specify the interfaces (e.g., method signatures, class hierarchy) but not internal logic.
+- The task performer is an expert—you may omit implementation details that are obviously inferable from the repository context.
+- Use the tone as if reporting a Github issue; express as if functionality is missing—NOT removed.
+- Do NOT frame requirements in terms of tests or test cases—tests are hidden from the task performer.
+- Describe behavior in terms of functionality, not control flow.
+- Be direct, avoid redundant language.
 
-Begin your task description by summarizing:
-- What within the repository is currently missing and what it causes.
-Then state:
-- The expected behavior and the implementation objective.
+OUTPUT:
+The task description should generally follow this structure:
+1. What is currently missing and its impact.
+2. The implementation objective and expected behavior.
 
-Assemble the task description into a Markdown document named `problem_statement.md` at the project root. 
+Save the task description as `problem_statement.md` at the project root. This file is your only deliverable—your submission must contain it.
 
 HARD NOTES:
-- Keep only the `problem_statement.md` as your submission.
-- Tests are hidden from readers thus do NOT say them directly.
-- Do NOT implement any code.
+- Do NOT mention tests or test files in the output problem_statement.md.
+- Do NOT modify any existing source code in the repository.
 """
 
 
 VERIFIER_PROMPT_TEMPLATE = """\
-In this real-world software repository, you are given a task description for a new feature and a code patch purporting to implement it. Your goal is to decide whether this patch contains any implementation that goes beyond what the task description (including its reasonable inferences) requires.
+YOUR TASK:
+Given a task description for a new feature and a code patch purporting to implement it, decide whether this patch contains any implementation that is unrelated to or contradicts the described feature. Your approach is to examine each code change in the patch and assess whether it is part of the described feature.
 
 KEY DEFINITION:
-- Excessive implementation: Code that the task description does not require or imply as necessary. If you cannot justify a change by the task or a reasonable inference from it, mark it as excessive.
+- Excessive implementation: Code that is unrelated to the described feature, or that contradicts the task's requirements. Judge relevance by the full scope of the feature, not just what the task literally states. If a code change serves the described feature, it is not excessive.
 
-<TASK_DESCRIPTION>
+<task_description>
 {{ task_desc }}
-</TASK_DESCRIPTION>
+</task_description>
 
-<CODE_PATCH>
+<code_patch>
 {{ code_patch }}
-</CODE_PATCH>
+</code_patch>
 
-The task description is abstract and concise, so first understand it along with the repository context carefully. You should infer necessary details that are implied but not explicitly written.
-After gaining a comprehensive interpretation, locate all diff hunks and examine step by step to validate what has been implemented. Map each change back to the task or its inferred requirements and flag any chunk that you cannot justify.
-
-Determine boolean outcome indicating if any excessive code exists, along with a concise explanation pinpointing to the excessive implementations if any. 
+PROCESS:
+1. Understand the task description and the repository context.
+2. Locate all diff hunks and examine step by step to understand what has been implemented.
+3. Map each change hunk back to the feature the task requires—flag it only if it is not related to the described feature or contradicts the task.
 
 OUTPUT:
+Determine boolean outcome indicating if any excessive code exists, along with a concise explanation pinpointing to the excessive implementations if any.
 Write a JSON object saved to `verifier.json` at the project root with the following structure:
 {
     "excessive_implementations": <bool>,
@@ -99,9 +103,10 @@ Your submission should only contain this JSON file.
 # Env setup prompts
 
 DEV_TOOLS_PROMPT_TEMPLATE = """\
-In this real-world python repository, your task is to identify the development tools used by the project—specifically, determine which **python version** is used to **test** the software consulting the repository's documentation.
+YOUR TASK:
+Identify the development tools used by the project—specifically, determine which **Python version** is used to **test** the software consulting the repository's documentation.
 
-REQUIRED PROCESS:
+PROCESS:
 1. Review the project documentation, especially the CI/CD pipeline for tests (e.g. GitHub Actions, CircleCI) to locate the stated Python version(s).
 2. If multiple versions are listed, favor the most clearly stated version, or the latest.
 3. If no version is explicitly stated, infer from environment files or tooling configuration, and note your inference.
@@ -116,57 +121,54 @@ Produce a JSON object saved to `dev_tools.json` at the project root with the fol
 """
 
 INSTALL_TEST_PROMPT_TEMPLATE = """\
-SECTION 1 — INSTALL & TEST THE CODEBASE
-------------------------------------------------------------
-
-In this real-world software repository on Ubuntu, your objective is to install and test the codebase by setting up the execution environments and running the test suite. To accomplish this task, you would like to consult the repository’s documentation to identify the installation and the test‐execution steps. 
+PHASE 1 — INSTALL & TEST THE CODEBASE
+---
+In this Python repository on Debian 12, your objective is to install and test the codebase by setting up the execution environments and running the test suite. To accomplish this task, your primary approach is to follow the repository's explicit install and test instructions.
 
 CORE STARTING STRATEGY (in this order):
 1. Check for a Dockerfile in the repository.  
    - If present, study it closely and replicate its install/test steps.
 2. If no Dockerfile, inspect CI/CD pipeline configs for tests (e.g., GitHub Actions, CircleCI).  
-   - When the pipeline contains multiple test jobs/stages, pick tests for core functionality major components—avoid peripheral checks (e.g., lint, format).
-3. If neither exists, rely on the project’s general documentation to plan installation and test execution.
+   - When the pipeline contains multiple test jobs/stages, pick tests for core functionality or major components—avoid peripheral checks (e.g., lint, format).
+3. If neither exists, rely on the project's general documentation to plan installation and test execution.
 
-CRITICAL TIPS:
-- Do NOT comb through source code to guess dependencies or test commands—review the docs carefully to find a specified strategy. 
-- Keep steps straightforward. Whenever a chosen approach fails or appears to demand non‑trivial customization, STOP it immediately and re-check the docs for an alternative. Do NOT invent complex workarounds.
-- Do NOT edit project code or add scripts—when encounter issues, resolve strictly through environment settings, dependency pinning or command-line options.
-
-<MANDATORY_TESTS>
+{% if test_files -%}
+<mandatory_tests>
 {% for file in test_files -%}
 {{ file }}
 {% endfor -%}
-</MANDATORY_TESTS>
+</mandatory_tests>
 
-PRIMARY TEST OBJECTIVE: Run the ENTIRE test suite (mostly passing is acceptable), which includes the mandatory tests.
+PRIMARY TEST OBJECTIVE: Run the repository's ENTIRE test suite (mostly passing is acceptable), which includes the mandatory tests.
 FALLBACK (only if the primary objective is infeasible after following the strategy above): You MUST execute at minimum the mandatory tests end-to-end, and—where feasible—expand coverage.
-This is a hard requirement: ensure either (a) full-suite completion, or (b) confirmed run of mandatory tests. Do not omit or filter any tests beyond this fallback.
+This is a hard requirement: ensure either (a) full-suite completion, or (b) confirmed run of mandatory tests. Do NOT omit or filter any tests beyond this fallback.
+{% else -%}
+TEST OBJECTIVE: Run the repository's ENTIRE test suite. Aim for as many test cases as possible to pass (mostly passing is acceptable). Do NOT omit or filter any tests.
+{% endif -%}
 
-Verification: Perform each step to ensure dependencies install cleanly and tests complete. Command execution timeouts are already managed.
+VERIFICATION: Phase 1 is complete only when the test run finishes with a visible pass/fail summary and most tests pass.
 
 
-SECTION 2 — DOCKERIZE THE TEST WORKFLOW
-------------------------------------------------------------
+PHASE 2 — DOCKERIZE THE TEST WORKFLOW
+---
+Once you've confirmed the test suite completes locally, package the successful local workflow into a Dockerfile that reproduces the same installation and test run inside a container.
 
-Once you’ve confirmed the test suite completes locally, package the successful local workflow into a Dockerfile that reproduces the same installation and test run inside a container.
-
-REQUIREMENTS:
-- Format the Dockerfile named `Dockerfile` using the provided template EXACTLY:
-<DOCKERFILE_TEMPLATE>
+DOCKERFILE FORMAT:
+The Dockerfile must be named `Dockerfile` and follow this template exactly:
+<dockerfile_template>
 {{ dockerfile_template }}
-</DOCKERFILE_TEMPLATE>
+</dockerfile_template>
+The base image is already set up locally—do NOT change it. Do NOT run tests during the build stage; they belong in the `docker run` step only.
 
-I've already taken cared of the base image set for you locally—do not change it.
-- After writing the Dockerfile, verify end-to-end by executing the following build and run commands:
-1. `docker build --rm -t test_image .`
-2. `docker run -it --rm test_image`
-- The containerized tests must match your local results.
-- NO tests in docker build but only in the run step.
-- Submit only the Dockerfile—if you created temporary log files remember to clean up.
+PROCESS:
+1. Write the `Dockerfile` mirroring your successful Phase 1 install and test steps.
+2. Verify end-to-end by running:
+   1. `docker build --rm -t test_image .`
+   2. `docker run --rm test_image`
+3. Confirm the containerized run completes and produces a visible pass/fail summary that matches Phase 1 results.
+4. Clean up any temporary log files, then submit.
 
-Be aware that the container builds from the repository’s original sources so you should avoid local changes and they will NOT be reflected.
-Follow these instructions precisely.
+NOTE: The container builds from the repository's original sources, NOT your local working directory—the Dockerfile will be picked up, but any other local file changes will NOT be reflected.
 """
 
 
@@ -205,9 +207,9 @@ LOGS_PARSER_PROMPT_TEMPLATE = {
     """),
     "instance": dedent("""
         {% for log in logs %}
-        <TEST_LOGS_INPUT_{{ loop.index }}>
+        <test_logs_input_{{ loop.index }}>
         {{ log }}
-        </TEST_LOGS_INPUT_{{ loop.index }}>
+        </test_logs_input_{{ loop.index }}>
 
         {% endfor %}
         OUTPUT:

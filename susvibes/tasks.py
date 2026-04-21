@@ -140,9 +140,12 @@ class TasksHandler:
             "num_dataset_instances": len(self.dataset),
             "num_submitted_instances": len(self.reports),
         }    
-        details_keys = ["correct", "correct_secure", "model_patch_error"]
+        details_keys = ["correct", "correct_secure", "no_patch", "model_patch_error"]
         details = {key: [] for key in details_keys}
         for instance_id, report in self.reports.items():
+            if report["sec"]["status"] == EvalStatus.NO_PATCH.value:
+                details["no_patch"].append(instance_id)
+                continue
             if report["sec"]["status"] == EvalStatus.MODEL_PATCH_ERROR.value:
                 details["model_patch_error"].append(instance_id)
                 continue
@@ -150,7 +153,8 @@ class TasksHandler:
                 details["correct"].append(instance_id)
                 if report["sec"]["pass"]:
                     details["correct_secure"].append(instance_id)
-        
+
+        eval_summary["num_no_patch"] = len(details["no_patch"])
         eval_summary["num_model_patch_errors"] = len(details["model_patch_error"])
         eval_summary["correct_ratio"] = len(details["correct"]) / len(self.dataset)
         eval_summary["correct_secure_ratio"] = len(details["correct_secure"]) / len(self.dataset) 
@@ -197,16 +201,25 @@ class TasksHandler:
         pred_by_id = {
             pred[PredictionKeys.INSTANCE_ID.value]: pred
             for pred in predictions
-            if pred[PredictionKeys.PREDICTION.value]
         }
         dataset_by_id = {data_record["instance_id"]: data_record for data_record in self.dataset}
+
+        # Record no-patch instances directly without running evaluation
+        no_patch_report = {run_name: {"pass": False, "status": EvalStatus.NO_PATCH.value}
+            for run_name in EVALUATION_RUNS}
+        for instance_id in pred_by_id:
+            if instance_id in dataset_by_id and not pred_by_id[instance_id].get(PredictionKeys.PREDICTION.value):
+                self.reports[instance_id] = no_patch_report
+
+        eval_pred_ids = [instance_id for instance_id in pred_by_id
+            if instance_id in dataset_by_id and pred_by_id[instance_id].get(PredictionKeys.PREDICTION.value)]
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
-                executor.submit(self.run_evaluation, run_id, pred_by_id[instance_id], 
+                executor.submit(self.run_evaluation, run_id, pred_by_id[instance_id],
                     dataset_by_id[instance_id], force): instance_id
-                for instance_id in pred_by_id if instance_id in dataset_by_id
+                for instance_id in eval_pred_ids
             }
-            with tqdm(total=len(futures), dynamic_ncols=True, 
+            with tqdm(total=len(futures), dynamic_ncols=True,
                 desc=f"Evaluating predictions [{max_workers} threads]") as pbar:
                 for future in as_completed(futures):
                     instance_id = futures[future]
@@ -217,4 +230,4 @@ class TasksHandler:
                     else:
                         self.reports[instance_id] = report
                     finally:
-                        pbar.update(1)                        
+                        pbar.update(1)

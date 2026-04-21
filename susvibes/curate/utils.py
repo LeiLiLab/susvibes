@@ -3,12 +3,14 @@ import uuid
 import shutil
 import subprocess
 import threading
+import requests
 import docker
 import docker.errors
 from pathlib import Path
 from contextlib import contextmanager
 from textwrap import dedent
 from susvibes.utils import save_file, touched_files
+from susvibes.constants import DOCKERHUB_USERNAME
 
 def run(cmd, cwd=None, capture_output=True, text=True, check=True, **kwargs):
     try:
@@ -50,6 +52,16 @@ def get_repo_dir(project, root_dir):
     root_dir = Path(root_dir)
     repo_name = project.split("/", 1)[1]
     return root_dir / repo_name
+
+def get_repo_size(project) -> int | None:
+    """Return repo size in KB via GitHub API, or None on failure."""
+    try:
+        r = requests.get(f"https://api.github.com/repos/{project}", timeout=10)
+        if r.status_code == 200:
+            return r.json().get("size", 0)
+    except requests.RequestException:
+        pass
+    return None
 
 def clone_github_repo(project, root_dir, force=False, max_retries=3, timeout=None):
     """Clone a GitHub repository ("owner/repo") into the root directory."""
@@ -125,10 +137,11 @@ def commit_changes(repo_dir, message):
     commit_sha = run(["git", "rev-parse", "HEAD"], cwd=repo_dir).stdout.strip()
     return commit_sha
 
-def rollback(repo_dir, base_commit, security_patch, test_patch):
+def rollback(repo_dir, base_commit, security_patch, test_patch=None):
     reset_to_commit(repo_dir, base_commit)
     apply_patch(repo_dir, security_patch, reverse=True)
-    apply_patch(repo_dir, test_patch, reverse=True)
+    if test_patch:
+        apply_patch(repo_dir, test_patch, reverse=True)
     rollback_commit = commit_changes(repo_dir, f"Rollback at {base_commit}")
     return rollback_commit
 
@@ -144,9 +157,21 @@ def len_patch(patch):
             num_lines += 1
     return num_files, num_lines
 
+def count_patch_additions_deletions(patch):
+    """Count added and deleted lines in a patch string."""
+    additions, deletions = 0, 0
+    for line in patch.splitlines():
+        if line.startswith('+++ ') or line.startswith('--- '):
+            continue
+        if line.startswith('+'):
+            additions += 1
+        elif line.startswith('-'):
+            deletions += 1
+    return additions, deletions
+
 def get_on_hub_image_name(
     instance_id: str,
-    username: str = "songwen6968"
+    username: str = DOCKERHUB_USERNAME
 ):
     arch = os.uname().machine
     escaped = instance_id.replace("__", "_")
