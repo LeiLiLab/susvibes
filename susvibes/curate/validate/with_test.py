@@ -20,6 +20,7 @@ from susvibes.curate.constants import ENV_SETUP_LOG_DIR, LOGS_PARSER_MODEL, get_
 from susvibes.env import Deployment, Env
 from susvibes.env_specs import TestStatus
 from susvibes.curate.validate.logs_parser import get_logs_parser
+from susvibes.curate.validate.utils import get_validate_summary, print_summary
 from susvibes.utils import load_file, save_file, setup_instance_logger, parse_instance_id
 from susvibes.curate.utils import (
     RepoLocks,
@@ -29,6 +30,7 @@ from susvibes.curate.utils import (
 LOG_INSTANCE = "validate.log"
 LOG_TEST_OUTPUT = "test_outputs/{}.txt"
 LOG_TEST_STATUSES = "test_statuses.json"
+LOG_SUMMARY = "summary.json"
 
 ENV_SETUP_RUNS = ["base", "rollback", "sec_patch", "sec_test", "task"]
 
@@ -76,7 +78,7 @@ def run_test_suite_multi(
                     logger=logger,
                 )
             except docker.errors.BuildError as e:
-                msg = "Failed to build instance deployment."
+                msg = f"Failed to build instance deployment: {e}"
                 logger.error(msg)
                 raise RuntimeError(msg)
             deployment.create_container(mem_limit=CONTAINER_MEM_LIMIT, cpu_limit=CONTAINER_CPU_LIMIT)
@@ -108,10 +110,10 @@ def validate_test_breaks(
     test_logs_list: list,
     test_statuses: list,
     logger: logging.Logger
-) -> tuple[bool, tuple]:
+) -> tuple:
     """
     Verify the task on security and functional test breaks.
-    Returns a boolean success flag and a tuple of the expected failures and stats.
+    Raises RuntimeError on failure; returns (expected_failures, stats) on success.
     """
     test_result_list, test_failures_list = [], []
     for logs, status in zip(test_logs_list, test_statuses):
@@ -122,8 +124,9 @@ def validate_test_breaks(
             test_result = env.parse_test_logs(logs, logger)
             test_result_list.append(test_result)
         except Exception as e:
-            logger.error(f"Failed to parse test logs: {e}")
-            return False, ()
+            msg = "Failed to parse test logs."
+            logger.error(msg)
+            raise RuntimeError(msg)
         test_failures_list.append(env.get_test_failures(test_result))
 
     base_tf, rollback_tf, sec_patch_tf, sec_test_tf, task_tf = test_failures_list
@@ -135,25 +138,28 @@ def validate_test_breaks(
         test_symbres_errs_list.append(env.get_symbol_resolution_errors(logs))
     _, rollback_te, _, sec_test_te, _ = test_symbres_errs_list
     if sec_test_completed and sec_test_te > rollback_te:
-        logger.error("Failed to verify task on symbol resolution errors: rollback-{}, sec_test-{}".format(
-            rollback_te, sec_test_te))
-        return False, ()
+        msg = "Failed to verify task on symbol resolution errors: rollback-{}, sec_test-{}".format(
+            rollback_te, sec_test_te)
+        logger.error(msg)
+        raise RuntimeError(msg)
     stats = {}
     extra_pass = rollback_tf - sec_patch_tf
     is_broken = not sec_test_completed or sec_test_tf > rollback_tf
     is_repaired = not sec_test_completed or base_tf < sec_test_tf - extra_pass
     if not (is_broken and is_repaired) or extra_pass < 0:
-        logger.error("Failed to verify task on security test breaks: rollback-{}, sec_patch-{}, sec_test-{}, base-{}".format(
-            rollback_tf, sec_patch_tf, sec_test_tf if sec_test_completed else "N/A", base_tf))
-        return False, ()
+        msg = "Failed to verify task on sec test breaks: rollback-{}, sec_patch-{}, sec_test-{}, base-{}".format(
+            rollback_tf, sec_patch_tf, sec_test_tf if sec_test_completed else "N/A", base_tf)
+        logger.error(msg)
+        raise RuntimeError(msg)
     stats["num_sec_tests"] = sec_test_tf - extra_pass - base_tf \
         if sec_test_completed else -1
 
     is_broken = not task_completed or task_tf > rollback_tf
     if not is_broken:
-        logger.error("Failed to verify task on functional test breaks: rollback-{}, task-{}".format(
-            rollback_tf, task_tf if task_completed else "N/A"))
-        return False, ()
+        msg = "Failed to verify task on functional test breaks: rollback-{}, task-{}".format(
+            rollback_tf, task_tf if task_completed else "N/A")
+        logger.error(msg)
+        raise RuntimeError(msg)
 
     expected_failures = {
         "func": rollback_tf,
@@ -161,7 +167,7 @@ def validate_test_breaks(
     }
     stats["num_func_tests"] = task_tf - rollback_tf \
         if task_completed else -1
-    return True, (expected_failures, stats)
+    return (expected_failures, stats)
 
 
 def validate_single(
@@ -170,9 +176,9 @@ def validate_single(
     env_spec: dict,
     env_setup_log_dir: Path,
     force: bool = False,
-) -> dict | None:
+) -> tuple[dict | None, str | None]:
     """Validate a single instance via test execution.
-    Returns updated env_spec on success, None on failure.
+    Returns (env_spec, None) on success, (None, failure_reason) on failure.
     On success, data_record is updated in-place with expected_failures and image_name."""
     instance_id = data_record["instance_id"]
     project, _ = parse_instance_id(instance_id)
@@ -185,22 +191,17 @@ def validate_single(
     env = Env(
         logger=logger,
         project=project,
-        image_name=data_record["image_name"],
+        image_name=data_record["env_image_name"],
         **env_spec
     )
     try:
-        run_result = run_test_suite_multi(env, data_record, log_dir, logger, force)
+        test_logs_list, test_statuses = run_test_suite_multi(env, data_record, log_dir, logger, force)
+        get_logs_parser(env, test_logs_list, test_statuses,
+            log_dir=log_dir, logger=logger, model=LOGS_PARSER_MODEL,
+            ordering_checks=[(3, 0), (4, 1)], force=force)
+        expected_failures, test_stats = validate_test_breaks(env, test_logs_list, test_statuses, logger=logger)
     except RuntimeError as e:
-        return None
-    test_logs_list, test_statuses = run_result
-    parse_success = get_logs_parser(env, test_logs_list, test_statuses,
-        log_dir=log_dir, logger=logger, model=LOGS_PARSER_MODEL, force=force)
-    if not parse_success:
-        return None
-    is_valid, test_info = validate_test_breaks(env, test_logs_list, test_statuses, logger=logger)
-    if not is_valid:
-        return None
-    expected_failures, test_stats = test_info
+        return None, str(e)
     logger.info("Task verified successfully, expected_failures-{}, num_sec_tests-{}, num_func_tests-{}".format(
         expected_failures, test_stats["num_sec_tests"], test_stats["num_func_tests"]))
 
@@ -222,7 +223,7 @@ def validate_single(
     data_record["expected_failures"] = expected_failures
     data_record["image_name"] = dockerhub_image_name
     instance_stats.update(test_stats)
-    return env_spec
+    return env_spec, None
 
 
 def validate_threadpool(
@@ -242,7 +243,7 @@ def validate_threadpool(
     if instance_ids is not None:
         candidate_ids = candidate_ids & set(instance_ids)
 
-    succeeded, failed = [], []
+    succeeded, failed = [], {}
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(
@@ -260,24 +261,29 @@ def validate_threadpool(
             for future in as_completed(futures):
                 instance_id = futures[future]
                 try:
-                    updated_spec = future.result()
+                    updated_spec, reason = future.result()
                 except Exception as e:
                     raise RuntimeError(f"Internal error for {instance_id}: {e}")
                 if updated_spec:
                     env_specs[instance_id] = updated_spec
                     succeeded.append(instance_id)
                 else:
-                    failed.append(instance_id)
+                    failed[instance_id] = reason
                 pbar.update(1)
                 pbar.set_description(
                     f"{len(succeeded)} ran successfully, {len(failed)} failed"
                 )
                 if save_specs:
                     save_file(env_specs, env_specs_path)
-    if failed:
-        print("failed: \n" + "\n".join(failed))
+
+    summary = get_validate_summary(succeeded, failed)
+    summary_path = env_setup_log_dir / LOG_SUMMARY
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    save_file(summary, summary_path)
+    print_summary(summary)
     if save_specs:
         print(f"Environments saved to {env_specs_path}.")
+    print(f"Summary saved to {summary_path}.")
 
 
 if __name__ == "__main__":
@@ -328,6 +334,6 @@ if __name__ == "__main__":
     )
 
     save_file(dataset, dataset_path)
-    print(f"Dataset updated at {dataset_path}.")
+    print(f"Dataset saved to {dataset_path}.")
     save_file(stats, stats_path)
     print(f"Stats saved to {stats_path}.")

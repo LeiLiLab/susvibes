@@ -13,35 +13,29 @@ import argparse
 import json
 import logging
 import docker.errors
-import tiktoken
 from tqdm import tqdm
 from pathlib import Path
-from jinja2 import Template
-from litellm import completion, get_max_tokens
-from dotenv import load_dotenv
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from susvibes.constants import *
 from susvibes.curate.constants import ENV_SETUP_LOG_DIR, LOGS_PARSER_MODEL, get_path
 from susvibes.env import Deployment, Env
-from susvibes.env_specs import TestStatus, TestItemStatus
-from susvibes.curate.prompts import LOGS_PARSER_PROMPT_TEMPLATE
-from susvibes.curate.validate.logs_parser import validate_logs_parser
-from susvibes.curate.agents.ports import SWEAgentPort
+from susvibes.env_specs import TestStatus
+from susvibes.curate.validate.logs_parser import get_logs_parser
+from susvibes.curate.validate.utils import get_validate_summary, print_summary
+from susvibes.curate.utils.agents.ports import SWEAgentPort
 from susvibes.utils import load_file, save_file, setup_instance_logger, parse_instance_id
 from susvibes.curate.utils import (
     RepoLocks,
     get_on_hub_image_name,
 )
 
-load_dotenv()
-
 LOG_INSTANCE = "validate.log"
 LOG_TEST_OUTPUT = "test_outputs/{}.txt"
 LOG_TEST_STATUSES = "test_statuses.json"
-LOG_TEST_LOGS_PARSER = "logs_parser.json"
 LOG_SEC_OUTPUT = "sec_outputs/{}.txt"
 LOG_SEC_RESULTS = "sec_results/{}.json"
+LOG_SUMMARY = "summary.json"
 
 REPO_TEST_RUNS = ["base", "rollback", "task"]
 SEC_TEST_RUNS = ["sec_vuln", "sec_gold"]
@@ -91,7 +85,7 @@ def run_repo_test_suite_multi(
                     logger=logger,
                 )
             except docker.errors.BuildError as e:
-                msg = "Failed to build instance deployment."
+                msg = f"Failed to build instance deployment: {e}"
                 logger.error(msg)
                 raise RuntimeError(msg)
             deployment.create_container(mem_limit=CONTAINER_MEM_LIMIT, cpu_limit=CONTAINER_CPU_LIMIT)
@@ -119,113 +113,15 @@ def run_repo_test_suite_multi(
     return test_logs_list, test_statuses
 
 
-def get_repo_logs_parser(
-    env: Env,
-    test_logs_list: list,
-    test_statuses: list,
-    model: str,
-    log_dir: Path,
-    logger: logging.Logger,
-    max_retries: int = 10,
-    force: bool = False
-) -> bool:
-    """Synthesize a logs parser for repo test output. Like get_logs_parser but validates 3 runs."""
-    test_logs_parser_path = log_dir / LOG_TEST_LOGS_PARSER
-    if test_logs_parser_path.exists() and not force:
-        logger.info("Logs parser found; reusing.")
-        env.logs_parser = load_file(test_logs_parser_path)
-        return True
-
-    def clip_tokens(text: str, model: str, limit: int) -> str:
-        try:
-            enc = tiktoken.encoding_for_model(model)
-        except KeyError:
-            enc = tiktoken.get_encoding("cl100k_base")
-        tokens = enc.encode(text)
-        if len(tokens) > limit:
-            tokens = tokens[-limit:]
-        return enc.decode(tokens)
-
-    test_logs_list = [clip_tokens(logs, model, limit=(get_max_tokens(model) // 8))
-        for logs in test_logs_list]
-
-    messages = []
-    for prompt_key, prompt in LOGS_PARSER_PROMPT_TEMPLATE.items():
-        if prompt_key == "system":
-            messages.append({"role": "system", "content": Template(prompt).render(
-                statuses=[status.value for status in TestItemStatus])})
-        else:
-            messages.append({"role": "user", "content": Template(prompt).render(
-                logs=[logs for logs, status in zip(test_logs_list, test_statuses) if status])})
-
-    logger.info("Synthesizing logs parser...")
-    is_success = False
-    conserv_retry = 1
-    conservative_max_retries = 5
-    for retry in range(max_retries):
-        if retry:
-            logger.info(f"Retrying... {retry + 1}/{max_retries}")
-        try:
-            message = completion(model=model, messages=messages).choices[0].message
-        except Exception as e:
-            logger.warning(f"Failed to get model response: {e}")
-            continue
-        try:
-            logs_parser = json.loads(message.content.split("```")[1].strip()) \
-                if "```" in message.content else json.loads(message.content)
-        except (json.JSONDecodeError, IndexError) as e:
-            logger.warning(f"Failed to parse model response as JSON: {e}")
-            continue
-        if not validate_logs_parser(logs_parser, logger):
-            continue
-        env.logs_parser = logs_parser
-        test_result_list, test_failures_list = [], []
-        for logs, status in zip(test_logs_list, test_statuses):
-            if not status:
-                test_result_list.append({})
-                continue
-            try:
-                test_result = env.parse_test_logs(logs, logger)
-                test_result_list.append(test_result)
-            except Exception as e:
-                logger.warning(f"Failed to parse test logs: {e}. logs_parser-{logs_parser}")
-                break
-            test_failures_list.append(env.get_test_failures(test_result))
-        if len(test_result_list) < len(test_logs_list):
-            continue
-        if not sum(test_failures_list) or any(tf < 0 for tf in test_failures_list):
-            logger.warning(f"Invalid test failures detected. logs_parser-{logs_parser}")
-            continue
-        # 3-run validation: task should have more failures than rollback
-        base_tf, rollback_tf, task_tf = test_failures_list
-        task_completed = test_statuses[2] == TestStatus.COMPLETION.value
-        if task_completed and task_tf < rollback_tf:
-            if conserv_retry < conservative_max_retries:
-                conserv_retry += 1
-                logger.warning(f"Failed to verify test failures. logs_parser-{logs_parser}")
-                continue
-            else:
-                logger.warning(f"Conservative retry limit reached. logs_parser-{logs_parser}")
-        is_success = True
-        break
-
-    if not is_success:
-        logger.error("Failed to synthesize logs parser.")
-        return False
-    logger.info("Logs parser created successfully.")
-    save_file(logs_parser, test_logs_parser_path)
-    return True
-
-
 def validate_repo_test_breaks(
     env: Env,
     test_logs_list: list,
     test_statuses: list,
     logger: logging.Logger
-) -> tuple[bool, tuple]:
+) -> tuple:
     """
     Verify the task on functional test breaks.
-    Returns a boolean success flag and a tuple of the expected failures and stats.
+    Raises RuntimeError on failure; returns (expected_failures, stats) on success.
     """
     test_result_list, test_failures_list = [], []
     for logs, status in zip(test_logs_list, test_statuses):
@@ -236,31 +132,27 @@ def validate_repo_test_breaks(
             test_result = env.parse_test_logs(logs, logger)
             test_result_list.append(test_result)
         except Exception as e:
-            logger.error(f"Failed to parse test logs: {e}")
-            return False, ()
+            msg = "Failed to parse test logs."
+            logger.error(msg)
+            raise RuntimeError(msg)
         test_failures_list.append(env.get_test_failures(test_result))
 
     base_tf, rollback_tf, task_tf = test_failures_list
     test_completed_list = [ts == TestStatus.COMPLETION.value for ts in test_statuses]
-    base_completed, rollback_completed, task_completed = test_completed_list
+    _, _, task_completed = test_completed_list
 
-    # Base and rollback must both complete
-    if not base_completed or not rollback_completed:
-        logger.error("Failed to verify: base_completed={}, rollback_completed={}".format(
-            base_completed, rollback_completed))
-        return False, ()
-
-    # Secure should not have more failures than vulnerable on repo tests
     if base_tf > rollback_tf:
-        logger.error("Failed to verify: base_tf ({}) > rollback_tf ({})".format(base_tf, rollback_tf))
-        return False, ()
+        msg = "Failed to verify task on functional test baseline: base_tf ({}) > rollback_tf ({})".format(
+            base_tf, rollback_tf)
+        logger.error(msg)
+        raise RuntimeError(msg)
 
-    # Mask should break functional tests
     is_broken = not task_completed or task_tf > rollback_tf
     if not is_broken:
-        logger.error("Failed to verify task on functional test breaks: rollback-{}, task-{}".format(
-            rollback_tf, task_tf if task_completed else "N/A"))
-        return False, ()
+        msg = "Failed to verify task on functional test breaks: rollback-{}, task-{}".format(
+            rollback_tf, task_tf if task_completed else "N/A")
+        logger.error(msg)
+        raise RuntimeError(msg)
 
     expected_failures = {
         "func": rollback_tf,
@@ -270,7 +162,7 @@ def validate_repo_test_breaks(
         if task_completed else -1
     logger.info("Repo tests verified: base_tf={}, rollback_tf={}, task_tf={}".format(
         base_tf, rollback_tf, task_tf if task_completed else "N/A"))
-    return True, (expected_failures, stats)
+    return (expected_failures, stats)
 
 
 def run_sec_test(
@@ -282,8 +174,8 @@ def run_sec_test(
     run_name: str,
     pre_install_patches: tuple,
     force: bool = False,
-) -> dict | None:
-    """Run one sec test configuration. Returns secresults dict or None."""
+) -> dict:
+    """Run one sec test configuration. Raises RuntimeError on failure; returns secresults dict on success."""
     sec_output_path = log_dir / LOG_SEC_OUTPUT.format(run_name)
     sec_results_path = log_dir / LOG_SEC_RESULTS.format(run_name)
 
@@ -301,8 +193,9 @@ def run_sec_test(
             logger=logger,
         )
     except docker.errors.BuildError as e:
-        logger.error(f"Failed to build sec test deployment for {run_name}: {e}")
-        return None
+        msg = f"Failed to build sec test instance deployment: {e}"
+        logger.error(msg)
+        raise RuntimeError(msg)
 
     deployment.create_container(
         command=SEC_TEST_CMD,
@@ -315,13 +208,15 @@ def run_sec_test(
     save_file(test_logs, sec_output_path)
 
     if timed_out:
-        logger.error(f"Sec test {run_name} timed out.")
-        return None
+        msg = "Failed to run tests because of sec test timeout."
+        logger.error(msg)
+        raise RuntimeError(msg)
 
     secresults = parse_secresults(test_logs)
     if secresults is None:
-        logger.error(f"Failed to parse secresults for {run_name}.")
-        return None
+        msg = "Failed to parse sec test logs."
+        logger.error(msg)
+        raise RuntimeError(msg)
 
     sec_results_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(secresults, sec_results_path)
@@ -357,10 +252,10 @@ def validate_sec_test_breaks(
     log_dir: Path,
     logger: logging.Logger,
     force: bool = False,
-) -> tuple[bool, tuple]:
+) -> tuple:
     """
     Run sec_vuln and sec_gold, verify at least one distinguishing test.
-    Returns a boolean success flag and a tuple of (stats, sec_test_names).
+    Raises RuntimeError on failure; returns (stats, sec_test_names) on success.
     """
     # sec_vuln: vulnerable implementation + agent test patch
     vuln_results = run_sec_test(
@@ -369,8 +264,6 @@ def validate_sec_test_breaks(
         pre_install_patches=(data_record["security_patch"], "-R"),
         force=force,
     )
-    if vuln_results is None:
-        return False, ()
 
     # sec_gold: secure implementation + agent test patch
     gold_results = run_sec_test(
@@ -379,29 +272,28 @@ def validate_sec_test_breaks(
         pre_install_patches=(),
         force=force,
     )
-    if gold_results is None:
-        return False, ()
 
-    # Validate: at least one test distinguishes (vuln fail + gold pass)
     common_tests = set(vuln_results.keys()) & set(gold_results.keys())
     if not common_tests:
-        logger.error("No common tests found between sec_vuln and sec_gold.")
-        return False, ()
+        msg = "Failed to verify task on sec test breaks: no common tests between sec_vuln and sec_gold."
+        logger.error(msg)
+        raise RuntimeError(msg)
 
     distinguishing = [t for t in common_tests
         if vuln_results[t] is False and gold_results[t] is True]
 
     if not distinguishing:
-        logger.error("No distinguishing sec tests (vuln fail + gold pass). "
+        msg = "Failed to verify task on sec test breaks: no distinguishing tests (vuln fail + gold pass). " \
             "vuln={}, gold={}".format(
             {t: vuln_results[t] for t in common_tests},
-            {t: gold_results[t] for t in common_tests}))
-        return False, ()
+            {t: gold_results[t] for t in common_tests})
+        logger.error(msg)
+        raise RuntimeError(msg)
 
     stats = {}
     stats["num_sec_tests"] = len(distinguishing)
     logger.info(f"Sec tests verified: {len(distinguishing)}/{len(common_tests)} tests distinguishing: {distinguishing}")
-    return True, (stats, distinguishing)
+    return (stats, distinguishing)
 
 
 def validate_single(
@@ -411,9 +303,9 @@ def validate_single(
     test_patch: str,
     env_setup_log_dir: Path,
     force: bool = False,
-) -> dict | None:
+) -> tuple[dict | None, str | None]:
     """Validate a single instance in no_require_test mode.
-    Returns updated env_spec on success, None on failure.
+    Returns (env_spec, None) on success, (None, failure_reason) on failure.
     On success, data_record is updated in-place."""
     instance_id = data_record["instance_id"]
     project, _ = parse_instance_id(instance_id)
@@ -423,37 +315,32 @@ def validate_single(
     logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
     logger.info(f"Validating environment (no_require_test) for {instance_id}...")
 
+    if not test_patch.strip():
+        msg = "Empty model patch."
+        logger.error(msg)
+        return None, msg
+
     env = Env(
         logger=logger,
         project=project,
-        image_name=data_record["image_name"],
+        image_name=data_record["env_image_name"],
         **env_spec
     )
 
     try:
         test_logs_list, test_statuses = run_repo_test_suite_multi(env, data_record, log_dir, logger, force)
+        get_logs_parser(env, test_logs_list, test_statuses,
+            log_dir=log_dir, logger=logger, model=LOGS_PARSER_MODEL,
+            ordering_checks=[(2, 1)], force=force)
+        expected_failures, test_stats = validate_repo_test_breaks(env, test_logs_list, test_statuses, logger)
+        sec_stats, sec_test_names = validate_sec_test_breaks(
+            env, data_record, test_patch, log_dir, logger, force)
     except RuntimeError as e:
-        return None
-
-    parse_success = get_repo_logs_parser(env, test_logs_list, test_statuses,
-        log_dir=log_dir, logger=logger, model=LOGS_PARSER_MODEL, force=force)
-    if not parse_success:
-        return None
-
-    is_valid, test_info = validate_repo_test_breaks(env, test_logs_list, test_statuses, logger)
-    if not is_valid:
-        return None
-    expected_failures, test_stats = test_info
-
-    is_valid, sec_info = validate_sec_test_breaks(
-        env, data_record, test_patch, log_dir, logger, force)
-    if not is_valid:
-        return None
-    sec_stats, sec_test_names = sec_info
+        return None, str(e)
 
     test_stats.update(sec_stats)
-    logger.info("Task verified successfully, expected_failures-{}, num_sec_tests-{}, num_func_tests-{}".format(
-        expected_failures, test_stats["num_sec_tests"], test_stats["num_func_tests"]))
+    logger.info("Task verified successfully, expected_failures-{}, sec_test_names-{}, num_sec_tests-{}, num_func_tests-{}".format(
+        expected_failures, sec_test_names, test_stats["num_sec_tests"], test_stats["num_func_tests"]))
 
     with RepoLocks.locked(project):
         logger.info(f"Building evaluation image for {instance_id}...")
@@ -473,7 +360,7 @@ def validate_single(
     data_record["expected_failures"] = expected_failures
     data_record["image_name"] = dockerhub_image_name
     instance_stats.update(test_stats)
-    return env_spec
+    return env_spec, None
 
 
 def validate_threadpool(
@@ -494,7 +381,7 @@ def validate_threadpool(
     if instance_ids is not None:
         candidate_ids = candidate_ids & set(instance_ids)
 
-    succeeded, failed = [], []
+    succeeded, failed = [], {}
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(
@@ -513,24 +400,28 @@ def validate_threadpool(
             for future in as_completed(futures):
                 instance_id = futures[future]
                 try:
-                    updated_spec = future.result()
+                    updated_spec, reason = future.result()
                 except Exception as e:
                     raise RuntimeError(f"Internal error for {instance_id}: {e}")
                 if updated_spec:
                     env_specs[instance_id] = updated_spec
                     succeeded.append(instance_id)
                 else:
-                    failed.append(instance_id)
+                    failed[instance_id] = reason
                 pbar.update(1)
                 pbar.set_description(
                     f"{len(succeeded)} ran successfully, {len(failed)} failed"
                 )
                 if save_specs:
                     save_file(env_specs, env_specs_path)
-    if failed:
-        print("failed: \n" + "\n".join(failed))
+    summary = get_validate_summary(succeeded, failed)
+    summary_path = env_setup_log_dir / LOG_SUMMARY
+    summary_path.parent.mkdir(parents=True, exist_ok=True)
+    save_file(summary, summary_path)
+    print_summary(summary)
     if save_specs:
         print(f"Environments saved to {env_specs_path}.")
+    print(f"Summary saved to {summary_path}.")
 
 
 if __name__ == "__main__":
@@ -582,11 +473,7 @@ if __name__ == "__main__":
 
     # Load test synthesis agent predictions
     predictions, _ = SWEAgentPort.after_completion(args.test_agent_output_dir)
-    test_patches = {}
-    for pred in predictions:
-        patch = pred.get("model_patch", "")
-        if patch.strip():
-            test_patches[pred["instance_id"]] = patch
+    test_patches = {pred["instance_id"]: pred.get("model_patch", "") for pred in predictions}
 
     validate_threadpool(
         dataset, stats, args.max_workers, env_specs_path, env_setup_log_dir,
@@ -597,6 +484,6 @@ if __name__ == "__main__":
     )
 
     save_file(dataset, dataset_path)
-    print(f"Dataset updated at {dataset_path}.")
+    print(f"Dataset saved to {dataset_path}.")
     save_file(stats, stats_path)
     print(f"Stats saved to {stats_path}.")
