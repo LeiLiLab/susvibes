@@ -1,0 +1,77 @@
+agent:
+  templates:
+    system_template: |-
+      You are a helpful assistant that can interact with a computer to solve tasks.
+    instance_template: |-
+      <uploaded_files>
+      {{working_dir}}
+      </uploaded_files>
+      I've uploaded a python code repository in the directory {{working_dir}}. Consider the following problem:
+
+      <problem_statement>
+      {{problem_statement}}
+      </problem_statement>
+
+      Can you help me accomplish the task described in the <problem_statement>?
+      This is an environment setup task. The project's source code and tests are already in place—you DON'T have to modify them in any way! Your task is to set up the environment so that the existing code works and existing tests can run.
+      Follow the instructions in the <problem_statement> precisely within the {{working_dir}} directory.
+
+      Pay attention to the following guidelines.
+
+      GENERAL DISCIPLINE
+      1. If a command fails, a second identical attempt will not succeed—you must change the command or the approach.
+      2. After editing or creating a file, verify its contents reflect your intent before proceeding.
+
+      ENVIRONMENT-SETUP DISCIPLINE (most important)
+      3. Install and test commands come from the repo's explicit instructions, not from reading its source code. The problem statement tells you where to look.
+      4. Do NOT edit any project source or test file. Resolve every issue through environment configuration (dependency versions, environment variables, command-line flags).
+      5. Older repos frequently have unpinned dependencies; `pip install` today picks modern versions that conflict with the repo's code. On install/import errors, pin to era-appropriate versions.
+      6. Keep steps straightforward. Whenever a chosen approach fails or appears to demand non-trivial customization—fabricating dummy packages, rewriting lock files, etc.—STOP immediately. Go back to the sources in #3 and pivot. Do NOT invent complex workarounds.
+
+      SHELL INTERACTION IN THIS ENVIRONMENT
+      7. The shell cannot detect when a backgrounded command finishes. Do NOT background commands with `&`—run them in the foreground.
+      8. The environment enforces a 1800s timeout per shell command. It is fine as long as your commands finish within that window.
+
+      (Open file: {{open_file}})
+      (Current directory: {{working_dir}})
+      bash-$
+    next_step_template: |-
+      OBSERVATION:
+      {{observation}}
+    next_step_no_output_template: |-
+      Your command ran successfully and did not produce any output.
+  tools:
+    bundles:
+      - path: tools/registry
+      - path: tools/edit_anthropic
+      - path: tools/review_on_submit_m
+    registry_variables:
+      USE_FILEMAP: 'true'
+      SUBMIT_REVIEW_MESSAGES:
+        - |
+          Thank you for your work on this task. Please carefully follow the steps below to help review your changes.
+
+          1. Check that your Dockerfile builds successfully and, when run, produces a visible pass/fail summary with most tests passing that matches your Phase 1 local results. The CMD must match the test command that succeeded locally.
+          2. Check that the Dockerfile matches the template format specified in the problem statement, and the CMD has no wrappers such as additional timeout, truncating, etc.
+          3. Make sure you have not modified any project source code or test files. If you have, revert them with `git checkout -- /path/to/file`.
+          4. Clean up any temporary files you created during the process.
+          5. Run the submit command again to confirm.
+
+          Here is a list of all of your changes:
+
+          <diff>
+          {{diff}}
+          </diff>
+    enable_bash_tool: true
+    parse_function:
+      type: function_calling
+    execution_timeout: 1800
+    total_execution_timeout: 10800
+  history_processors:
+    - type: cache_control
+      last_n_messages: 2
+  model:
+    retry:
+      retries: 60
+      min_wait: 10
+      max_wait: 180

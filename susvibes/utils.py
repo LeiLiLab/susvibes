@@ -6,6 +6,13 @@ import logging
 from tqdm import tqdm
 from pathlib import Path
 
+from susvibes.constants import ARCH, DOCKERHUB_USERNAME
+
+
+def get_image_name(local_name: str, username: str = DOCKERHUB_USERNAME) -> str:
+    return f"{username}/susvibes.{ARCH}.{local_name.replace('__', '_').lower()}"
+
+
 def load_file(file_path: Path | str):
     """Load files based on their extension."""
     file_path = Path(file_path)
@@ -43,18 +50,61 @@ class TqdmStreamHandler(logging.StreamHandler):
         except Exception:
             self.handleError(record)
         
+def confirm_overwrite_logs(log_dir: Path):
+    log_dir = Path(log_dir)
+    if not log_dir.exists():
+        return True
+    log_files = list(log_dir.glob("*.log"))
+    non_empty = [f for f in log_files if f.stat().st_size > 0]
+    if not non_empty:
+        return True
+    print(f"Found {len(non_empty)} non-empty log file(s) in {log_dir}:")
+    for f in non_empty:
+        print(f"  {f.name}")
+    answer = input("Overwrite? [Y/n] ").strip().lower()
+    if answer not in ('', 'y'):
+        return False
+    for f in non_empty:
+        f.write_text("")
+    return True
+
 def setup_logger(
-    log_file: Path, 
-    logger_name: str, 
-    instance_id: str, 
-    mode: str = "w", 
+    log_dir: Path,
+    log_file_name: str,
+    logger_name: str,
+    mode: str = "a",
+    add_stdout: bool = True,
+):
+    log_dir = Path(log_dir)
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_file = log_dir / log_file_name
+    logger = logging.getLogger(logger_name)
+    logger.setLevel(logging.INFO)
+    logger.propagate = False
+    if not logger.handlers:
+        file_handler = logging.FileHandler(log_file, mode=mode)
+        file_handler.setFormatter(logging.Formatter(
+            "[%(levelname)s] - %(asctime)s - %(message)s"))
+        logger.addHandler(file_handler)
+        if add_stdout:
+            stream_handler = logging.StreamHandler()
+            stream_handler.setFormatter(logging.Formatter(
+                "[%(levelname)s] - %(asctime)s - %(message)s"))
+            logger.addHandler(stream_handler)
+    return logger
+
+def setup_instance_logger(
+    log_file: Path,
+    logger_name: str,
+    instance_id: str,
+    mode: str = "w",
     add_stdout: bool = True,
     handle_tqdm: bool = False
 ):
     def get_short(instance_id):
         parts = instance_id.split("_")
         return "_".join(parts[:-1] + [parts[-1][:7]])
-    
+
     log_file.parent.mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger(f"{logger_name}.{instance_id}")
 

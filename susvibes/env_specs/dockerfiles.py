@@ -16,6 +16,15 @@ RUN apt-get update
 
 CMD ["python", "--version"]
 """
+# Note: the live `base_py:{3.7..3.12}` images on Docker Hub (songwen6968/base_py)
+# are NOT a clean rebuild from this Dockerfile — they were extended in-place via
+# three successive `docker build -t base_py:$v -t songwen6968/base_py:$v` layers
+# on top of the originally pushed image (FROM the previous tag each time):
+#   1. ENV DEBIAN_FRONTEND=noninteractive
+#   2. ENV APT_LISTCHANGES_FRONTEND=none, TZ=Etc/UTC
+#   3. RUN printf 'force-confdef\nforce-confold\n' > /etc/dpkg/dpkg.cfg.d/99force-conf
+# All three suppress apt/dpkg interactivity. Rebuilding from this file will drop
+# those layers, so prefer `docker pull songwen6968/base_py:$v` to stay aligned.
 
 DOCKERFILE_ENV_PY_TEMPLATE = r"""
 FROM {base_image}

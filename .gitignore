@@ -12,8 +12,11 @@
 __pycache__/
 
 /datasets/*
-!/datasets/examples/
-!/datasets/examples/**
+!/datasets/default/
+/datasets/default/*
+!/datasets/default/susvibes_dataset*.jsonl
+!/datasets/default/examples/
+!/datasets/default/examples/**
 
 slurm*
 /slurm/

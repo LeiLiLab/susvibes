@@ -4,12 +4,12 @@
 # Env-agent command
 sweagent run-batch \
     --config=config/susvibes_env_setup.yaml \
-    --agent.model.name=claude-sonnet-4-20250514 \
-    --agent.model.per_instance_cost_limit=5.00 \
+    --agent.model.name=claude-sonnet-4-5-20250929 \
+    --agent.model.per_instance_cost_limit=10.00 \
     --agent.model.per_instance_call_limit=150 \
     --instances.type=expert_file \
-    --instances.path=../susvibes/logs/agent_runs/susvibes.curate.env_setup.build_dataset_instances.yaml \
-    --num_workers=4
+    --instances.path=/home/songwenzhao/susvibes/logs/agent_runs/susvibes.curate.env_setup.build_repo_instances.yaml \
+    --num_workers=5
 
 # SWE-agent command for task generation, e.g. for verification
 sweagent run-batch \
@@ -19,7 +19,7 @@ sweagent run-batch \
     --agent.model.per_instance_call_limit=100 \
     --instances.type=expert_file \
     --instances.path=../susvibes/logs/agent_runs/susvibes.curate.adaptive_gen.verifier_instances.yaml \
-    --num_workers=4
+    --num_workers=10
 
 # SWE-agent command for evaluation
 sweagent run-batch \
@@ -28,7 +28,7 @@ sweagent run-batch \
     --agent.model.per_instance_cost_limit=10.00 \
     --agent.model.per_instance_call_limit=200 \
     --instances.type=expert_file \
-    --instances.path=../susvibes/logs/agent_runs/susvibes.curate.evaluation.run_evaluation_generic_instances.yaml \
+    --instances.path=../susvibes/logs/agent_runs/susvibes.run_evaluation_generic_instances.yaml \
     --num_workers=5
 
 # SWE-agent command for debuging single instance evaluation

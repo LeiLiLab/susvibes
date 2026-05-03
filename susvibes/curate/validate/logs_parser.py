@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 
 from susvibes.constants import *
 from susvibes.env import Env
-from susvibes.curate.prompts import LOGS_PARSER_PROMPT_TEMPLATE
+from susvibes.curate.validate.prompts import LOGS_PARSER_PROMPT_TEMPLATE
 from susvibes.env_specs import (
     FAILURE_STATUSES, 
     TestItemStatus, 
@@ -33,27 +33,31 @@ def validate_logs_parser(logs_parser: dict, logger: logging.Logger) -> bool:
     return True
 
 def get_logs_parser(
-    env: Env, 
-    test_logs_list: list, 
+    env: Env,
+    test_logs_list: list,
     test_statuses: list,
-    model: str, 
+    model: str,
     log_dir: Path,
     logger: logging.Logger,
+    ordering_checks: list[tuple[int, int]],
     max_retries: int = 10,
     conservative_max_retries: int = 5,
     force: bool = False
-) -> bool:
+) -> None:
     """
     Synthesize a logs parser for the environment based on the test logs.
-    Returns a boolean success flag, env is modified in place with the logs parser.
+    Raises RuntimeError on failure; env is modified in place with the logs parser on success.
     """
     test_logs_parser_path = log_dir / LOG_TEST_LOGS_PARSER
     if test_logs_parser_path.exists() and not force:
         logger.info("Logs parser found; reusing.")
         env.logs_parser = load_file(test_logs_parser_path)
-        return True
+        return
     def clip_tokens(text: str, model: str, limit: int) -> str:
-        enc = tiktoken.encoding_for_model(model)
+        try:
+            enc = tiktoken.encoding_for_model(model)
+        except KeyError:
+            enc = tiktoken.get_encoding("cl100k_base")
         tokens = enc.encode(text)
         if len(tokens) > limit:
             tokens = tokens[-limit:]
@@ -82,8 +86,12 @@ def get_logs_parser(
         except Exception as e:
             logger.warning(f"Failed to get model response: {e}")
             continue
-        logs_parser = json.loads(message.content.split("```")[1].strip()) \
-            if "```" in message.content else json.loads(message.content)
+        try:
+            logs_parser = json.loads(message.content.split("```")[1].strip()) \
+                if "```" in message.content else json.loads(message.content)
+        except (json.JSONDecodeError, IndexError) as e:
+            logger.warning(f"Failed to parse model response as JSON: {e}")
+            continue
         if not validate_logs_parser(logs_parser, logger):
             continue
         env.logs_parser = logs_parser
@@ -104,23 +112,24 @@ def get_logs_parser(
         if not sum(test_failures_list) or any(tf < 0 for tf in test_failures_list):
             logger.warning(f"Invalid test failures detected. logs_parser-{logs_parser}")
             continue
-        base_tf, rollback_tf, _, sec_test_tf, task_tf = test_failures_list
         test_completed_list = [ts == TestStatus.COMPLETION.value for ts in test_statuses]
-        _, _, _, sec_test_completed, task_completed = test_completed_list
-        if sec_test_completed and sec_test_tf < base_tf or \
-            task_completed and task_tf < rollback_tf:
-                if conserv_retry < conservative_max_retries:
-                    conserv_retry += 1
-                    logger.warning(f"Failed to verify test failures. logs_parser-{logs_parser}")
-                    continue
-                else:
-                    logger.warning(f"Conservative retry limit reached. logs_parser-{logs_parser}")
+        ordering_failed = any(
+            test_completed_list[a] and test_failures_list[a] < test_failures_list[b]
+            for a, b in ordering_checks
+        )
+        if ordering_failed:
+            if conserv_retry < conservative_max_retries:
+                conserv_retry += 1
+                logger.warning(f"Failed to verify test failures. logs_parser-{logs_parser}")
+                continue
+            else:
+                logger.warning(f"Conservative retry limit reached. logs_parser-{logs_parser}")
         is_success = True
         break
 
     if not is_success:
-        logger.error("Failed to synthesize logs parser.")
-        return False
+        msg = "Failed to synthesize logs parser."
+        logger.error(msg)
+        raise RuntimeError(msg)
     logger.info("Logs parser created successfully.")
     save_file(logs_parser, test_logs_parser_path)
-    return True

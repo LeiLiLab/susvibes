@@ -4,115 +4,172 @@ from pathlib import Path
 from jinja2 import Template
 
 from susvibes.curate.constants import LOCAL_REPOS_DIR
-from susvibes.curate.prompts import MASK_GEN_PROMPT_TEMPLATE
-from susvibes.curate.agents.ports import SWEAgentPort
-from susvibes.utils import load_file, save_file
+from susvibes.curate.adaptive_gen.prompts import MASK_GEN_PROMPT_TEMPLATE
+from susvibes.curate.utils.agents.ports import SWEAgentPort
+from susvibes.curate.adaptive_gen.utils import setup_logger
+from susvibes.utils import load_file, save_file, touched_files, filter_patch
 from susvibes.curate.utils import (
     get_repo_dir,
     clone_github_repo,
     apply_patch,
     rollback,
-    len_patch
+    len_patch,
+    count_patch_additions_deletions
 )
+
+logger = None
+
+def init_logger():
+    global logger
+    logger = setup_logger("mask.log", __name__, add_stdout=False)
 
 def prologue(
     processed_dataset_path: Path,
-    length_ratio: int = 2,
+    length_ratio: int = 1,
     max_length: int = None,
     instance_ids: list = None,
+    no_require_test: bool = False,
 ):
-    SWEAgentPort.init(run_name=__spec__.name)
+    port = SWEAgentPort(run_name=__spec__.name)
     processed_dataset = load_file(processed_dataset_path)
     if instance_ids != None:
-        processed_dataset = [data_record for data_record in processed_dataset 
+        processed_dataset = [data_record for data_record in processed_dataset
             if data_record["instance_id"] in instance_ids]
     for data_record in tqdm(processed_dataset, desc="Preparing agent run"):
         instance_id = data_record["instance_id"]
         repo_dir = clone_github_repo(data_record["project"], root_dir=LOCAL_REPOS_DIR, force=False)
         try:
-            rollback_commit = rollback(repo_dir, data_record["base_commit"], 
-                data_record["security_patch"], data_record["test_patch"])
+            test_patch = None if no_require_test else data_record["test_patch"]
+            rollback_commit = rollback(repo_dir, data_record["base_commit"],
+                data_record["security_patch"], test_patch)
         except Exception as e:
-            print(f'Error rolling back repository for {instance_id}: {e}')
-            continue 
+            logger.error("Error rolling back repository for %s: %s", instance_id, e)
+            continue
+        effective_ratio = length_ratio
         if max_length:
-              _, num_lines = len_patch(data_record["security_patch"])
-              length_ratio = min(length_ratio, max_length / num_lines)
-        length_ratio = round(length_ratio, 1)
-        SWEAgentPort.add_task(
+              _, diff_lines = len_patch(data_record["security_patch"])
+              effective_ratio = min(effective_ratio, max(max_length / diff_lines - 1, 1))
+        effective_ratio = int(effective_ratio)
+        port.add_task(
             repo_type="local",
             repo_dir=repo_dir,
             base_commit=rollback_commit,
             problem_statement=Template(MASK_GEN_PROMPT_TEMPLATE).render(
-                ratio=length_ratio,
+                ratio=effective_ratio,
                 diff_patch=data_record["security_patch"]),
             instance_id=instance_id,
         )
-    SWEAgentPort.before_start()
+    port.before_start()
+    return port
 
 def epilogue(
     agent_output_dir: Path,
     processed_dataset_path: Path,
-    task_dataset_path: Path
+    task_dataset_path: Path,
+    length_ratio: int = 1,
+    max_length: int = None,
+    ratio_tolerance: float = 0,
+    no_require_test: bool = False,
 ):
-    predictions = SWEAgentPort.after_completion(agent_output_dir, submitted_only=True)
-    processed_dataset_by_id = {data_record["instance_id"]: data_record 
+    predictions, total_cost = SWEAgentPort.after_completion(agent_output_dir, submitted_only=True)
+    processed_dataset_by_id = {data_record["instance_id"]: data_record
         for data_record in load_file(processed_dataset_path)}
     task_dataset = load_file(task_dataset_path) if task_dataset_path.exists() else []
-    task_dataset_by_id = {data_record["instance_id"]: data_record 
+    task_dataset_by_id = {data_record["instance_id"]: data_record
         for data_record in task_dataset}
-    
+
     successful_instance_ids = []
     for pred in tqdm(predictions, desc="Processing agent submissions"):
         instance_id = pred["instance_id"]
         data_record = processed_dataset_by_id[instance_id]
         repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
-        rollback_commit = rollback(repo_dir, data_record["base_commit"], 
-            data_record["security_patch"], data_record["test_patch"])
-        try:
-            apply_patch(repo_dir, pred["model_patch"])
-            apply_patch(repo_dir, pred["model_patch"], reverse=True)
-        except Exception as e:
-            print(f'Error applying model patch for {instance_id}: {e}')
+        test_patch = None if no_require_test else data_record["test_patch"]
+        rollback_commit = rollback(repo_dir, data_record["base_commit"],
+            data_record["security_patch"], test_patch)
+        model_patch = pred.get("model_patch", "")
+        txt_exts = (".md", ".txt", ".log")
+        txt_files = {f for f in touched_files(model_patch) if f.endswith(txt_exts)}
+        if txt_files:
+            logger.warning("Filtering out text files from patch for %s: %s", instance_id, txt_files)
+        filtered_patch = filter_patch(model_patch, txt_files, exclude=True) if txt_files else model_patch
+        if not filtered_patch.strip():
+            logger.warning("Empty model patch for %s, skipping.", instance_id)
             continue
-        if "--- /dev/null" in pred["model_patch"]:
-            print(f'Forbidden file creation for {instance_id}, skipping.')
+        try:
+            apply_patch(repo_dir, filtered_patch)
+            apply_patch(repo_dir, filtered_patch, reverse=True)
+        except Exception as e:
+            logger.warning("Error applying model patch for %s: %s", instance_id, e)
+            continue
+        if "--- /dev/null" in filtered_patch:
+            logger.warning("Forbidden file creation for %s, skipping.", instance_id)
+            continue
+        _, diff_deleted = count_patch_additions_deletions(data_record["security_patch"])
+        _, mask_deleted = count_patch_additions_deletions(filtered_patch)
+        _, diff_lines = len_patch(data_record["security_patch"])
+        _, mask_lines = len_patch(filtered_patch)
+        if max_length and mask_lines > max_length:
+            logger.warning("Mask too long for %s: %d lines > max_length %d, skipping.",
+                           instance_id, mask_lines, max_length)
+            continue
+        effective_ratio = length_ratio
+        if max_length:
+            effective_ratio = min(effective_ratio, max(max_length / diff_lines - 1, 1))
+        effective_ratio = int(effective_ratio)
+        if mask_deleted < diff_deleted * max(effective_ratio - ratio_tolerance, 1):
+            logger.warning("Mask too short for %s: %d mask deleted < %d diff deleted * %dx, skipping.",
+                           instance_id, mask_deleted, diff_deleted, effective_ratio)
+            continue
+        additions, deletions = count_patch_additions_deletions(filtered_patch)
+        if additions > deletions:
+            logger.warning("Mask has more additions than deletions for %s: +%d/-%d, skipping.",
+                           instance_id, additions, deletions)
             continue
         if instance_id in task_dataset_by_id:
-            task_dataset_by_id[instance_id]["mask_patch"] = pred["model_patch"]
+            task_dataset_by_id[instance_id]["mask_patch"] = filtered_patch
         else:
-            data_record["mask_patch"] = pred["model_patch"]
+            data_record["mask_patch"] = filtered_patch
             task_dataset_by_id[instance_id] = data_record
         successful_instance_ids.append(instance_id)
             
     save_file(task_dataset_by_id.values(), task_dataset_path)
-    return successful_instance_ids
-    
+    return successful_instance_ids, total_cost
+
 def pipeline(
     processed_dataset_path: Path,
     task_dataset_path: Path,
-    length_ratio: int = 2,
+    length_ratio: int = 1,
     max_length: int = None,
+    ratio_tolerance: float = 0,
     instance_ids: list = None,
+    no_require_test: bool = False,
+    iter_id: int = None,
 ):
-    print(f"Mask generation pipeline started with ratio {length_ratio:.1f}x.")
-    prologue(
+    logger.info("=== Mask generation pipeline started (iter=%s, ratio=%.1fx) ===",
+                iter_id, length_ratio)
+    port = prologue(
         processed_dataset_path=processed_dataset_path,
         length_ratio=length_ratio,
         max_length=max_length,
-        instance_ids=instance_ids
+        instance_ids=instance_ids,
+        no_require_test=no_require_test,
     )
-    agent_output_dir = SWEAgentPort.run_batch()
-    successful_instance_ids = epilogue(
+    agent_output_dir = port.run_batch()
+    successful_instance_ids, total_cost = epilogue(
         agent_output_dir=agent_output_dir,
         processed_dataset_path=processed_dataset_path,
-        task_dataset_path=task_dataset_path
+        task_dataset_path=task_dataset_path,
+        length_ratio=length_ratio,
+        max_length=max_length,
+        ratio_tolerance=ratio_tolerance,
+        no_require_test=no_require_test,
     )
-    return successful_instance_ids
+    logger.info("  Agent cost: $%.2f", total_cost or 0)
+    return successful_instance_ids, total_cost
 
 def remove_results(instance_ids: list):
-    SWEAgentPort.init(run_name=__spec__.name)
-    SWEAgentPort.remove_results(instance_ids)
+    port = SWEAgentPort(run_name=__spec__.name)
+    port.remove_results(instance_ids)
 
 
 if __name__ == "__main__":
@@ -143,12 +200,17 @@ if __name__ == "__main__":
         type=Path,
         help="Directory where the agent output is stored, required in epilogue.",
     )
+    parser.add_argument(
+        "--no_require_test",
+        action="store_true",
+        help="Do not require test patches; skip test_patch in rollback.",
+    )
     args = parser.parse_args()
     if args.prologue:
-        prologue(args.processed_dataset_path)
+        prologue(args.processed_dataset_path, no_require_test=args.no_require_test)
     elif args.epilogue:
         epilogue(args.agent_output_dir, args.processed_dataset_path,
-            task_dataset_path=args.task_dataset_path)
+            task_dataset_path=args.task_dataset_path, no_require_test=args.no_require_test)
     else:
         pipeline(processed_dataset_path=args.processed_dataset_path,
-            task_dataset_path=args.task_dataset_path)
+            task_dataset_path=args.task_dataset_path, no_require_test=args.no_require_test)

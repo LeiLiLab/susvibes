@@ -11,7 +11,7 @@ from susvibes.utils import (
     save_file,
     touched_files,
     filter_patch,
-    setup_logger
+    setup_instance_logger
 )
 
 LOG_INSTANCE = "run_instance.log"
@@ -65,7 +65,7 @@ class Task:
             )
         except Exception as e:
             return "", EvalStatus.MODEL_PATCH_ERROR.value
-        deployment.create_container()
+        deployment.create_container(mem_limit=CONTAINER_MEM_LIMIT, cpu_limit=CONTAINER_CPU_LIMIT)
         test_logs, timed_out = deployment.run_with_timeout()
         eval_status = self.env.get_test_status(test_logs, timed_out)
         
@@ -129,9 +129,9 @@ class TasksHandler:
     safety_strategy: str
     reports: dict
     
-    def __init__(self, dataset: list, safety_strategy: str):
+    def __init__(self, dataset: list, safety_strategy: str, run_id: str = "default"):
         self.dataset = dataset
-        self.env_specs = load_file(ENV_SPECS_PATH)
+        self.env_specs = load_file(get_env_spec_path('components', run_id))
         self.safety_strategy = safety_strategy
         self.reports = {}
         
@@ -140,9 +140,12 @@ class TasksHandler:
             "num_dataset_instances": len(self.dataset),
             "num_submitted_instances": len(self.reports),
         }    
-        details_keys = ["correct", "correct_secure", "model_patch_error"]
+        details_keys = ["correct", "correct_secure", "no_patch", "model_patch_error"]
         details = {key: [] for key in details_keys}
         for instance_id, report in self.reports.items():
+            if report["sec"]["status"] == EvalStatus.NO_PATCH.value:
+                details["no_patch"].append(instance_id)
+                continue
             if report["sec"]["status"] == EvalStatus.MODEL_PATCH_ERROR.value:
                 details["model_patch_error"].append(instance_id)
                 continue
@@ -150,7 +153,8 @@ class TasksHandler:
                 details["correct"].append(instance_id)
                 if report["sec"]["pass"]:
                     details["correct_secure"].append(instance_id)
-        
+
+        eval_summary["num_no_patch"] = len(details["no_patch"])
         eval_summary["num_model_patch_errors"] = len(details["model_patch_error"])
         eval_summary["correct_ratio"] = len(details["correct"]) / len(self.dataset)
         eval_summary["correct_secure_ratio"] = len(details["correct_secure"]) / len(self.dataset) 
@@ -162,19 +166,24 @@ class TasksHandler:
         return eval_summary
     
     def run_evaluation(
-        self, 
+        self,
         run_id: str,
-        prediction: dict, 
-        data_record: dict, 
+        prediction: dict,
+        data_record: dict,
         force: bool = False
     ):
-        instance_id = data_record["instance_id"]        
+        instance_id = data_record["instance_id"]
         model_name_or_path = prediction.get(PredictionKeys.MODEL.value, "none").replace("/", "__")
-        
+
         log_dir = EVALUATION_LOG_DIR / run_id / self.safety_strategy / model_name_or_path / instance_id
         log_file = log_dir / LOG_INSTANCE
-        logger = setup_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
-        
+        logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
+
+        if not prediction.get(PredictionKeys.PREDICTION.value):
+            logger.warning("Empty model patch for %s, skipping.", instance_id)
+            return {run_name: {"pass": False, "status": EvalStatus.NO_PATCH.value}
+                for run_name in EVALUATION_RUNS}
+
         logger.info(f"Initializing task {instance_id}...")
         env_spec = self.env_specs[instance_id]
         task = Task(logger, data_record, env_spec)
@@ -183,7 +192,7 @@ class TasksHandler:
         report = task.evaluate(prediction, log_dir, logger, force)
         if self.safety_strategy == SafetyStrategies.SELF_SELECTION.value:
             report["cwes_selection"] = eval_selected_cwes(prediction, task.cwe_ids)
-            
+
         logger.info(f"Report for {instance_id}: {report}")
         return report
 
@@ -197,16 +206,18 @@ class TasksHandler:
         pred_by_id = {
             pred[PredictionKeys.INSTANCE_ID.value]: pred
             for pred in predictions
-            if pred[PredictionKeys.PREDICTION.value]
         }
         dataset_by_id = {data_record["instance_id"]: data_record for data_record in self.dataset}
+
+        eval_pred_ids = [instance_id for instance_id in pred_by_id
+            if instance_id in dataset_by_id]
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
-                executor.submit(self.run_evaluation, run_id, pred_by_id[instance_id], 
+                executor.submit(self.run_evaluation, run_id, pred_by_id[instance_id],
                     dataset_by_id[instance_id], force): instance_id
-                for instance_id in pred_by_id if instance_id in dataset_by_id
+                for instance_id in eval_pred_ids
             }
-            with tqdm(total=len(futures), dynamic_ncols=True, 
+            with tqdm(total=len(futures), dynamic_ncols=True,
                 desc=f"Evaluating predictions [{max_workers} threads]") as pbar:
                 for future in as_completed(futures):
                     instance_id = futures[future]
@@ -217,4 +228,4 @@ class TasksHandler:
                     else:
                         self.reports[instance_id] = report
                     finally:
-                        pbar.update(1)                        
+                        pbar.update(1)
