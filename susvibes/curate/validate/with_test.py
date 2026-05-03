@@ -21,10 +21,9 @@ from susvibes.env import Deployment, Env
 from susvibes.env_specs import TestStatus
 from susvibes.curate.validate.logs_parser import get_logs_parser
 from susvibes.curate.validate.utils import get_validate_summary, print_summary
-from susvibes.utils import load_file, save_file, setup_instance_logger, parse_instance_id
+from susvibes.utils import load_file, save_file, get_image_name, setup_instance_logger, parse_instance_id
 from susvibes.curate.utils import (
-    RepoLocks,
-    get_on_hub_image_name,
+    reverse_patch,
 )
 
 LOG_INSTANCE = "validate.log"
@@ -44,9 +43,11 @@ def run_test_suite_multi(
 ) -> list:
     """Run tests in the environment and return test logs for multiple patches."""
     logger.info(f"Running tests in environment deployment {env.deployment.image.tags[0]}...")
+    rev_security = reverse_patch(data_record["security_patch"])
+    rev_test = reverse_patch(data_record["test_patch"])
     runs_list = [
-        (), (data_record["security_patch"], data_record["test_patch"], "-R"),
-        (data_record["test_patch"], "-R"), (data_record["security_patch"], "-R"),
+        (), (rev_security, rev_test),
+        (rev_test,), (rev_security,),
         (data_record["task_patch"],)
     ]
     allow_timeout = lambda id: id >= 3
@@ -74,7 +75,7 @@ def run_test_suite_multi(
             try:
                 deployment: Deployment = env.build_instance_deployment(
                     base_commit=data_record["base_commit"],
-                    patches={"pre_install": run_patches},
+                    patches={"post_install": run_patches},
                     logger=logger,
                 )
             except docker.errors.BuildError as e:
@@ -176,6 +177,7 @@ def validate_single(
     env_spec: dict,
     env_setup_log_dir: Path,
     force: bool = False,
+    from_existing_specs: bool = False,
 ) -> tuple[dict | None, str | None]:
     """Validate a single instance via test execution.
     Returns (env_spec, None) on success, (None, failure_reason) on failure.
@@ -196,32 +198,30 @@ def validate_single(
     )
     try:
         test_logs_list, test_statuses = run_test_suite_multi(env, data_record, log_dir, logger, force)
-        get_logs_parser(env, test_logs_list, test_statuses,
-            log_dir=log_dir, logger=logger, model=LOGS_PARSER_MODEL,
-            ordering_checks=[(3, 0), (4, 1)], force=force)
+        if from_existing_specs and env_spec.get("logs_parser"):
+            logger.info("Reusing logs parser from env_spec.")
+        else:
+            get_logs_parser(env, test_logs_list, test_statuses,
+                log_dir=log_dir, logger=logger, model=LOGS_PARSER_MODEL,
+                ordering_checks=[(3, 0), (4, 1)], force=force)
         expected_failures, test_stats = validate_test_breaks(env, test_logs_list, test_statuses, logger=logger)
     except RuntimeError as e:
         return None, str(e)
     logger.info("Task verified successfully, expected_failures-{}, num_sec_tests-{}, num_func_tests-{}".format(
         expected_failures, test_stats["num_sec_tests"], test_stats["num_func_tests"]))
 
-    with RepoLocks.locked(project):
-        logger.info(f"Building evaluation image for {instance_id}...")
-        task_deployment = env.build_instance_deployment(
-            base_commit=data_record["base_commit"],
-            patches={"pre_install": (data_record["task_patch"],)},
-            logger=logger
-        )
-    eval_image_name = f"eval_{instance_id.lower()}"
-    assert task_deployment.image.tag(eval_image_name)
-    dockerhub_image_name = get_on_hub_image_name(
-        instance_id=instance_id
+    logger.info(f"Building evaluation image for {instance_id}...")
+    task_deployment = env.build_instance_deployment(
+        base_commit=data_record["base_commit"],
+        patches={"post_install": (data_record["task_patch"],)},
+        logger=logger
     )
-    assert task_deployment.image.tag(dockerhub_image_name)
+    eval_image_name = get_image_name(f"eval_{instance_id.lower()}")
+    assert task_deployment.image.tag(eval_image_name)
 
     env_spec["logs_parser"] = env.logs_parser
     data_record["expected_failures"] = expected_failures
-    data_record["image_name"] = dockerhub_image_name
+    data_record["image_name"] = eval_image_name
     instance_stats.update(test_stats)
     return env_spec, None
 
@@ -235,6 +235,7 @@ def validate_threadpool(
     force: bool = False,
     save_specs: bool = True,
     instance_ids: list = None,
+    from_existing_specs: bool = False,
 ):
     env_specs = load_file(env_specs_path) if env_specs_path.exists() else {}
     dataset_by_id = {data_record["instance_id"]: data_record
@@ -242,6 +243,8 @@ def validate_threadpool(
     candidate_ids = set(dataset_by_id.keys()) & set(env_specs.keys())
     if instance_ids is not None:
         candidate_ids = candidate_ids & set(instance_ids)
+    if from_existing_specs:
+        candidate_ids = {iid for iid in candidate_ids if env_specs[iid].get("logs_parser")}
 
     succeeded, failed = [], {}
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -253,6 +256,7 @@ def validate_threadpool(
                 env_specs[instance_id],
                 env_setup_log_dir,
                 force=force,
+                from_existing_specs=from_existing_specs,
             ): instance_id
             for instance_id in candidate_ids
         }
@@ -316,6 +320,11 @@ if __name__ == "__main__":
         default="default",
         help="Run ID for output subdirectory (datasets/<run_id>/...)",
     )
+    parser.add_argument(
+        "--from_existing_specs",
+        action="store_true",
+        help="Reuse the logs_parser stored in env_specs instead of re-synthesizing via LLM.",
+    )
     args = parser.parse_args()
 
     dataset_path = get_path('dataset', args.run_id)
@@ -331,6 +340,7 @@ if __name__ == "__main__":
         force=args.force,
         save_specs=not args.skip_specs,
         instance_ids=args.instance_ids,
+        from_existing_specs=args.from_existing_specs,
     )
 
     save_file(dataset, dataset_path)

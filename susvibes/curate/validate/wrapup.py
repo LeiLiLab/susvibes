@@ -11,7 +11,6 @@ from tqdm import tqdm
 from typing import TypedDict
 
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_path
-LOCAL_REPOS_DIR = "/mnt/data2/songwenzhao/projects1"
 from susvibes.utils import load_file, save_file
 from susvibes.curate.utils import (
     get_repo_dir,
