@@ -390,3 +390,4 @@ if __name__ == "__main__":
     processed_dataset_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(processed_dataset, processed_dataset_path)
     logger.info("Logs saved to %s", collect_log_dir)
+    print(f"Processed dataset saved to {processed_dataset_path}.")

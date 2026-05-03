@@ -11,7 +11,7 @@ from susvibes.utils import (
     save_file,
     touched_files,
     filter_patch,
-    setup_logger
+    setup_instance_logger
 )
 
 LOG_INSTANCE = "run_instance.log"
@@ -65,7 +65,7 @@ class Task:
             )
         except Exception as e:
             return "", EvalStatus.MODEL_PATCH_ERROR.value
-        deployment.create_container()
+        deployment.create_container(mem_limit=CONTAINER_MEM_LIMIT, cpu_limit=CONTAINER_CPU_LIMIT)
         test_logs, timed_out = deployment.run_with_timeout()
         eval_status = self.env.get_test_status(test_logs, timed_out)
         
@@ -129,9 +129,9 @@ class TasksHandler:
     safety_strategy: str
     reports: dict
     
-    def __init__(self, dataset: list, safety_strategy: str):
+    def __init__(self, dataset: list, safety_strategy: str, run_id: str = "default"):
         self.dataset = dataset
-        self.env_specs = load_file(ENV_SPECS_PATH)
+        self.env_specs = load_file(get_env_spec_path('components', run_id))
         self.safety_strategy = safety_strategy
         self.reports = {}
         
@@ -166,19 +166,24 @@ class TasksHandler:
         return eval_summary
     
     def run_evaluation(
-        self, 
+        self,
         run_id: str,
-        prediction: dict, 
-        data_record: dict, 
+        prediction: dict,
+        data_record: dict,
         force: bool = False
     ):
-        instance_id = data_record["instance_id"]        
+        instance_id = data_record["instance_id"]
         model_name_or_path = prediction.get(PredictionKeys.MODEL.value, "none").replace("/", "__")
-        
+
         log_dir = EVALUATION_LOG_DIR / run_id / self.safety_strategy / model_name_or_path / instance_id
         log_file = log_dir / LOG_INSTANCE
-        logger = setup_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
-        
+        logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
+
+        if not prediction.get(PredictionKeys.PREDICTION.value):
+            logger.warning("Empty model patch for %s, skipping.", instance_id)
+            return {run_name: {"pass": False, "status": EvalStatus.NO_PATCH.value}
+                for run_name in EVALUATION_RUNS}
+
         logger.info(f"Initializing task {instance_id}...")
         env_spec = self.env_specs[instance_id]
         task = Task(logger, data_record, env_spec)
@@ -187,7 +192,7 @@ class TasksHandler:
         report = task.evaluate(prediction, log_dir, logger, force)
         if self.safety_strategy == SafetyStrategies.SELF_SELECTION.value:
             report["cwes_selection"] = eval_selected_cwes(prediction, task.cwe_ids)
-            
+
         logger.info(f"Report for {instance_id}: {report}")
         return report
 
@@ -204,15 +209,8 @@ class TasksHandler:
         }
         dataset_by_id = {data_record["instance_id"]: data_record for data_record in self.dataset}
 
-        # Record no-patch instances directly without running evaluation
-        no_patch_report = {run_name: {"pass": False, "status": EvalStatus.NO_PATCH.value}
-            for run_name in EVALUATION_RUNS}
-        for instance_id in pred_by_id:
-            if instance_id in dataset_by_id and not pred_by_id[instance_id].get(PredictionKeys.PREDICTION.value):
-                self.reports[instance_id] = no_patch_report
-
         eval_pred_ids = [instance_id for instance_id in pred_by_id
-            if instance_id in dataset_by_id and pred_by_id[instance_id].get(PredictionKeys.PREDICTION.value)]
+            if instance_id in dataset_by_id]
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
                 executor.submit(self.run_evaluation, run_id, pred_by_id[instance_id],

@@ -12,10 +12,9 @@ from pathlib import Path
 
 from susvibes.constants import *
 from susvibes.curate.constants import LOCAL_REPOS_DIR, ENV_SETUP_LOG_DIR, get_path
-LOCAL_REPOS_DIR = "/mnt/data2/songwenzhao/projects1"
 from susvibes.env_specs import AVAILABLE_DEV_TOOL_VERSIONS
-from susvibes.curate.prompts import DEV_TOOLS_PROMPT_TEMPLATE
-from susvibes.curate.agents.ports import SWEAgentPort
+from susvibes.curate.env_setup.prompts import DEV_TOOLS_PROMPT_TEMPLATE
+from susvibes.curate.utils.agents.ports import SWEAgentPort
 from susvibes.utils import load_file, save_file, setup_logger, parse_instance_id
 from susvibes.curate.utils import (
     get_repo_dir,
@@ -95,7 +94,9 @@ def epilogue(agent_output_dir: Path, run_id: str = "default"):
     logger.info("%d / %d dev tools identified successfully.", len(dev_tools), len(predictions))
     if total_cost is not None:
         logger.info("Agent cost: $%.2f", total_cost)
-    save_file(dev_tools, get_env_spec_path('dev_tools', run_id))
+    dev_tools_path = get_env_spec_path('dev_tools', run_id)
+    save_file(dev_tools, dev_tools_path)
+    print(f"Dev tools saved to {dev_tools_path}.")
 
 def pipeline(task_dataset_path: Path, run_id: str = "default"):
     logger.info("Dev tools pipeline started.")

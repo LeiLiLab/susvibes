@@ -14,7 +14,7 @@ from docker.models.images import Image
 
 from susvibes.constants import CONTAINER_RUN_TIMEOUT
 from susvibes.env_specs import *
-from susvibes.utils import get_instance_id, save_file
+from susvibes.utils import get_image_name, get_instance_id, save_file
 
 docker_client = docker.from_env()
 
@@ -140,12 +140,14 @@ class Deployment():
         self,
         command: str | list = None,
         mem_limit: str = None,
+        cpu_limit: int = None,
     ) -> None:
         try:
             container = docker_client.containers.create(
                 image=self.image.id,
                 detach=True,
                 mem_limit=mem_limit,
+                nano_cpus=int(cpu_limit * 1e9) if cpu_limit else None,
                 command=command
                 # command="tail -f /dev/null",
             )
@@ -207,7 +209,7 @@ class Deployment():
         elif self.remove_container:
             self._remove_container()
 
-    def run_with_timeout(self, timeout: int = CONTAINER_RUN_TIMEOUT) -> tuple[str, bool]:
+    def run_with_timeout(self, timeout: int = CONTAINER_RUN_TIMEOUT, stop_timeout: int = 60) -> tuple[str, bool]:
         self.start()
         run_logs, timed_out = b"", False
         def run():
@@ -218,13 +220,17 @@ class Deployment():
                 self.container.wait()
             except docker.errors.NotFound:
                 return
-        thread = threading.Thread(target=run)
+        thread = threading.Thread(target=run, daemon=True)
         thread.start()
         thread.join(timeout)
         if thread.is_alive():
             self.logger.info(f"Container {self.container.name} run timed out after {timeout} seconds.")
-            self.stop()
             timed_out = True
+            stop_thread = threading.Thread(target=self.stop, daemon=True)
+            stop_thread.start()
+            stop_thread.join(stop_timeout)
+            if stop_thread.is_alive():
+                self.logger.warning(f"Container {self.container.name} stop exceeded {stop_timeout}s. Container may be orphaned.")
         else:
             self.stop()
         return run_logs.decode(), timed_out
@@ -242,7 +248,7 @@ class Env:
         project: str,
         image_name: str,
         dockerfile: str,
-        dockerignore: str,
+        dockerignore: str = None,
         image_loc: str = "local",
         logs_parser: dict = None, 
         remove_image: bool = False, 
@@ -281,10 +287,11 @@ class Env:
         return " && ".join(cmds)    
 
     def _compose_instance_dockerfile(
-        self, 
+        self,
         base_commit: str,
         patches: dict[tuple[str, ...]],
-        reinstall: bool = True
+        reinstall: bool = True,
+        persist_files: list[tuple[str, str]] = None,
     ) -> str:
         """Create the Dockerfile for building instance deployment."""
         dockerfile_re = re.compile(DOCKERFILE_PATTERN, re.MULTILINE | re.DOTALL)
@@ -307,16 +314,20 @@ class Env:
             f'COPY . /{BUILD_DATA_DIR_NAME}/\n'
         ])
         
-        instance_dockerfile += run_stm.format(reset_cmds)
         if patches.get("pre_install", None):
+            instance_dockerfile += run_stm.format(reset_cmds)
             instance_dockerfile += run_stm.format(type(self)._apply_patches(
                 patches, "pre_install"))
-        if reinstall:
-            instance_dockerfile += dependency_install_stm
+            if reinstall:
+                instance_dockerfile += dependency_install_stm
         if patches.get("post_install", None):
             instance_dockerfile += run_stm.format(type(self)._apply_patches(
                 patches, "post_install"))
-                
+
+        if persist_files:
+            for src, dst in persist_files:
+                instance_dockerfile += run_stm.format(f"cp {src} {dst}")
+
         commit_msg = "Instance created."
         commit_cmds = f'git add . && git commit --allow-empty -m "{commit_msg}" --no-verify'
         rm_cmd = f'rm -rf -- /{BUILD_DATA_DIR_NAME}'
@@ -325,12 +336,13 @@ class Env:
         return instance_dockerfile
     
     def build_instance_deployment(
-        self, 
+        self,
         base_commit: str,
         patches: dict[tuple[str, ...]],
         logger: logging.Logger,
         remove_image: bool = True,
         remove_container: bool = True,
+        persist_files: list[tuple[str, str]] = None,
     ) -> Deployment:
         """Build a instance-level Docker image from the environment."""
         logger.info(f"Building instance deployment...")
@@ -348,14 +360,15 @@ class Env:
                 for id, patch in enumerate(v):
                     if patch not in REVERSE_PATCH_FLAG:
                         save_file(patch, patches_dir / f"{id}.patch")
-            instance_dockerfile = self._compose_instance_dockerfile(base_commit, patches, reinstall)
+            instance_dockerfile = self._compose_instance_dockerfile(
+                base_commit, patches, reinstall, persist_files=persist_files)
 
             deployment = Deployment.from_build(
                 logger=logger,
                 context_path=context_path,
                 dockerfile=instance_dockerfile,
                 dockerignore=self.dockerignore,
-                image_name=f"instance_{get_instance_id(self.project, base_commit).lower()}",
+                image_name=get_image_name(f"instance_{get_instance_id(self.project, base_commit).lower()}"),
                 remove_image=remove_image,
                 remove_container=remove_container,
             )    

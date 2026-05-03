@@ -11,6 +11,17 @@ AGENT_RUN_LOG_DIR = root_dir / "logs/agent_runs"
 
 LOGS_PARSER_MODEL = "o3"
 
+FEATURE_GOLDEN_FILE = "feature_golden.md"
+FEATURE_MASK_FILE = "feature_mask.md"
+SECURITY_FIX_FILE = "security_fix.md"
+FEATURE_VULN_FILE = "feature_vuln.md"
+PROBLEM_STATEMENT_FILE = "problem_statement.md"
+README_FILE = "README.md"
+TEST_PATCH_FILE = "test_patch.md"
+TEST_PATCH_BACKUPS_DIR_NAME = "test_patch_backups"
+
+PATCH_TEMPLATE = """```diff\n\n{patch}\n```"""
+
 def get_path(name: str, run_id: str = "default") -> Path:
     base = DATASETS_DIR / run_id
     paths = {
@@ -19,6 +30,7 @@ def get_path(name: str, run_id: str = "default") -> Path:
         'task_dataset': base / 'task_dataset.jsonl',
         'stats': base / 'stats.json',
         'dataset': base / 'susvibes_dataset.jsonl',
-        'examples': base / 'task_examples',
+        'examples': base / 'examples',
+        'edits': base / 'edits',
     }
     return paths[name]

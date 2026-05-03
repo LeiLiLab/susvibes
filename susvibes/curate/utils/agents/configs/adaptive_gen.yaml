@@ -41,7 +41,7 @@ agent:
       USE_FILEMAP: 'true'
       SUBMIT_REVIEW_MESSAGES:
         - |
-          Thank you for your work on this task. Please review the diff below before finalizing your submission.
+          Please review the diff below before finalizing your submission.
 
           1. Check that the diff accurately reflects what you're asked to do.
           2. If you have modified any TEST files, please revert them to the state they had before you started.

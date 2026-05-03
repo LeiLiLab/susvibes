@@ -1,5 +1,7 @@
 """
 Purpose: Build environment Docker images from Env-agent output for each task instance.
+The prologue pulls the canonical `dind_py` and `base_py` images, and tags the latter
+as `base_py:<version>` locally.
 
 python -m susvibes.curate.env_setup.build_repo \
     --prologue \
@@ -25,12 +27,11 @@ import docker.errors
 
 from susvibes.constants import *
 from susvibes.curate.constants import LOCAL_REPOS_DIR, ENV_SETUP_LOG_DIR, get_path
-LOCAL_REPOS_DIR = "/mnt/data2/songwenzhao/projects1"
 from susvibes.env import Deployment
-from susvibes.env_specs import dockerfiles, DOCKERFILE_PATTERN, GIT_AUTHOR_CONFIGS
-from susvibes.curate.prompts import INSTALL_TEST_PROMPT_TEMPLATE
-from susvibes.curate.agents.ports import EnvAgentPort
-from susvibes.utils import load_file, save_file, filter_patch, setup_instance_logger, parse_instance_id
+from susvibes.env_specs import dockerfiles, DOCKERFILE_PATTERN, GIT_AUTHOR_CONFIGS, WORKSPACE_DIR_NAME
+from susvibes.curate.env_setup.prompts import INSTALL_TEST_PROMPT_TEMPLATE
+from susvibes.curate.utils.agents.ports import EnvAgentPort
+from susvibes.utils import load_file, save_file, filter_patch, get_image_name, setup_instance_logger, parse_instance_id, touched_files
 from susvibes.curate.utils import (
     RepoLocks,
     clone_github_repo,
@@ -65,7 +66,7 @@ def extract_dockerfile(prediction, logger):
         return RuntimeError(msg)
     return dockerfile
 
-def validate_and_patch_dockerfile(dockerfile, logger):
+def validate_and_compose_env_dockerfile(dockerfile, logger):
     """Validate dockerfile structure and append a commit step before CMD."""
     dockerfile_re = re.compile(DOCKERFILE_PATTERN, re.MULTILINE | re.DOTALL)
     m = dockerfile_re.search(dockerfile)
@@ -78,6 +79,13 @@ def validate_and_patch_dockerfile(dockerfile, logger):
     # Validate FROM uses base_py
     if not re.search(r'base_py:', from_stm):
         msg = f"Dockerfile FROM does not use base_py image: {from_stm.strip()}"
+        logger.error(msg)
+        raise RuntimeError(msg)
+
+    # Validate WORKDIR /<WORKSPACE_DIR_NAME> is set somewhere in the dockerfile
+    workdir_stm = f"WORKDIR /{WORKSPACE_DIR_NAME}"
+    if workdir_stm not in dockerfile:
+        msg = f"Dockerfile must contain '{workdir_stm}'."
         logger.error(msg)
         raise RuntimeError(msg)
 
@@ -99,13 +107,39 @@ def validate_and_patch_dockerfile(dockerfile, logger):
     return dockerfile
 
 
+def pull_canonical(short_name: str, version: str) -> str:
+    """Ensure the canonical hub-named image for {short_name}:{version} is
+    locally available; pull from Docker Hub if missing. Returns the canonical
+    name."""
+    canonical = f"{get_image_name(short_name)}:{version}"
+    try:
+        docker_client.images.get(canonical)
+    except docker.errors.ImageNotFound:
+        docker_client.images.pull(canonical)
+    return canonical
+
+
+def pull_short_tag(short_name: str, version: str) -> str:
+    """Ensure {short_name}:{version} exists locally as a tag of the canonical
+    hub-named image; pull and re-tag if missing. Returns the short tag."""
+    short = f"{short_name}:{version}"
+    try:
+        docker_client.images.get(short)
+        return short
+    except docker.errors.ImageNotFound:
+        pass
+    canonical = pull_canonical(short_name, version)
+    docker_client.images.get(canonical).tag(short_name, tag=version)
+    return short
+
+
 def build_env_deployment(instance_id, dockerfile, logger):
     """Build a environment Docker image."""
     project, base_commit = parse_instance_id(instance_id)
     repo_dir = get_repo_dir(project, root_dir=LOCAL_REPOS_DIR)
-    env_image_name = f"env_{instance_id.lower()}"
+    env_image_name = get_image_name(f"env_{instance_id.lower()}")
     try:
-        dockerfile = validate_and_patch_dockerfile(dockerfile, logger)
+        dockerfile = validate_and_compose_env_dockerfile(dockerfile, logger)
         reset_to_commit(repo_dir, base_commit)
         # Remove repo's .dockerignore to ensure .git is included in build context
         repo_dockerignore = repo_dir / ".dockerignore"
@@ -145,14 +179,21 @@ def prologue(
         if data_record["project"] not in exclude_projects
         and data_record["instance_id"] in dev_tools]
 
+    versions = {dev_tools[d["instance_id"]]["version"] for d in task_dataset}
+    for version in versions:
+        pull_short_tag("base_py", version)
+        pull_canonical("dind_py", version)
+
     for data_record in task_dataset:
         repo_dir = clone_github_repo(data_record["project"], root_dir=LOCAL_REPOS_DIR, force=False)
         reset_to_commit(repo_dir, data_record["base_commit"])
         dev_tool = dev_tools[data_record["instance_id"]]
-        image_name = f'dind_py:{dev_tool["version"]}'
+        image_name = f'{get_image_name("dind_py")}:{dev_tool["version"]}'
         dockerfile_template = dockerfiles.DOCKERFILE_ENV_PY_TEMPLATE.format_map(
             SafeDict(base_image=f'base_py:{dev_tool["version"]}'))
         test_files = [] if no_require_test else data_record["test_files"]
+        coverage_files = sorted(touched_files(data_record.get("task_patch", ""))) \
+            if no_require_test else []
         port.add_task(
             image=image_name,
             repo_type="local",
@@ -160,6 +201,7 @@ def prologue(
             base_commit=data_record["base_commit"],
             problem_statement=Template(INSTALL_TEST_PROMPT_TEMPLATE).render(
                 test_files=test_files,
+                coverage_files=coverage_files,
                 dockerfile_template=dockerfile_template
             ),
             instance_id=data_record["instance_id"],
@@ -202,30 +244,23 @@ def build_single_repo(
     Returns (env_spec, image_name) on success, None on failure."""
     instance_id = data_record["instance_id"]
     project, _ = parse_instance_id(instance_id)
-    env_image_name = f"env_{instance_id.lower()}"
+    env_image_name = get_image_name(f"env_{instance_id.lower()}")
 
     log_dir = env_setup_log_dir / instance_id
     log_file = log_dir / LOG_INSTANCE
     logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
     logger.info(f"Building environment for {instance_id}...")
 
-    if not force and env_spec:
-        try:
-            docker_client.images.get(env_image_name)
-            logger.info("Environment image found; reusing.")
-            return env_spec, env_image_name
-        except docker.errors.ImageNotFound:
-            pass
-
     try:
         if prediction:
+            if not prediction.get("model_patch", "").strip():
+                msg = "Empty model patch."
+                logger.error(msg)
+                raise RuntimeError(msg)
             with RepoLocks.locked(project):
                 dockerfile = extract_dockerfile(prediction, logger)
-                env_deployment = build_env_deployment(instance_id, dockerfile, logger)
         elif env_spec:
             dockerfile = env_spec["dockerfile"]
-            with RepoLocks.locked(project):
-                env_deployment = build_env_deployment(instance_id, dockerfile, logger)
         else:
             msg = "No environment prediction or specification provided."
             logger.error(msg)
@@ -233,11 +268,24 @@ def build_single_repo(
     except RuntimeError as e:
         return None
 
-    new_env_spec = {}
-    new_env_spec["dockerfile"] = dockerfile
-    image_name = env_deployment.image.tags[0]
-    logger.info(f"Environment built successfully: {image_name}")
-    return new_env_spec, image_name
+    new_env_spec = {"dockerfile": dockerfile}
+
+    if not force and env_spec and env_spec.get("dockerfile") == dockerfile:
+        try:
+            docker_client.images.get(env_image_name)
+            logger.info("Environment image matches env_spec and exists locally; skipping build.")
+            return new_env_spec, env_image_name
+        except docker.errors.ImageNotFound:
+            pass
+
+    try:
+        with RepoLocks.locked(project):
+            env_deployment = build_env_deployment(instance_id, dockerfile, logger)
+    except RuntimeError as e:
+        return None
+
+    logger.info(f"Environment built successfully: {env_image_name}")
+    return new_env_spec, env_image_name
 
 
 def build_repo_threadpool(
@@ -285,19 +333,25 @@ def build_repo_threadpool(
                     new_env_spec, image_name = result
                     env_specs[instance_id] = new_env_spec
                     data_record = task_dataset_by_id[instance_id].copy()
-                    data_record["image_name"] = image_name
+                    data_record["env_image_name"] = image_name
                     dataset.append(data_record)
                     succeeded.append(instance_id)
                 else:
                     failed.append(instance_id)
                 pbar.update(1)
                 pbar.set_description(
-                    f"{len(succeeded)} ran successfully, {len(failed)} failed"
+                    f"{len(succeeded)} built, {len(failed)} failed"
                 )
                 if save_specs:
                     save_file(env_specs, env_specs_path)
+    if succeeded:
+        print(f"Succeeded ({len(succeeded)}):")
+        for instance_id in sorted(succeeded):
+            print(f"  {instance_id}")
     if failed:
-        print("failed: \n" + "\n".join(failed))
+        print(f"\nFailed ({len(failed)}):")
+        for instance_id in sorted(failed):
+            print(f"  {instance_id}")
     if save_specs:
         print(f"Environments saved to {env_specs_path}.")
     return dataset
@@ -323,12 +377,12 @@ if __name__ == "__main__":
     parser.add_argument(
         "--from_existing_specs",
         action="store_true",
-        help="Use existing env specs instead of agent output.",
+        help="Reuse the dockerfile stored in env_specs instead of extracting it from agent output.",
     )
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Force re-build the environment images.",
+        help="Force re-build the env image even if a matching env_spec and local image are already cached.",
     )
     parser.add_argument(
         "--max_workers",
@@ -360,7 +414,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    task_dataset_path = get_path('processed_dataset', args.run_id)#'task_dataset', args.run_id)
+    task_dataset_path = get_path('task_dataset', args.run_id)
     if not task_dataset_path.exists():
         fallback_path = get_path('processed_dataset', args.run_id)
         if fallback_path.exists():

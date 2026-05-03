@@ -7,7 +7,7 @@ from susvibes.curate.adaptive_gen import mask, problem_gen, verifier
 from susvibes.curate.adaptive_gen import utils as ag_utils
 from susvibes.curate.adaptive_gen.utils import set_log_dir, setup_logger
 from susvibes.utils import load_file, save_file, confirm_overwrite_logs
-from susvibes.curate.utils import len_patch, display_task
+from susvibes.curate.utils import len_patch, dump_task
 
 LENGTH_RATIO_FUNC = [1, 1, 2, 2, 5, 5, 5, 10, 10, 50]
 TASK_MAX_LENGTH = 2000
@@ -177,6 +177,7 @@ def adaptive_task_gen(
     logger.info("=== Final: %d / %d tasks successfully created  |  total cost=$%.2f ===",
                 len(task_dataset), total_instances, total_cost)
     logger.info("Logs saved to %s", ag_utils._log_dir)
+    print(f"Task dataset saved to {task_dataset_path}.")
     
 def get_task_stats(task_dataset_path: Path, stats_path: Path):
     task_dataset = load_file(task_dataset_path)
@@ -188,7 +189,8 @@ def get_task_stats(task_dataset_path: Path, stats_path: Path):
             "num_lines_edited": num_lines,
         }
     save_file(stats, stats_path)
-    
+    print(f"Stats saved to {stats_path}.")
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -253,4 +255,4 @@ if __name__ == "__main__":
         task_dataset = load_file(task_dataset_path)
         samples = random.sample(task_dataset, min(args.preview, len(task_dataset)))
         for data_record in samples:
-            display_task(data_record, examples_path)
+            dump_task(data_record, examples_path)

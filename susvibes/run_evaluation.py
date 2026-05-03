@@ -6,10 +6,8 @@ from susvibes.tasks import TasksHandler
 from susvibes.safety_strategies.tools import get_safety_guardrail
 from susvibes.utils import load_file, save_file
 from susvibes.env_specs import WORKSPACE_DIR_NAME
-from susvibes.curate.agents.ports import SWEAgentPort
-
-root_dir = Path(__file__).parent.parent
-DATASET_PATH = root_dir / "datasets/susvibes_dataset.jsonl"
+from susvibes.curate.utils.agents.ports import SWEAgentPort
+from susvibes.curate.constants import get_path
 
 def prepare_dataset(dataset_path: Path, safety_strategy: str, feedback_tool: str = None):
     dataset = load_file(dataset_path)
@@ -24,21 +22,21 @@ def prepare_dataset(dataset_path: Path, safety_strategy: str, feedback_tool: str
 
 def prologue(dataset_path: Path, safety_strategy: str, feedback_tool: str = None):
     run_name = f"{__spec__.name}_{safety_strategy}"
-    SWEAgentPort.init(run_name=run_name)
-    
+    port = SWEAgentPort(run_name=run_name)
+
     dataset = load_file(dataset_path)
     for data_record in dataset:
         problem_statement = get_safety_guardrail(data_record["problem_statement"],
             safety_strategy, data_record["cwe_ids"], dataset, feedback_tool,
             data_record.get("test_patch"))
-        SWEAgentPort.add_task(
+        port.add_task(
             image=data_record["image_name"],
             repo_type="preexisting",
             repo_name=WORKSPACE_DIR_NAME,
             problem_statement=problem_statement,
             instance_id=data_record["instance_id"],
         )
-    SWEAgentPort.before_start()
+    port.before_start()
     
 def _run_evaluation(
     run_id: str,
@@ -78,7 +76,7 @@ def epilogue(
     max_workers: int,
     force: bool = False
 ):
-    predictions = SWEAgentPort.after_completion(agent_output_dir)
+    predictions, _ = SWEAgentPort.after_completion(agent_output_dir)
     _run_evaluation(run_id, dataset_path, predictions, safety_strategy,
               summary_path, max_workers, force)
 
@@ -149,15 +147,16 @@ def main():
     )
 
     args = parser.parse_args()
+    dataset_path = get_path('dataset')
     if args.prologue:
-        prologue(DATASET_PATH, args.safety_strategy)
+        prologue(dataset_path, args.safety_strategy)
     elif args.epilogue:
-        epilogue(args.run_id, DATASET_PATH, args.agent_output_dir, args.safety_strategy, 
+        epilogue(args.run_id, dataset_path, args.agent_output_dir, args.safety_strategy,
             args.summary_path, args.max_workers, args.force)
     elif args.prepare_dataset:
-        prepare_dataset(DATASET_PATH, args.safety_strategy, args.feedback_tool)
+        prepare_dataset(dataset_path, args.safety_strategy, args.feedback_tool)
     else:
-        run_evaluation(args.run_id, DATASET_PATH, args.predictions_path, args.safety_strategy,
+        run_evaluation(args.run_id, dataset_path, args.predictions_path, args.safety_strategy,
             args.summary_path, args.max_workers, args.force)
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 import shutil
 import subprocess
@@ -11,6 +12,18 @@ from contextlib import contextmanager
 from textwrap import dedent
 from susvibes.utils import save_file, touched_files
 from susvibes.constants import DOCKERHUB_USERNAME
+from susvibes.curate.constants import (
+    FEATURE_GOLDEN_FILE, FEATURE_MASK_FILE, SECURITY_FIX_FILE,
+    PROBLEM_STATEMENT_FILE, README_FILE, PATCH_TEMPLATE,
+)
+from susvibes.env_specs import DOCKERFILE_PATTERN
+
+
+def extract_repo_test_cmd(dockerfile: str) -> str:
+    """Extract the repo test command from the CMD line of an env_spec dockerfile."""
+    m = re.search(DOCKERFILE_PATTERN, dockerfile, re.MULTILINE | re.DOTALL)
+    _, _, _, _, cmd_stm = m.groups()
+    return cmd_stm.strip()[len("CMD"):].strip()
 
 def run(cmd, cwd=None, capture_output=True, text=True, check=True, **kwargs):
     try:
@@ -169,14 +182,6 @@ def count_patch_additions_deletions(patch):
             deletions += 1
     return additions, deletions
 
-def get_on_hub_image_name(
-    instance_id: str,
-    username: str = DOCKERHUB_USERNAME
-):
-    arch = os.uname().machine
-    escaped = instance_id.replace("__", "_")
-    return f"{username}/susvibes.{arch}.eval_{escaped.lower()}"
-
 def push_image_to_hub(image_name, max_retries=3):
     """Push image to Docker Hub with a specified name."""
     docker_client = docker.from_env()
@@ -211,39 +216,159 @@ class RepoLocks:
         with lock:
             yield
             
-def display_task(data_record, examples_path: Path):
-    META_INFO_TEMPLATE = dedent("""
-    # Meta Information\n
-    Project: {project}\n
-    Vulnerability fix commit: [Github Page]({info_page})\n
-    Security issue identifier: {cve_id}\n
-    Vulnerability type: {cwes}\n
+def dump_task(data_record, examples_path: Path):
+    README_TEMPLATE = dedent("""\
+    # Meta Information
+
+    Project: {project}
+
+    GitHub vuln. fix commit page: {info_page}
+
+    Security issue identifier: {cve_id}
+
+    Vulnerability type: {cwes}
+
+    # Folder Contents
+
+    - `{feature_golden_file}` — diff revealing the secure feature implementation
+    - `{feature_mask_file}` — diff redacting feature lines from the vulnerable code
+    - `{security_fix_file}` — security fix patch fixing the security of the feature
+    - `{problem_statement_file}` — task description shown to the agent
     """)
-    PATCH_TEMPLATE = """```diff\n\n{mask_patch}\n```"""
-    
+
     task_dir = examples_path / data_record["instance_id"]
     task_dir.mkdir(parents=True, exist_ok=True)
     if "golden_patch" in data_record:
-        golden_path = task_dir / "golden.md"
-        golden = PATCH_TEMPLATE.format(mask_patch=data_record["golden_patch"])
-        save_file(golden, golden_path)
+        save_file(PATCH_TEMPLATE.format(patch=data_record["golden_patch"]),
+            task_dir / FEATURE_GOLDEN_FILE)
     if "mask_patch" in data_record:
-        mask_path = task_dir / "mask.md"
-        mask = PATCH_TEMPLATE.format(mask_patch=data_record["mask_patch"])
-        save_file(mask, mask_path)
+        save_file(PATCH_TEMPLATE.format(patch=data_record["mask_patch"]),
+            task_dir / FEATURE_MASK_FILE)
     if "security_patch" in data_record:
-        security_path = task_dir / "security_fix.md"
-        security_fix = PATCH_TEMPLATE.format(mask_patch=data_record["security_patch"])
-        save_file(security_fix, security_path)
-    
-    problem_statement_path = task_dir / "problem_statement.md"
-    save_file(data_record["problem_statement"], problem_statement_path)
-    
-    meta_path = task_dir / "meta_info.md"
-    meta_info = META_INFO_TEMPLATE.format(
+        save_file(PATCH_TEMPLATE.format(patch=data_record["security_patch"]),
+            task_dir / SECURITY_FIX_FILE)
+
+    save_file(data_record["problem_statement"], task_dir / PROBLEM_STATEMENT_FILE)
+
+    readme = README_TEMPLATE.format(
         project=data_record["project"],
         info_page=data_record["info_page"],
         cve_id=data_record["cve_id"],
-        cwes=", ".join(data_record["cwe_ids"])
+        cwes=", ".join(data_record["cwe_ids"]),
+        feature_golden_file=FEATURE_GOLDEN_FILE,
+        feature_mask_file=FEATURE_MASK_FILE,
+        security_fix_file=SECURITY_FIX_FILE,
+        problem_statement_file=PROBLEM_STATEMENT_FILE,
     )
-    save_file(meta_info, meta_path)
+    save_file(readme, task_dir / README_FILE)
+
+def reverse_patch(patch: str) -> str:
+    """Reverse a unified diff patch (swap roles of old/new sides).
+
+    Handles:
+    - +/- content lines
+    - @@ hunk headers (swap old/new ranges)
+    - --- / +++ file headers (swap header types and a/<->b/ prefixes)
+    - diff --git a/X b/Y header (swap a/X and b/Y)
+    - deleted file mode <-> new file mode
+    - old mode <-> new mode (chmod)
+    - rename from <-> rename to
+    - copy from <-> copy to
+    - index <sha1>..<sha2> (swap sha1 and sha2)
+    """
+    if not patch:
+        return patch
+
+    def swap_ab(path: str) -> str:
+        if path.startswith("a/"):
+            return "b/" + path[2:]
+        if path.startswith("b/"):
+            return "a/" + path[2:]
+        return path
+
+    lines = patch.split("\n")
+    out = []
+    i = 0
+    in_hunk = False
+    while i < len(lines):
+        line = lines[i]
+
+        m = re.match(r"^diff --git a/(\S+) b/(\S+)$", line)
+        if m:
+            in_hunk = False
+            out.append(f"diff --git a/{m.group(2)} b/{m.group(1)}")
+            i += 1
+            continue
+
+        if line.startswith("--- ") and i + 1 < len(lines) and lines[i + 1].startswith("+++ "):
+            in_hunk = False
+            old = line[4:]
+            new = lines[i + 1][4:]
+            out.append(f"--- {swap_ab(new)}")
+            out.append(f"+++ {swap_ab(old)}")
+            i += 2
+            continue
+
+        if line.startswith("@@"):
+            in_hunk = True
+            m = re.match(r"^@@ -(\S+) \+(\S+) @@(.*)$", line)
+            if m:
+                out.append(f"@@ -{m.group(2)} +{m.group(1)} @@{m.group(3)}")
+            else:
+                out.append(line)
+            i += 1
+            continue
+
+        if not in_hunk:
+            if line.startswith("deleted file mode"):
+                out.append(line.replace("deleted file mode", "new file mode", 1))
+                i += 1
+                continue
+            if line.startswith("new file mode"):
+                out.append(line.replace("new file mode", "deleted file mode", 1))
+                i += 1
+                continue
+
+            if line.startswith("old mode ") and i + 1 < len(lines) and lines[i + 1].startswith("new mode "):
+                old_mode = line[len("old mode "):]
+                new_mode = lines[i + 1][len("new mode "):]
+                out.append(f"old mode {new_mode}")
+                out.append(f"new mode {old_mode}")
+                i += 2
+                continue
+
+            if line.startswith("rename from ") and i + 1 < len(lines) and lines[i + 1].startswith("rename to "):
+                from_path = line[len("rename from "):]
+                to_path = lines[i + 1][len("rename to "):]
+                out.append(f"rename from {to_path}")
+                out.append(f"rename to {from_path}")
+                i += 2
+                continue
+            if line.startswith("copy from ") and i + 1 < len(lines) and lines[i + 1].startswith("copy to "):
+                from_path = line[len("copy from "):]
+                to_path = lines[i + 1][len("copy to "):]
+                out.append(f"copy from {to_path}")
+                out.append(f"copy to {from_path}")
+                i += 2
+                continue
+
+            m = re.match(r"^index (\S+)\.\.(\S+)(.*)$", line)
+            if m:
+                out.append(f"index {m.group(2)}..{m.group(1)}{m.group(3)}")
+                i += 1
+                continue
+
+        if in_hunk:
+            if line.startswith("-") and not line.startswith("--- "):
+                out.append("+" + line[1:])
+            elif line.startswith("+") and not line.startswith("+++ "):
+                out.append("-" + line[1:])
+            else:
+                out.append(line)
+        else:
+            out.append(line)
+
+        i += 1
+
+    return "\n".join(out)
+

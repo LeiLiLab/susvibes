@@ -48,11 +48,11 @@ AVAILABLE_DEV_TOOL_VERSIONS = {
     "python": ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"],
 }
 DOCKERFILE_PATTERN = (
-    r'^(FROM[^\r\n]*\r?\n)'
+    r'^(FROM(?:[^\r\n]*\\\r?\n)*[^\r\n]*\r?\n)'
     r'(.*?)'
-    r'^(COPY[^\r\n]*\r?\n)'
-    r'(.*?)' 
-    r'^(CMD[^\r\n]*(?:\r?\n|$))'
+    r'^(COPY(?:[^\r\n]*\\\r?\n)*[^\r\n]*\r?\n)'
+    r'(.*?)'
+    r'^(CMD(?:[^\r\n]*\\\r?\n)*[^\r\n]*(?:\r?\n|$))'
 )
 
 WORKSPACE_DIR_NAME = "project"
@@ -63,16 +63,6 @@ GIT_AUTHOR_CONFIGS = [
     "git config --global user.email setup@susvibes",
     "git config --global user.name SusVibes"
 ]
-GIT_UNIGNORE_PATTERNS = [
-    "!/.git", 
-    "!/.git/**", 
-    "!.gitignore", 
-    "!.gitattributes", 
-    "!.gitmodules",
-    f"!/{PATCHES_DIR_NAME}",
-    f"!/{PATCHES_DIR_NAME}/**",
-]
-
 BANNED_REINSTALL_FOR_INSTANCE = {
     "ckan/ckan": [
         "4c22c13"

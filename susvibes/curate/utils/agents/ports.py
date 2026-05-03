@@ -58,7 +58,11 @@ class SWEAgentPort:
                 'deployment': {
                     'type': "docker",
                     'image': image or "python:3.11",
-                    'python_standalone_dir': "/root"
+                    'python_standalone_dir': "/root",
+                    'docker_args': [
+                        f"--memory={CONTAINER_MEM_LIMIT}",
+                        f"--cpus={CONTAINER_CPU_LIMIT}",
+                    ],
                 },
                 'repo': repo_config
             },
@@ -148,6 +152,4 @@ class EnvAgentPort(SWEAgentPort):
         # mount host docker socket for docker-in-docker support
         self.task_instances[-1]['env']['deployment']['docker_args'] = [
             "-v", "/var/run/docker.sock:/var/run/docker.sock",
-            f"--memory={CONTAINER_MEM_LIMIT}",
-            f"--cpus={CONTAINER_CPU_LIMIT}",
-        ]
+        ] + self.task_instances[-1]['env']['deployment']['docker_args']

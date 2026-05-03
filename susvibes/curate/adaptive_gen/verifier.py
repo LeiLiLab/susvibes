@@ -4,8 +4,8 @@ from pathlib import Path
 from jinja2 import Template
 
 from susvibes.curate.constants import LOCAL_REPOS_DIR
-from susvibes.curate.prompts import VERIFIER_PROMPT_TEMPLATE
-from susvibes.curate.agents.ports import SWEAgentPort
+from susvibes.curate.adaptive_gen.prompts import VERIFIER_PROMPT_TEMPLATE
+from susvibes.curate.utils.agents.ports import SWEAgentPort
 from susvibes.curate.adaptive_gen.utils import setup_logger
 from susvibes.utils import load_file, save_file
 from susvibes.curate.utils import (
