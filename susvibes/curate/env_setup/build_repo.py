@@ -137,7 +137,7 @@ def build_env_deployment(instance_id, dockerfile, logger):
     """Build a environment Docker image."""
     project, base_commit = parse_instance_id(instance_id)
     repo_dir = get_repo_dir(project, root_dir=LOCAL_REPOS_DIR)
-    env_image_name = get_image_name(f"env_{instance_id.lower()}")
+    env_image_name = get_image_name(f"env_{instance_id}")
     try:
         dockerfile = validate_and_compose_env_dockerfile(dockerfile, logger)
         reset_to_commit(repo_dir, base_commit)
@@ -244,7 +244,7 @@ def build_single_repo(
     Returns (env_spec, image_name) on success, None on failure."""
     instance_id = data_record["instance_id"]
     project, _ = parse_instance_id(instance_id)
-    env_image_name = get_image_name(f"env_{instance_id.lower()}")
+    env_image_name = get_image_name(f"env_{instance_id}")
 
     log_dir = env_setup_log_dir / instance_id
     log_file = log_dir / LOG_INSTANCE

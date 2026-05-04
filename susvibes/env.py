@@ -368,7 +368,7 @@ class Env:
                 context_path=context_path,
                 dockerfile=instance_dockerfile,
                 dockerignore=self.dockerignore,
-                image_name=get_image_name(f"instance_{get_instance_id(self.project, base_commit).lower()}"),
+                image_name=get_image_name(f"instance_{get_instance_id(self.project, base_commit)}"),
                 remove_image=remove_image,
                 remove_container=remove_container,
             )    

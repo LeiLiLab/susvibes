@@ -11,12 +11,18 @@ python -m susvibes.curate.test.edit --mode sync --run_id default
 import argparse
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from pathlib import Path
 from textwrap import dedent
 
+import docker
+import docker.errors
+from tqdm import tqdm
+
 from susvibes.constants import get_env_spec_path
 from susvibes.curate.constants import (
+    ENV_SETUP_LOG_DIR,
     FEATURE_VULN_FILE,
     PATCH_TEMPLATE,
     PROBLEM_STATEMENT_FILE,
@@ -27,7 +33,14 @@ from susvibes.curate.constants import (
     get_path,
 )
 from susvibes.curate.utils import extract_repo_test_cmd, reverse_patch
-from susvibes.utils import load_file, save_file
+from susvibes.env import Env
+from susvibes.utils import (
+    get_image_name, load_file, parse_instance_id, save_file, setup_instance_logger,
+)
+
+docker_client = docker.from_env()
+
+LOG_BUILD = "build_base_no_test_image.log"
 
 BACKUP_HEADER_TEMPLATE = "> Snapshot of `test_patch` from dataset before edit #{n} ({timestamp})\n\n"
 
@@ -40,7 +53,7 @@ Security issue identifier: {cve_id}
 
 Vulnerability type: {cwes}
 
-Environment image with repo code (security_fix patch + test_patch applied): `{env_image_name}`
+Verification image (secure feature implementation, no security tests applied): `{base_no_test_image_name}`
 
 Command to run the repo test suite: `{repo_test_cmd}`
 
@@ -52,6 +65,47 @@ Command to run the repo test suite: `{repo_test_cmd}`
 - `{problem_statement_file}` — task description shown to the agent
 - `{test_patch_backups_dir}/` — backups of previous versions of the test patch
 """)
+
+
+def build_base_no_test_image(data_record, env_spec, log_dir: Path, force: bool = False) -> str | None:
+    """Build the per-instance "base_no_test" image: env image with the original
+    test_patch reversed, so /project sits at the secure baseline without tests.
+    Idempotent: returns the existing tag if it is already on the local Docker daemon."""
+    instance_id = data_record["instance_id"]
+    project, _ = parse_instance_id(instance_id)
+    image_name = get_image_name(f"base_no_test_{instance_id}")
+
+    log_file = log_dir / instance_id / LOG_BUILD
+    logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
+
+    if not force:
+        try:
+            docker_client.images.get(image_name)
+            logger.info(f"base_no_test image {image_name} already exists; reusing.")
+            return image_name
+        except docker.errors.ImageNotFound:
+            pass
+
+    try:
+        env = Env(
+            logger=logger,
+            project=project,
+            image_name=data_record["env_image_name"],
+            dockerfile=env_spec["dockerfile"],
+        )
+        deployment = env.build_instance_deployment(
+            base_commit=data_record["base_commit"],
+            patches={"post_install": (data_record["test_patch"], "-R")},
+            logger=logger,
+            remove_image=False,
+        )
+    except (docker.errors.BuildError, docker.errors.ImageNotFound) as e:
+        logger.error(f"Failed to build base_no_test image for {instance_id}: {e}")
+        return None
+
+    assert deployment.image.tag(image_name)
+    logger.info(f"base_no_test image built: {image_name}")
+    return image_name
 
 
 def dump_test(data_record, env_spec, edits_dir: Path):
@@ -73,7 +127,7 @@ def dump_test(data_record, env_spec, edits_dir: Path):
         project=data_record["project"],
         cve_id=data_record["cve_id"],
         cwes=", ".join(data_record["cwe_ids"]),
-        env_image_name=data_record["env_image_name"],
+        base_no_test_image_name=data_record["base_no_test_image_name"],
         repo_test_cmd=extract_repo_test_cmd(env_spec["dockerfile"]),
         test_patch_file=TEST_PATCH_FILE,
         feature_vuln_file=FEATURE_VULN_FILE,
@@ -82,6 +136,52 @@ def dump_test(data_record, env_spec, edits_dir: Path):
         test_patch_backups_dir=TEST_PATCH_BACKUPS_DIR_NAME,
     )
     save_file(readme, task_dir / README_FILE)
+
+
+def dump_threadpool(
+    dataset: list,
+    env_specs: dict,
+    edits_dir: Path,
+    log_dir: Path,
+    max_workers: int,
+    instance_ids: list = None,
+) -> tuple[int, list]:
+    """Build base_no_test images and dump editable folders for all candidate
+    instances in parallel. Returns (dumped_count, failed_instance_ids)."""
+    candidates = [r for r in dataset
+        if r.get("test_patch") and r["instance_id"] in env_specs]
+    if instance_ids is not None:
+        candidates = [r for r in candidates if r["instance_id"] in set(instance_ids)]
+
+    def _process(record):
+        env_spec = env_specs[record["instance_id"]]
+        image_name = build_base_no_test_image(record, env_spec, log_dir)
+        if not image_name:
+            return None
+        record["base_no_test_image_name"] = image_name
+        dump_test(record, env_spec, edits_dir)
+        return image_name
+
+    dumped, failed = 0, []
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(_process, r): r["instance_id"] for r in candidates}
+        with tqdm(total=len(futures), dynamic_ncols=True,
+            desc=f"Dumping [{max_workers} threads]") as pbar:
+            for future in as_completed(futures):
+                instance_id = futures[future]
+                try:
+                    result = future.result()
+                except Exception as e:
+                    raise RuntimeError(f"Internal error for {instance_id}: {e}")
+                if result:
+                    dumped += 1
+                else:
+                    failed.append(instance_id)
+                pbar.update(1)
+                pbar.set_description(
+                    f"{dumped} dumped, {len(failed)} failed"
+                )
+    return dumped, failed
 
 
 def parse_patch_md(path: Path) -> str | None:
@@ -145,7 +245,13 @@ if __name__ == "__main__":
         "--instance_ids",
         type=json.loads,
         default=None,
-        help="Only dump the given instance IDs (sync mode reads everything in edits/).",
+        help="Only run for the given instance IDs.",
+    )
+    parser.add_argument(
+        "--max_workers",
+        type=int,
+        default=5,
+        help="Number of threads to use for dump.",
     )
     args = parser.parse_args()
 
@@ -155,17 +261,23 @@ if __name__ == "__main__":
 
     if args.mode == "dump":
         env_specs = load_file(get_env_spec_path("components", args.run_id))
-        candidates = [r for r in dataset
-            if r.get("test_patch") and r["instance_id"] in env_specs]
-        if args.instance_ids is not None:
-            candidates = [r for r in candidates if r["instance_id"] in set(args.instance_ids)]
+        log_dir = ENV_SETUP_LOG_DIR / args.run_id
         edits_dir.mkdir(parents=True, exist_ok=True)
-        for record in candidates:
-            dump_test(record, env_specs[record["instance_id"]], edits_dir)
-        print(f"Dumped {len(candidates)} test_patches to {edits_dir}.")
+        dumped, failed = dump_threadpool(
+            dataset, env_specs, edits_dir, log_dir, args.max_workers,
+            instance_ids=args.instance_ids,
+        )
+        save_file(dataset, dataset_path)
+        print(f"Built and dumped {dumped} instances to {edits_dir}.")
+        if failed:
+            print(f"Failed: {failed}")
+        print(f"Dataset saved to {dataset_path}.")
     else:
+        candidates = dataset
+        if args.instance_ids is not None:
+            candidates = [r for r in dataset if r["instance_id"] in set(args.instance_ids)]
         updated, invalid = 0, []
-        for record in dataset:
+        for record in candidates:
             try:
                 if sync_test(record, edits_dir):
                     updated += 1

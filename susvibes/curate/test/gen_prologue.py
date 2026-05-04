@@ -1,5 +1,5 @@
 """
-Purpose: Prologue for security test generation. Build a "vulnerable" variant
+Purpose: Prologue for security test generation. Build a rollback variant
 of each instance's env image (security_patch reversed, original patch persisted
 at .susvibes.security_patch.diff so the agent can toggle states), then assemble
 the SWE-agent batch instances yaml.
@@ -12,7 +12,6 @@ python -m susvibes.curate.test.gen_prologue \
 import argparse
 import json
 from enum import Enum
-from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import docker
@@ -49,22 +48,22 @@ HINT_STRATEGY_TEMPLATES = {
 }
 
 
-def build_vuln_image(data_record, env_spec, log_dir, force=False):
-    """Build a vulnerable variant of the env image with security_patch reversed
-    and the patch persisted at .susvibes.security_patch.diff. Returns the image
-    name (or None on failure)."""
+def build_rollback_image(data_record, env_spec, log_dir, force=False):
+    """Build a rollback variant of the env image with security_patch reversed
+    (so /project sits in the vulnerable state) and the patch persisted at
+    .susvibes.security_patch.diff. Returns the image name (or None on failure)."""
     instance_id = data_record["instance_id"]
     project, _ = parse_instance_id(instance_id)
-    vuln_image_name = get_image_name(f"vuln_{instance_id.lower()}")
+    rollback_image_name = get_image_name(f"rollback_{instance_id}")
 
     log_file = log_dir / instance_id / LOG_INSTANCE
     logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
 
     if not force:
         try:
-            docker_client.images.get(vuln_image_name)
-            logger.info(f"Vuln image {vuln_image_name} already exists; reusing.")
-            return vuln_image_name
+            docker_client.images.get(rollback_image_name)
+            logger.info(f"Rollback image {rollback_image_name} already exists; reusing.")
+            return rollback_image_name
         except docker.errors.ImageNotFound:
             pass
 
@@ -86,22 +85,22 @@ def build_vuln_image(data_record, env_spec, log_dir, force=False):
             )],
         )
     except (docker.errors.BuildError, docker.errors.ImageNotFound) as e:
-        logger.error(f"Failed to build vuln image for {instance_id}: {e}")
+        logger.error(f"Failed to build rollback image for {instance_id}: {e}")
         return None
 
-    assert deployment.image.tag(vuln_image_name)
-    logger.info(f"Vuln image built: {vuln_image_name}")
-    return vuln_image_name
+    assert deployment.image.tag(rollback_image_name)
+    logger.info(f"Rollback image built: {rollback_image_name}")
+    return rollback_image_name
 
 
-def build_vuln_threadpool(records, env_specs, log_dir, max_workers, force=False):
-    """Build vuln images for the given records in parallel.
+def build_rollback_threadpool(records, env_specs, log_dir, max_workers, force=False):
+    """Build rollback images for the given records in parallel.
     Returns (image_by_id, failed) — a dict of successful builds and a list of failures."""
     image_by_id, failed = {}, []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(
-                build_vuln_image,
+                build_rollback_image,
                 record,
                 env_specs[record["instance_id"]],
                 log_dir,
@@ -110,7 +109,7 @@ def build_vuln_threadpool(records, env_specs, log_dir, max_workers, force=False)
             for record in records
         }
         with tqdm(total=len(futures), dynamic_ncols=True,
-            desc=f"Building vuln images [{max_workers} threads]") as pbar:
+            desc=f"Building rollback images [{max_workers} threads]") as pbar:
             for future in as_completed(futures):
                 instance_id = futures[future]
                 try:
@@ -145,7 +144,7 @@ def prologue(run_id, hint_strategy, max_workers, instance_ids=None, force=False)
     if instance_ids is not None:
         candidates = [r for r in candidates if r["instance_id"] in set(instance_ids)]
 
-    image_by_id, failed = build_vuln_threadpool(
+    image_by_id, failed = build_rollback_threadpool(
         candidates, env_specs, log_dir, max_workers, force=force)
 
     added = 0
@@ -177,7 +176,7 @@ def prologue(run_id, hint_strategy, max_workers, instance_ids=None, force=False)
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Build vuln env images and prepare SWE-agent batch for security test generation.")
+        description="Build rollback env images and prepare SWE-agent batch for security test generation.")
     parser.add_argument(
         "--run_id",
         type=str,
@@ -195,7 +194,7 @@ if __name__ == "__main__":
         "--max_workers",
         type=int,
         default=5,
-        help="Number of threads to use for building vuln images.",
+        help="Number of threads to use for building rollback images.",
     )
     parser.add_argument(
         "--instance_ids",
@@ -206,7 +205,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Force re-build the vuln images even if they already exist locally.",
+        help="Force re-build the rollback images even if they already exist locally.",
     )
     args = parser.parse_args()
     prologue(
