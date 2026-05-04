@@ -31,7 +31,7 @@ LOG_TEST_OUTPUT = "test_outputs/{}.txt"
 LOG_TEST_STATUSES = "test_statuses.json"
 LOG_SUMMARY = "summary.json"
 
-ENV_SETUP_RUNS = ["base", "rollback", "sec_patch", "sec_test", "task"]
+ENV_SETUP_RUNS = ["base", "rollback", "base_no_test", "rollback_with_test", "task"]
 
 
 def run_test_suite_multi(
@@ -39,17 +39,31 @@ def run_test_suite_multi(
     data_record: dict,
     log_dir: Path,
     logger: logging.Logger,
-    force: bool = False
+    force: bool = False,
+    from_base_no_test_image: bool = False,
 ) -> list:
-    """Run tests in the environment and return test logs for multiple patches."""
+    """Run tests in the environment and return test logs for multiple patches.
+
+    When `from_base_no_test_image` is True, the env's image is expected to start
+    at the base_no_test commit (secure code without the dataset's test_patch),
+    so the patch lists are computed relative to that baseline."""
     logger.info(f"Running tests in environment deployment {env.deployment.image.tags[0]}...")
     rev_security = reverse_patch(data_record["security_patch"])
-    rev_test = reverse_patch(data_record["test_patch"])
-    runs_list = [
-        (), (rev_security, rev_test),
-        (rev_test,), (rev_security,),
-        (data_record["task_patch"],)
-    ]
+    if from_base_no_test_image:
+        runs_list = [
+            (data_record["test_patch"],),                          # base
+            (rev_security,),                                        # rollback
+            (),                                                     # base_no_test
+            (rev_security, data_record["test_patch"]),              # rollback_with_test
+            (rev_security, data_record["mask_patch"]),              # task: rollback to vulnerable, then mask feature
+        ]
+    else:
+        rev_test = reverse_patch(data_record["test_patch"])
+        runs_list = [
+            (), (rev_security, rev_test),
+            (rev_test,), (rev_security,),
+            (data_record["task_patch"],)
+        ]
     allow_timeout = lambda id: id >= 3
     allow_startup_error = lambda id: id == 4
 
@@ -130,30 +144,30 @@ def validate_test_breaks(
             raise RuntimeError(msg)
         test_failures_list.append(env.get_test_failures(test_result))
 
-    base_tf, rollback_tf, sec_patch_tf, sec_test_tf, task_tf = test_failures_list
+    base_tf, rollback_tf, base_no_test_tf, rollback_with_test_tf, task_tf = test_failures_list
     test_completed_list = [ts == TestStatus.COMPLETION.value for ts in test_statuses]
-    _, _, _, sec_test_completed, task_completed = test_completed_list
+    _, _, _, rollback_with_test_completed, task_completed = test_completed_list
 
     test_symbres_errs_list = []
     for logs in test_logs_list:
         test_symbres_errs_list.append(env.get_symbol_resolution_errors(logs))
-    _, rollback_te, _, sec_test_te, _ = test_symbres_errs_list
-    if sec_test_completed and sec_test_te > rollback_te:
-        msg = "Failed to verify task on symbol resolution errors: rollback-{}, sec_test-{}".format(
-            rollback_te, sec_test_te)
+    _, rollback_te, _, rollback_with_test_te, _ = test_symbres_errs_list
+    if rollback_with_test_completed and rollback_with_test_te > rollback_te:
+        msg = "Failed to verify task on symbol resolution errors: rollback-{}, rollback_with_test-{}".format(
+            rollback_te, rollback_with_test_te)
         logger.error(msg)
         raise RuntimeError(msg)
     stats = {}
-    extra_pass = rollback_tf - sec_patch_tf
-    is_broken = not sec_test_completed or sec_test_tf > rollback_tf
-    is_repaired = not sec_test_completed or base_tf < sec_test_tf - extra_pass
+    extra_pass = rollback_tf - base_no_test_tf
+    is_broken = not rollback_with_test_completed or rollback_with_test_tf > rollback_tf
+    is_repaired = not rollback_with_test_completed or base_tf < rollback_with_test_tf - extra_pass
     if not (is_broken and is_repaired) or extra_pass < 0:
-        msg = "Failed to verify task on sec test breaks: rollback-{}, sec_patch-{}, sec_test-{}, base-{}".format(
-            rollback_tf, sec_patch_tf, sec_test_tf if sec_test_completed else "N/A", base_tf)
+        msg = "Failed to verify task on sec test breaks: rollback-{}, base_no_test-{}, rollback_with_test-{}, base-{}".format(
+            rollback_tf, base_no_test_tf, rollback_with_test_tf if rollback_with_test_completed else "N/A", base_tf)
         logger.error(msg)
         raise RuntimeError(msg)
-    stats["num_sec_tests"] = sec_test_tf - extra_pass - base_tf \
-        if sec_test_completed else -1
+    stats["num_sec_tests"] = rollback_with_test_tf - extra_pass - base_tf \
+        if rollback_with_test_completed else -1
 
     is_broken = not task_completed or task_tf > rollback_tf
     if not is_broken:
@@ -164,7 +178,7 @@ def validate_test_breaks(
 
     expected_failures = {
         "func": rollback_tf,
-        "sec": base_tf - sec_patch_tf
+        "sec": base_tf - base_no_test_tf
     }
     stats["num_func_tests"] = task_tf - rollback_tf \
         if task_completed else -1
@@ -178,6 +192,7 @@ def validate_single(
     env_setup_log_dir: Path,
     force: bool = False,
     from_existing_specs: bool = False,
+    from_base_no_test_image: bool = False,
 ) -> tuple[dict | None, str | None]:
     """Validate a single instance via test execution.
     Returns (env_spec, None) on success, (None, failure_reason) on failure.
@@ -190,14 +205,23 @@ def validate_single(
     logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
     logger.info(f"Validating environment for {instance_id}...")
 
+    if from_base_no_test_image:
+        image_name = data_record.get("base_no_test_image_name")
+        if not image_name:
+            return None, "Missing base_no_test_image_name in data_record."
+    else:
+        image_name = data_record["env_image_name"]
     env = Env(
         logger=logger,
         project=project,
-        image_name=data_record["env_image_name"],
+        image_name=image_name,
         **env_spec
     )
     try:
-        test_logs_list, test_statuses = run_test_suite_multi(env, data_record, log_dir, logger, force)
+        test_logs_list, test_statuses = run_test_suite_multi(
+            env, data_record, log_dir, logger, force,
+            from_base_no_test_image=from_base_no_test_image,
+        )
         if from_existing_specs and env_spec.get("logs_parser"):
             logger.info("Reusing logs parser from env_spec.")
         else:
@@ -211,12 +235,16 @@ def validate_single(
         expected_failures, test_stats["num_sec_tests"], test_stats["num_func_tests"]))
 
     logger.info(f"Building evaluation image for {instance_id}...")
+    if from_base_no_test_image:
+        eval_patches = (reverse_patch(data_record["security_patch"]), data_record["mask_patch"])
+    else:
+        eval_patches = (data_record["task_patch"],)
     task_deployment = env.build_instance_deployment(
         base_commit=data_record["base_commit"],
-        patches={"post_install": (data_record["task_patch"],)},
+        patches={"post_install": eval_patches},
         logger=logger
     )
-    eval_image_name = get_image_name(f"eval_{instance_id.lower()}")
+    eval_image_name = get_image_name(f"eval_{instance_id}")
     assert task_deployment.image.tag(eval_image_name)
 
     env_spec["logs_parser"] = env.logs_parser
@@ -236,6 +264,7 @@ def validate_threadpool(
     save_specs: bool = True,
     instance_ids: list = None,
     from_existing_specs: bool = False,
+    from_base_no_test_image: bool = False,
 ):
     env_specs = load_file(env_specs_path) if env_specs_path.exists() else {}
     dataset_by_id = {data_record["instance_id"]: data_record
@@ -257,6 +286,7 @@ def validate_threadpool(
                 env_setup_log_dir,
                 force=force,
                 from_existing_specs=from_existing_specs,
+                from_base_no_test_image=from_base_no_test_image,
             ): instance_id
             for instance_id in candidate_ids
         }
@@ -325,6 +355,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Reuse the logs_parser stored in env_specs instead of re-synthesizing via LLM.",
     )
+    parser.add_argument(
+        "--from_base_no_test_image",
+        action="store_true",
+        help="Use the per-instance base_no_test image as the starting point.",
+    )
     args = parser.parse_args()
 
     dataset_path = get_path('dataset', args.run_id)
@@ -341,6 +376,7 @@ if __name__ == "__main__":
         save_specs=not args.skip_specs,
         instance_ids=args.instance_ids,
         from_existing_specs=args.from_existing_specs,
+        from_base_no_test_image=args.from_base_no_test_image,
     )
 
     save_file(dataset, dataset_path)

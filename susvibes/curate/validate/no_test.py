@@ -37,7 +37,7 @@ LOG_SEC_RESULTS = "sec_results/{}.json"
 LOG_SUMMARY = "summary.json"
 
 REPO_TEST_RUNS = ["base", "rollback", "task"]
-SEC_TEST_RUNS = ["sec_vuln", "sec_gold"]
+SEC_TEST_RUNS = ["rollback_with_test", "base_with_test"]
 SEC_TEST_CMD = ["bash", "-c", "bash sectests.sh ; cat secresults.json"]
 
 
@@ -249,28 +249,28 @@ def validate_sec_test_breaks(
     force: bool = False,
 ) -> tuple:
     """
-    Run sec_vuln and sec_gold, verify at least one distinguishing test.
+    Run rollback_with_test and base_with_test, verify at least one distinguishing test.
     Raises RuntimeError on failure; returns (stats, sec_test_names) on success.
     """
-    # sec_vuln: vulnerable implementation + agent test patch
+    # rollback_with_test: vulnerable implementation + agent test patch
     vuln_results = run_sec_test(
         env, data_record, log_dir, logger,
-        run_name="sec_vuln",
+        run_name="rollback_with_test",
         patches=(reverse_patch(data_record["security_patch"]), test_patch),
         force=force,
     )
 
-    # sec_gold: secure implementation + agent test patch
+    # base_with_test: secure implementation + agent test patch
     gold_results = run_sec_test(
         env, data_record, log_dir, logger,
-        run_name="sec_gold",
+        run_name="base_with_test",
         patches=(test_patch,),
         force=force,
     )
 
     common_tests = set(vuln_results.keys()) & set(gold_results.keys())
     if not common_tests:
-        msg = "Failed to verify task on sec test breaks: no common tests between sec_vuln and sec_gold."
+        msg = "Failed to verify task on sec test breaks: no common tests between rollback_with_test and base_with_test."
         logger.error(msg)
         raise RuntimeError(msg)
 
@@ -347,7 +347,7 @@ def validate_single(
         patches={"post_install": (data_record["task_patch"],)},
         logger=logger
     )
-    eval_image_name = get_image_name(f"eval_{instance_id.lower()}")
+    eval_image_name = get_image_name(f"eval_{instance_id}")
     assert task_deployment.image.tag(eval_image_name)
 
     env_spec["logs_parser"] = env.logs_parser
