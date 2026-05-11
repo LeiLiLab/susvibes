@@ -87,7 +87,12 @@ def run_repo_test_suite_multi(
                 msg = f"Failed to build instance deployment: {e}"
                 logger.error(msg)
                 raise RuntimeError(msg)
-            deployment.create_container(mem_limit=CONTAINER_MEM_LIMIT, cpu_limit=CONTAINER_CPU_LIMIT)
+            try:
+                deployment.create_container(mem_limit=CONTAINER_MEM_LIMIT, cpu_limit=CONTAINER_CPU_LIMIT)
+            except docker.errors.ContainerError as e:
+                msg = f"Failed to create container: {e}"
+                logger.error(msg)
+                raise RuntimeError(msg)
             test_logs, timed_out = deployment.run_with_timeout()
             test_status = env.get_test_status(test_logs, timed_out)
             test_logs_list.append(test_logs)
@@ -192,11 +197,16 @@ def run_sec_test(
         logger.error(msg)
         raise RuntimeError(msg)
 
-    deployment.create_container(
-        command=SEC_TEST_CMD,
-        mem_limit=CONTAINER_MEM_LIMIT,
-        cpu_limit=CONTAINER_CPU_LIMIT,
-    )
+    try:
+        deployment.create_container(
+            command=SEC_TEST_CMD,
+            mem_limit=CONTAINER_MEM_LIMIT,
+            cpu_limit=CONTAINER_CPU_LIMIT,
+        )
+    except docker.errors.ContainerError as e:
+        msg = f"Failed to create sec test container: {e}"
+        logger.error(msg)
+        raise RuntimeError(msg)
     test_logs, timed_out = deployment.run_with_timeout()
 
     sec_output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -316,12 +326,22 @@ def validate_single(
         logger.error(msg)
         return None, msg
 
-    env = Env(
-        logger=logger,
-        project=project,
-        image_name=data_record["env_image_name"],
-        **env_spec
-    )
+    image_name = data_record.get("env_image_name")
+    if not image_name:
+        msg = "env_image_name missing from dataset."
+        logger.error(msg)
+        raise RuntimeError(msg)
+    try:
+        env = Env(
+            logger=logger,
+            project=project,
+            image_name=image_name,
+            **env_spec
+        )
+    except (docker.errors.ImageNotFound, docker.errors.NotFound):
+        msg = f"Image not found: {image_name}"
+        logger.error(msg)
+        raise RuntimeError(msg)
 
     try:
         test_logs_list, test_statuses = run_repo_test_suite_multi(env, data_record, log_dir, logger, force)

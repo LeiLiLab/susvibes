@@ -1,4 +1,5 @@
 import logging
+import docker.errors
 from tqdm import tqdm
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -18,6 +19,50 @@ LOG_INSTANCE = "run_instance.log"
 LOG_TEST_OUTPUT = "test_outputs/{}.txt"
 LOG_REPORT = "report.json"
 EVALUATION_RUNS = ["func", "sec"]
+
+
+def get_summary(dataset: list, reports: dict, safety_strategy: str) -> dict:
+    eval_summary = {
+        "num_instances": len(dataset),
+        "num_submitted_instances": len(reports),
+    }
+    details_keys = ["correct", "correct_secure", "no_patch", "model_patch_error"]
+    details = {key: [] for key in details_keys}
+    for instance_id, report in reports.items():
+        if report["sec"]["status"] == EvalStatus.NO_PATCH.value:
+            details["no_patch"].append(instance_id)
+            continue
+        if report["sec"]["status"] == EvalStatus.MODEL_PATCH_ERROR.value:
+            details["model_patch_error"].append(instance_id)
+            continue
+        if report["func"]["pass"]:
+            details["correct"].append(instance_id)
+            if report["sec"]["pass"]:
+                details["correct_secure"].append(instance_id)
+
+    eval_summary["num_no_patch"] = len(details["no_patch"])
+    eval_summary["num_model_patch_errors"] = len(details["model_patch_error"])
+    eval_summary["correct_ratio"] = len(details["correct"]) / len(dataset)
+    eval_summary["correct_secure_ratio"] = len(details["correct_secure"]) / len(dataset)
+
+    eval_summary["details"] = details
+    if safety_strategy == SafetyStrategies.SELF_SELECTION.value:
+        eval_summary["cwes_selection"] = get_cwes_selection_stats(
+            reports, details["correct"], details["correct_secure"])
+    return eval_summary
+
+
+def print_summary(summary: dict) -> None:
+    print(f"Submitted: {summary['num_submitted_instances']}/{summary['num_instances']}")
+    print(f"Correct ratio: {summary['correct_ratio']:.2%}")
+    print(f"Correct & secure ratio: {summary['correct_secure_ratio']:.2%}")
+    for key in ["correct", "correct_secure", "no_patch", "model_patch_error"]:
+        ids = summary["details"].get(key, [])
+        if ids:
+            print(f"\n{key.replace('_', ' ').title()} ({len(ids)}):")
+            for instance_id in ids:
+                print(f"  {instance_id}")
+
 
 class Task:
     project: str
@@ -64,11 +109,21 @@ class Task:
                 logger=logger
             )
         except Exception as e:
+            logger.warning(f"Failed to build instance deployment for {run_name}.")
             return "", EvalStatus.MODEL_PATCH_ERROR.value
-        deployment.create_container(mem_limit=CONTAINER_MEM_LIMIT, cpu_limit=CONTAINER_CPU_LIMIT)
+        try:
+            deployment.create_container(mem_limit=CONTAINER_MEM_LIMIT, cpu_limit=CONTAINER_CPU_LIMIT)
+        except docker.errors.ContainerError as e:
+            logger.warning(f"Failed to create container for {run_name}.")
+            return "", EvalStatus.MODEL_PATCH_ERROR.value
         test_logs, timed_out = deployment.run_with_timeout()
         eval_status = self.env.get_test_status(test_logs, timed_out)
-        
+
+        if eval_status == EvalStatus.TIMEOUT.value:
+            logger.warning(f"Failed to run tests for {run_name}: timeout.")
+        elif eval_status == EvalStatus.STARTUP_ERROR.value:
+            logger.warning(f"Failed to run tests for {run_name}: startup error.")
+
         test_output_path = log_dir / LOG_TEST_OUTPUT.format(run_name)
         test_output_path.parent.mkdir(parents=True, exist_ok=True)
         save_file(test_logs, test_output_path)
@@ -135,37 +190,8 @@ class TasksHandler:
         self.safety_strategy = safety_strategy
         self.reports = {}
         
-    def get_eval_summary(self):
-        eval_summary = {
-            "num_dataset_instances": len(self.dataset),
-            "num_submitted_instances": len(self.reports),
-        }    
-        details_keys = ["correct", "correct_secure", "no_patch", "model_patch_error"]
-        details = {key: [] for key in details_keys}
-        for instance_id, report in self.reports.items():
-            if report["sec"]["status"] == EvalStatus.NO_PATCH.value:
-                details["no_patch"].append(instance_id)
-                continue
-            if report["sec"]["status"] == EvalStatus.MODEL_PATCH_ERROR.value:
-                details["model_patch_error"].append(instance_id)
-                continue
-            if report["func"]["pass"]:
-                details["correct"].append(instance_id)
-                if report["sec"]["pass"]:
-                    details["correct_secure"].append(instance_id)
-
-        eval_summary["num_no_patch"] = len(details["no_patch"])
-        eval_summary["num_model_patch_errors"] = len(details["model_patch_error"])
-        eval_summary["correct_ratio"] = len(details["correct"]) / len(self.dataset)
-        eval_summary["correct_secure_ratio"] = len(details["correct_secure"]) / len(self.dataset) 
-        
-        eval_summary["details"] = details
-        if self.safety_strategy == SafetyStrategies.SELF_SELECTION.value:
-            eval_summary["cwes_selection"] = get_cwes_selection_stats(
-                self.reports, details["correct"], details["correct_secure"])
-        return eval_summary
     
-    def run_evaluation(
+    def run_evaluation_single(
         self,
         run_id: str,
         prediction: dict,
@@ -184,9 +210,20 @@ class TasksHandler:
             return {run_name: {"pass": False, "status": EvalStatus.NO_PATCH.value}
                 for run_name in EVALUATION_RUNS}
 
+        image_name = data_record.get("image_name")
+        if not image_name:
+            msg = "image_name missing from dataset."
+            logger.error(msg)
+            raise RuntimeError(msg)
+
         logger.info(f"Initializing task {instance_id}...")
         env_spec = self.env_specs[instance_id]
-        task = Task(logger, data_record, env_spec)
+        try:
+            task = Task(logger, data_record, env_spec)
+        except (docker.errors.ImageNotFound, docker.errors.NotFound):
+            msg = f"Image not found: {image_name}"
+            logger.error(msg)
+            raise RuntimeError(msg)
 
         logger.info(f"Evaluating task {instance_id}...")
         report = task.evaluate(prediction, log_dir, logger, force)
@@ -213,7 +250,7 @@ class TasksHandler:
             if instance_id in dataset_by_id]
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
-                executor.submit(self.run_evaluation, run_id, pred_by_id[instance_id],
+                executor.submit(self.run_evaluation_single, run_id, pred_by_id[instance_id],
                     dataset_by_id[instance_id], force): instance_id
                 for instance_id in eval_pred_ids
             }
@@ -224,8 +261,6 @@ class TasksHandler:
                     try:
                         report = future.result()
                     except Exception as e:
-                        print(f"Internal error for {instance_id}: {e}. Skipping.")
-                    else:
-                        self.reports[instance_id] = report
-                    finally:
-                        pbar.update(1)
+                        raise RuntimeError(f"Internal error for {instance_id}: {e}")
+                    self.reports[instance_id] = report
+                    pbar.update(1)

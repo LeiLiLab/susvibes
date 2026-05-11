@@ -78,11 +78,11 @@ class Deployment():
             logger.info(f"Image {image_name} built successfully.")
             return cls(docker_client.images.get(image_name), logger, remove_image, remove_container)
         except docker.errors.BuildError as e:
-            logger.error(f"docker.errors.BuildError when building {image_name}: {e}")
-            logger.error(f"Build log: {e.build_log}")
+            logger.warning(f"docker.errors.BuildError when building {image_name}: {e}")
+            logger.warning(f"Build log: {e.build_log}")
             raise
         except docker.errors.APIError as e:
-            logger.error(f"docker.errors.APIError when building {image_name}: {e}")
+            logger.warning(f"docker.errors.APIError when building {image_name}: {e}")
             raise docker.errors.BuildError(f"API error: {e}", "")
 
     @classmethod
@@ -98,13 +98,13 @@ class Deployment():
                 try:
                     image = docker_client.images.pull(image_name)
                     break
-                except docker.errors.NotFound as e:
+                except docker.errors.NotFound:
                     if retry == max_retries - 1:
                         raise
             logger.info(f"Image {image_name} pulled successfully.")
             return cls(image, logger, remove_image, remove_container)
-        except docker.errors.NotFound as e:
-            logger.error(f"docker.errors.NotFound when pulling {image_name}.")
+        except docker.errors.NotFound:
+            logger.warning(f"docker.errors.NotFound when pulling {image_name}.")
             raise
 
     @classmethod
@@ -123,7 +123,7 @@ class Deployment():
                 try:
                     image = docker_client.images.get(image_name or image_id)
                     break
-                except docker.errors.ImageNotFound as e:
+                except docker.errors.ImageNotFound:
                     if retry == max_retries - 1:
                         raise
             logger.info(f"Image {image_name or image_id} found locally.")
@@ -132,9 +132,9 @@ class Deployment():
                 logger.warning(f"Warning: image has no names, tagging a default name {default_image_name}.")
                 assert image.tag(default_image_name)
             return cls(image, logger, remove_image, remove_container)
-        except docker.errors.ImageNotFound as e:
-            logger.error(f"docker.errors.ImageNotFound when getting {image_name or image_id}.")
-            raise      
+        except docker.errors.ImageNotFound:
+            logger.warning(f"docker.errors.ImageNotFound when getting {image_name or image_id}.")
+            raise
     
     def create_container(
         self,
@@ -154,7 +154,7 @@ class Deployment():
             self.logger.info(f"Container for {self.image.id} created: {container.name}")
             self.container = container
         except docker.errors.ContainerError as e:
-            self.logger.error(f"Error creating container for {self.image.id}: {e}")
+            self.logger.warning(f"Error creating container for {self.image.id}: {e}")
             raise
     
     def start(self) -> None | str:
@@ -224,13 +224,15 @@ class Deployment():
         thread.start()
         thread.join(timeout)
         if thread.is_alive():
-            self.logger.info(f"Container {self.container.name} run timed out after {timeout} seconds.")
+            elapsed = f"{timeout} seconds" if timeout < 300 else f"{timeout // 60} minutes"
+            self.logger.warning(f"Container {self.container.name} run timed out after {elapsed}.")
             timed_out = True
             stop_thread = threading.Thread(target=self.stop, daemon=True)
             stop_thread.start()
             stop_thread.join(stop_timeout)
             if stop_thread.is_alive():
-                self.logger.warning(f"Container {self.container.name} stop exceeded {stop_timeout}s. Container may be orphaned.")
+                stop_elapsed = f"{stop_timeout}s" if stop_timeout < 300 else f"{stop_timeout // 60} min"
+                self.logger.warning(f"Container {self.container.name} stop exceeded {stop_elapsed}. Container may be orphaned.")
         else:
             self.stop()
         return run_logs.decode(), timed_out
@@ -261,16 +263,12 @@ class Env:
         logger.info(f"Collecting enviroment deployment...")
         collect_method = Deployment.from_local if image_loc == "local" else \
             Deployment.from_pull if image_loc == "remote" else None
-        try:
-            self.deployment = collect_method(
-                logger=logger,
-                image_name=image_name, 
-                remove_image=remove_image, 
-                remove_container=remove_container
-            )
-        except (docker.errors.ImageNotFound, docker.errors.NotFound) as e:
-            logger.critical("Environment image not found.")
-            raise
+        self.deployment = collect_method(
+            logger=logger,
+            image_name=image_name,
+            remove_image=remove_image,
+            remove_container=remove_container
+        )
     
     @staticmethod 
     def _apply_patches(patches: tuple[str, ...], group) -> None:

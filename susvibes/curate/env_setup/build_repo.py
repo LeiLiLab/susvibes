@@ -233,7 +233,7 @@ def epilogue(
     print(f"Dataset saved to {dataset_path}.")
 
 
-def build_single_repo(
+def build_repo_single(
     data_record: dict,
     env_setup_log_dir: Path,
     prediction: dict = None,
@@ -268,13 +268,13 @@ def build_single_repo(
     except RuntimeError as e:
         return None
 
-    new_env_spec = {"dockerfile": dockerfile}
-
-    if not force and env_spec and env_spec.get("dockerfile") == dockerfile:
+    if env_spec is None:
+        env_spec = {}
+    if not force and env_spec.get("dockerfile") == dockerfile:
         try:
             docker_client.images.get(env_image_name)
             logger.info("Environment image matches env_spec and exists locally; skipping build.")
-            return new_env_spec, env_image_name
+            return env_spec, env_image_name
         except docker.errors.ImageNotFound:
             pass
 
@@ -284,8 +284,9 @@ def build_single_repo(
     except RuntimeError as e:
         return None
 
+    env_spec["dockerfile"] = dockerfile
     logger.info(f"Environment built successfully: {env_image_name}")
-    return new_env_spec, env_image_name
+    return env_spec, env_image_name
 
 
 def build_repo_threadpool(
@@ -312,7 +313,7 @@ def build_repo_threadpool(
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(
-                build_single_repo,
+                build_repo_single,
                 task_dataset_by_id[instance_id],
                 env_setup_log_dir,
                 prediction=pred_by_id.get(instance_id),
