@@ -2,7 +2,7 @@ import argparse
 from pathlib import Path
 
 from susvibes.constants import *
-from susvibes.tasks import TasksHandler
+from susvibes.tasks import TasksHandler, get_summary, print_summary
 from susvibes.safety_strategies.tools import get_safety_guardrail
 from susvibes.utils import load_file, save_file
 from susvibes.env_specs import WORKSPACE_DIR_NAME
@@ -50,9 +50,10 @@ def _run_evaluation(
     dataset = load_file(dataset_path)
     handler = TasksHandler(dataset, safety_strategy)
     handler.run_evaluation_threadpool(run_id, predictions, max_workers, force)
-    eval_summary = handler.get_eval_summary()
+    eval_summary = get_summary(dataset, handler.reports, safety_strategy)
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(eval_summary, summary_path)
+    print_summary(eval_summary)
     
 def run_evaluation(
     run_id: str,

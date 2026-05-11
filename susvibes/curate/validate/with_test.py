@@ -10,10 +10,12 @@ python -m susvibes.curate.validate.with_test \
 import argparse
 import json
 import logging
-import docker.errors
 from tqdm import tqdm
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+import docker
+import docker.errors
 
 from susvibes.constants import *
 from susvibes.curate.constants import ENV_SETUP_LOG_DIR, LOGS_PARSER_MODEL, get_path
@@ -25,6 +27,8 @@ from susvibes.utils import load_file, save_file, get_image_name, setup_instance_
 from susvibes.curate.utils import (
     reverse_patch,
 )
+
+docker_client = docker.from_env()
 
 LOG_INSTANCE = "validate.log"
 LOG_TEST_OUTPUT = "test_outputs/{}.txt"
@@ -96,7 +100,12 @@ def run_test_suite_multi(
                 msg = f"Failed to build instance deployment: {e}"
                 logger.error(msg)
                 raise RuntimeError(msg)
-            deployment.create_container(mem_limit=CONTAINER_MEM_LIMIT, cpu_limit=CONTAINER_CPU_LIMIT)
+            try:
+                deployment.create_container(mem_limit=CONTAINER_MEM_LIMIT, cpu_limit=CONTAINER_CPU_LIMIT)
+            except docker.errors.ContainerError as e:
+                msg = f"Failed to create container: {e}"
+                logger.error(msg)
+                raise RuntimeError(msg)
             test_logs, timed_out = deployment.run_with_timeout()
             test_status = env.get_test_status(test_logs, timed_out)
             test_logs_list.append(test_logs)
@@ -205,18 +214,23 @@ def validate_single(
     logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
     logger.info(f"Validating environment for {instance_id}...")
 
-    if from_base_no_test_image:
-        image_name = data_record.get("base_no_test_image_name")
-        if not image_name:
-            return None, "Missing base_no_test_image_name in data_record."
-    else:
-        image_name = data_record["env_image_name"]
-    env = Env(
-        logger=logger,
-        project=project,
-        image_name=image_name,
-        **env_spec
-    )
+    image_kind = "base_no_test_image" if from_base_no_test_image else "env_image"
+    image_name = data_record.get(f"{image_kind}_name")
+    if not image_name:
+        msg = f"{image_kind}_name missing from dataset."
+        logger.error(msg)
+        raise RuntimeError(msg)
+    try:
+        env = Env(
+            logger=logger,
+            project=project,
+            image_name=image_name,
+            **env_spec
+        )
+    except (docker.errors.ImageNotFound, docker.errors.NotFound):
+        msg = f"Image not found: {image_name}"
+        logger.error(msg)
+        raise RuntimeError(msg)
     try:
         test_logs_list, test_statuses = run_test_suite_multi(
             env, data_record, log_dir, logger, force,
@@ -275,6 +289,28 @@ def validate_threadpool(
     if from_existing_specs:
         candidate_ids = {iid for iid in candidate_ids if env_specs[iid].get("logs_parser")}
 
+    if from_base_no_test_image:
+        use_bnt = set(candidate_ids)
+    else:
+        use_bnt = set()
+        for iid in candidate_ids:
+            bnt_name = dataset_by_id[iid].get("base_no_test_image_name")
+            if not bnt_name:
+                continue
+            try:
+                docker_client.images.get(bnt_name)
+                use_bnt.add(iid)
+            except docker.errors.ImageNotFound:
+                pass
+        if use_bnt:
+            print(f"\n{len(use_bnt)}/{len(candidate_ids)} candidate instances have base_no_test_image available locally.")
+            missing = len(candidate_ids) - len(use_bnt)
+            if missing:
+                print(f"  (the other {missing} will continue to use env_image.)")
+            answer = input("Switch these to --from_base_no_test_image? [Y/n] ").strip().lower()
+            if answer not in ('', 'y'):
+                use_bnt = set()
+
     succeeded, failed = [], {}
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
@@ -286,7 +322,7 @@ def validate_threadpool(
                 env_setup_log_dir,
                 force=force,
                 from_existing_specs=from_existing_specs,
-                from_base_no_test_image=from_base_no_test_image,
+                from_base_no_test_image=(instance_id in use_bnt),
             ): instance_id
             for instance_id in candidate_ids
         }

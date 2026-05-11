@@ -67,24 +67,15 @@ Command to run the repo test suite: `{repo_test_cmd}`
 """)
 
 
-def build_base_no_test_image(data_record, env_spec, log_dir: Path, force: bool = False) -> str | None:
+def build_base_no_test_image(data_record, env_spec, log_dir: Path) -> str | None:
     """Build the per-instance "base_no_test" image: env image with the original
-    test_patch reversed, so /project sits at the secure baseline without tests.
-    Idempotent: returns the existing tag if it is already on the local Docker daemon."""
+    test_patch reversed, so /project sits at the secure baseline without tests."""
     instance_id = data_record["instance_id"]
     project, _ = parse_instance_id(instance_id)
     image_name = get_image_name(f"base_no_test_{instance_id}")
 
     log_file = log_dir / instance_id / LOG_BUILD
     logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
-
-    if not force:
-        try:
-            docker_client.images.get(image_name)
-            logger.info(f"base_no_test image {image_name} already exists; reusing.")
-            return image_name
-        except docker.errors.ImageNotFound:
-            pass
 
     try:
         env = Env(
@@ -138,6 +129,18 @@ def dump_test(data_record, env_spec, edits_dir: Path):
     save_file(readme, task_dir / README_FILE)
 
 
+def dump_single(record, env_spec, edits_dir: Path, log_dir: Path, no_require_test: bool = False):
+    if no_require_test:
+        dump_test(record, env_spec, edits_dir)
+        return True
+    base_no_test_image_name = build_base_no_test_image(record, env_spec, log_dir)
+    if not base_no_test_image_name:
+        return None
+    record["base_no_test_image_name"] = base_no_test_image_name
+    dump_test(record, env_spec, edits_dir)
+    return base_no_test_image_name
+
+
 def dump_threadpool(
     dataset: list,
     env_specs: dict,
@@ -145,26 +148,24 @@ def dump_threadpool(
     log_dir: Path,
     max_workers: int,
     instance_ids: list = None,
+    no_require_test: bool = False,
 ) -> tuple[int, list]:
     """Build base_no_test images and dump editable folders for all candidate
-    instances in parallel. Returns (dumped_count, failed_instance_ids)."""
+    instances in parallel. Returns (dumped_count, failed_instance_ids).
+    When no_require_test is True, the base_no_test image build is skipped."""
     candidates = [r for r in dataset
         if r.get("test_patch") and r["instance_id"] in env_specs]
     if instance_ids is not None:
         candidates = [r for r in candidates if r["instance_id"] in set(instance_ids)]
 
-    def _process(record):
-        env_spec = env_specs[record["instance_id"]]
-        image_name = build_base_no_test_image(record, env_spec, log_dir)
-        if not image_name:
-            return None
-        record["base_no_test_image_name"] = image_name
-        dump_test(record, env_spec, edits_dir)
-        return image_name
-
     dumped, failed = 0, []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(_process, r): r["instance_id"] for r in candidates}
+        futures = {
+            executor.submit(
+                dump_single, r, env_specs[r["instance_id"]], edits_dir, log_dir,
+                no_require_test=no_require_test,
+            ): r["instance_id"] for r in candidates
+        }
         with tqdm(total=len(futures), dynamic_ncols=True,
             desc=f"Dumping [{max_workers} threads]") as pbar:
             for future in as_completed(futures):
@@ -253,6 +254,11 @@ if __name__ == "__main__":
         default=5,
         help="Number of threads to use for dump.",
     )
+    parser.add_argument(
+        "--no_require_test",
+        action="store_true",
+        help="Skip building the base_no_test image during dump.",
+    )
     args = parser.parse_args()
 
     dataset_path = get_path("dataset", args.run_id)
@@ -266,6 +272,7 @@ if __name__ == "__main__":
         dumped, failed = dump_threadpool(
             dataset, env_specs, edits_dir, log_dir, args.max_workers,
             instance_ids=args.instance_ids,
+            no_require_test=args.no_require_test,
         )
         save_file(dataset, dataset_path)
         print(f"Built and dumped {dumped} instances to {edits_dir}.")
@@ -276,14 +283,16 @@ if __name__ == "__main__":
         candidates = dataset
         if args.instance_ids is not None:
             candidates = [r for r in dataset if r["instance_id"] in set(args.instance_ids)]
-        updated, invalid = 0, []
+        updated, unchanged, invalid = 0, 0, []
         for record in candidates:
             try:
                 if sync_test(record, edits_dir):
                     updated += 1
+                else:
+                    unchanged += 1
             except RuntimeError:
                 invalid.append(record["instance_id"])
-        print(f"Updated {updated} test_patches.")
+        print(f"Updated {updated} test_patches, {unchanged} unchanged.")
         if invalid:
             print(f"Skipped {len(invalid)} with invalid diff content: {invalid}")
         if updated > 0:

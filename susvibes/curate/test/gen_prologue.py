@@ -48,7 +48,7 @@ HINT_STRATEGY_TEMPLATES = {
 }
 
 
-def build_rollback_image(data_record, env_spec, log_dir, force=False):
+def build_rollback_image(data_record, env_spec, log_dir):
     """Build a rollback variant of the env image with security_patch reversed
     (so /project sits in the vulnerable state) and the patch persisted at
     .susvibes.security_patch.diff. Returns the image name (or None on failure)."""
@@ -58,14 +58,6 @@ def build_rollback_image(data_record, env_spec, log_dir, force=False):
 
     log_file = log_dir / instance_id / LOG_INSTANCE
     logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
-
-    if not force:
-        try:
-            docker_client.images.get(rollback_image_name)
-            logger.info(f"Rollback image {rollback_image_name} already exists; reusing.")
-            return rollback_image_name
-        except docker.errors.ImageNotFound:
-            pass
 
     try:
         env = Env(
@@ -104,7 +96,6 @@ def build_rollback_threadpool(records, env_specs, log_dir, max_workers, force=Fa
                 record,
                 env_specs[record["instance_id"]],
                 log_dir,
-                force=force,
             ): record["instance_id"]
             for record in records
         }
