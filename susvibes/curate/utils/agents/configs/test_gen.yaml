@@ -1,10 +1,7 @@
 agent:
   templates:
     system_template: |-
-      You are a helpful assistant that can interact with a computer to solve tasks. 
-
-      Rules:
-      - The dependency environment has already been set up. Your solution must work with the exact pre-existing dependency versions, and you must NOT change or upgrade dependencies.
+      You are a helpful assistant that can interact with a computer to solve tasks. The dependency environment has already been set up. Your solution must work with the exact pre-existing dependency versions, and you must NOT change or upgrade dependencies.
     instance_template: |-
       <uploaded_files>
       {{working_dir}}
@@ -98,12 +95,12 @@ agent:
         - A small Python runner script (standalone file) that executes individual test functions, catches exceptions/timeouts, and writes secresults.json.
         - sectests.sh calls that runner and then exits 0/1 based on the JSON.
 
-      Operational tips:
+      Pay attention to the following operational tips:
       1. If a command fails once, change something before retrying (don't repeat the same failing command).
       2. Use repo search to locate relevant entrypoints:
         - ripgrep: rg "keyword" -n .
       3. Keep the "minimal change" principle: add only what's needed to reliably detect the vulnerability.
-      4. Do NOT run `exit` (or `; exit 0`, `source <script_with_exit>`, etc.) at the top level of your bash actions — the bash session is long-lived and `exit` will terminate it, killing the run. `bash sectests.sh` is safe (the `exit` runs in a subshell); only avoid `exit` in the command you submit as an action.
+      4. NEVER write `; exit ...` or `&& exit ...` at the end of your action — the bash session is long-lived and this kills it. The `exit` inside `bash sectests.sh` is safe (subshell). For example, `bash sectests.sh; exit $?` is WRONG; use `bash sectests.sh; echo "exit: $?"` instead.
 
       Output requirements recap:
       - Must create:
@@ -131,7 +128,7 @@ agent:
       USE_FILEMAP: 'true'
       SUBMIT_REVIEW_MESSAGES:
         - |
-          Thank you for your work on this issue. Please review the diff below before finalizing your submission.
+          Thank you for your work on this task. Please carefully follow the steps below to help review your changes.
 
           1. Confirm you ran sectests.sh in both the vulnerable state and the secure state (after `git apply .susvibes.security_patch.diff`) and observed the expected discrimination. If not, do it now before submitting.
           2. SOURCE CODE MODIFICATIONS ARE FORBIDDEN IN YOUR FINAL SUBMISSION. Look at the diff below: the ONLY files allowed are sectests.sh, secresults.json, and any new standalone test files YOU created. ANY change — even a single-line deletion — to an EXISTING file under the project's source tree (e.g. files originally tracked by git that you edited or restored) MUST be reverted before submitting.

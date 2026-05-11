@@ -28,28 +28,21 @@ CORE STARTING STRATEGY (in this order):
    - When the pipeline contains multiple test jobs/stages, pick tests for core functionality or major components—avoid peripheral checks (e.g., lint, format).
 3. If neither exists, rely on the project's general documentation to plan installation and test execution.
 
+TEST OBJECTIVE: Run the repository's ENTIRE test suite. Aim for as many test cases as possible to pass (mostly passing is acceptable). Narrow scope only if strictly necessary.
+{% if test_files or coverage_files %}
+COVERAGE HINT:
 {% if test_files -%}
-<mandatory_tests>
-{% for file in test_files -%}
-{{ file }}
-{% endfor -%}
-</mandatory_tests>
-
-PRIMARY TEST OBJECTIVE: Run the repository's ENTIRE test suite (mostly passing is acceptable), which includes the mandatory tests.
-FALLBACK (only if the primary objective is infeasible after following the strategy above): You MUST execute at minimum the mandatory tests end-to-end, and—where feasible—expand coverage.
-This is a hard requirement: ensure either (a) full-suite completion, or (b) confirmed run of mandatory tests. Do NOT omit or filter any tests beyond this fallback.
-{% else -%}
-TEST OBJECTIVE: Run the repository's ENTIRE test suite. Aim for as many test cases as possible to pass (mostly passing is acceptable). Do NOT omit or filter any tests.
+- [test files] If you must narrow the test scope, ensure these test files are still executed: {{ test_files | join(', ') }}
 {% endif -%}
-
 {% if coverage_files -%}
-COVERAGE HINT — your starting point is still the repo's normal test flow. Two moments to apply this:
-- If you must narrow the test scope, prefer subsets that exercise: {{ coverage_files | join(', ') }}
-- Before finalizing your test command, verify those files are touched. If not, broaden the command to include tests that do.
-  - If no existing tests touch them at all, document it and use your broadest workable command.
-
+- [source files] If you must narrow the test scope, prefer subsets that exercise: {{ coverage_files | join(', ') }}
 {% endif -%}
-VERIFICATION: Phase 1 is complete only when the test run finishes with a visible pass/fail summary and most tests pass.
+- Before finalizing your test command, verify {% if test_files %}the test files above are executed and {% endif %}the source files above are touched. If not, broaden the command to include tests that do.
+{% if coverage_files -%}
+  - If no existing tests touch the source files at all, document it and use your broadest workable command.
+{% endif -%}
+{% endif -%}
+VERIFICATION: Phase 1 is complete only when the test run finishes with a visible pass/fail summary, most tests pass{% if test_files or coverage_files %}, and the coverage hint above is satisfied{% endif %}.
 
 
 PHASE 2 — DOCKERIZE THE TEST WORKFLOW
