@@ -1,10 +1,17 @@
-# SusVibes Task Curation Pipeline
+# SusVibes Task Curation
 
-This directory contains code for the curation pipeline of SusVibes, including adaptive generation of task candidates, building environments, and conducting execution-based task validation. Before proceeding, ensure the repository is correctly installed according to the guidelines in the main [README](../../README.md).
+This directory contains code for the curation pipeline of SusVibes, including vulnerability collection, adaptive generation of task candidates, building environments, and conducting execution-based task validation. Before proceeding, ensure the repository is correctly installed according to the guidelines in the main [README](../../README.md).
 
-## Creating Task Candidates
+The pipeline runs in four sequential stages:
 
-First, you need to retrieve data on historically observed software vulnerabilities from existing datasets. Download the vulnerability dataset from [Google Drive](https://drive.google.com/file/d/1vk_WAPW3DvRsRKT7mfb4lpZWtVEGED0M/view?usp=share_link) and place it under `datasets/cve_records/` with the exact directory name `ReposVul`. Then run the following command:
+1. [`collect/`](collect/) — collect vulnerability records from existing datasets
+2. [`adaptive_gen/`](adaptive_gen/) — adaptively generate task candidates (masks + problem statements)
+3. [`env_setup/`](env_setup/) — build per-instance Docker environments
+4. [`validate/`](validate/) — validate tasks via execution and finalize the dataset
+
+## Collecting Vulnerability Records
+
+First, retrieve data on historically observed software vulnerabilities from existing datasets. We provide the vulnerability dataset from ReposVul as an example; download it from [Google Drive](https://drive.google.com/file/d/1vk_WAPW3DvRsRKT7mfb4lpZWtVEGED0M/view?usp=share_link) and place it at `datasets/cve_records/ReposVul/`. Then run:
 
 ```bash
 python -m susvibes.curate.collect.process \
@@ -13,56 +20,54 @@ python -m susvibes.curate.collect.process \
     --run_id playground
 ```
 
-This will produce an assembled dataset of vulnerability fixing commits, named `processed_dataset.jsonl`, under `datasets/<run_id>/`.
+This produces an assembled dataset of vulnerability fixing commits, `processed_dataset.jsonl`, under `datasets/<run_id>/`.
 
-From these vulnerability fixing commits, you will next go through an adaptive pipeline that creates a SusVibes task from each processed fixing commit. The pipeline includes the following stages:
+## Generating Task Candidates
 
-1. **An agent to generate an initial mask.** This mask is generated on the vulnerable commit before the security fix, i.e., masking out a software feature from its vulnerable implementation. 
+From these vulnerability fixing commits, an adaptive pipeline creates a SusVibes task for each. The pipeline includes:
+
+1. **An agent to generate an initial mask.** This mask is generated on the vulnerable commit before the security fix, i.e., masking out a software feature from its vulnerable implementation.
 2. **A task description is generated** to describe the functionality of this masked implementation.
-3. **A verifier agent** is used to check whether the task description covers all lines in feature implementation with *security fixes*. If the verification fails, go back to step 1 for regeneration; otherwise, go to step 4.
+3. **A verifier agent** checks whether the task description covers all lines in feature implementation with *security fixes*. If verification fails, go back to step 1; otherwise, proceed to step 4.
 4. Return the task description and the mask.
 
-These stages are conveniently implemented for you in `pipeline.py`. The process leverages [SWE-agent](https://github.com/SWE-agent/SWE-agent).
+These stages are implemented in [`adaptive_gen/pipeline.py`](adaptive_gen/pipeline.py) and leverage [SWE-agent](https://github.com/SWE-agent/SWE-agent).
 
-First, find the installation [guidelines](https://swe-agent.com/latest/installation/source/) and install SWE-agent from source. It is recommended that SWE-agent is installed within a `conda` environment. 
+Follow the installation [guidelines](https://swe-agent.com/latest/installation/source/) to install SWE-agent from source (a `conda` environment is recommended). Set up SWE-agent with the config file at [`utils/agents/configs/adaptive_gen.yaml`](utils/agents/configs/adaptive_gen.yaml) by placing it under the `config/` directory of SWE-agent. You may configure the SWE-agent setup itself in [`utils/agents/settings.yaml`](utils/agents/settings.yaml); a pre-filled example is provided.
 
-In this section, it is recommended that you set up SWE-agent with the config file at `utils/agents/configs/adaptive_gen.yaml` by putting it under the `config/` directory of SWE-agent. You may specify everything about the SWE-agent setup in [settings](utils/agents/settings.yaml). A pre-filled example is provided.
-
-With that, run the following command to adaptively construct and verify the tasks:
+With that, run:
 
 ```bash
 python -m susvibes.curate.adaptive_gen.pipeline \
   --max_iters <num_adaptive_iterations> \
   --preview 2 \
-  --run_id playground 
+  --run_id playground
 ```
 
-You can then find several tasks created at `datasets/<run_id>/task_dataset.jsonl`, and displayed at `datasets/<run_id>/examples/`. You may use these tasks to examine quality, or better interpret the curation method.
-
-> **Note:** *Running this curation pipeline will typically cost you less than $1 per task. We used Claude 4 Sonnet, however you may employ any agentic LM with decent performance.*
+The resulting tasks are saved at `datasets/<run_id>/task_dataset.jsonl` and previewed at `datasets/<run_id>/examples/`.
 
 ## Building Execution Environment
 
-Next, you will build a Docker image for each task that is capable of executing the test suite of the associated repository. We leverage an [environment building agent](https://github.com/songwen6968/Env-agent) for automation.
+Next, build a Docker image for each task capable of executing the test suite of the associated repository. We leverage an [environment building agent](https://github.com/songwen6968/Env-agent) for automation.
 
-The image building process has two phases: (i) identifying the basic developer tools required (e.g., Python versions) and creating a base image equipped with these tools; and (ii) installing the repository and running the test suite within the base image.
+The image building process has two phases: (i) identifying basic developer tools required (e.g., Python versions) and creating a base image equipped with these tools; and (ii) installing the repository and running the test suite within the base image.
 
 ### Step 1: Preparing Base Image with Developer Tools
 
-In this step, an agent is utilized to automatically identify the Python version each project requires. The agent can be set up in the exact same way as above. The following command prepares the agent run, runs the agent, and post-processes its output to produce the identified dev tools for all task candidates, stored in [dev_tools](../env_specs/default/dev_tools.json):
+An agent identifies the Python version each project requires, using the SWE-agent set up in the previous section. The following command prepares the agent run, runs the agent, and post-processes the output into `env_specs/<run_id>/dev_tools.json` (see [`env_specs/default/dev_tools.json`](../env_specs/default/dev_tools.json) for an example):
 
 ```bash
 python -m susvibes.curate.env_setup.dev_tools \
   --run_id playground
 ```
 
-The `build_repo --prologue` command in Step 2 will automatically pull the canonical `base_py` and `dind_py` images from [dockerhub](https://hub.docker.com/r/songwen6968) for every Python version needed and tag `base_py:<version>` locally; no manual pull is required.
+The `build_repo --prologue` command in Step 2 will automatically pull the canonical `base_py` and `dind_py` images from [Docker Hub](https://hub.docker.com/r/songwen6968) for every Python version needed and tag `base_py:<version>` locally; no manual pull is required.
 
 ### Step 2: Installing Repo and Executing Test Suite
 
-In this section, you will be utilizing a specialized environment building agent, [Env-agent](https://github.com/songwen6968/Env-agent). Its config file is located at `utils/agents/configs/env_setup.yaml`, and can be configured in a similar way in [settings](utils/agents/settings.yaml).
+This step uses a specialized environment building agent, [Env-agent](https://github.com/songwen6968/Env-agent), whose config file is located at [`utils/agents/configs/env_setup.yaml`](utils/agents/configs/env_setup.yaml). Configure it similarly via [`utils/agents/settings.yaml`](utils/agents/settings.yaml).
 
-In short, Env-agent is started inside the corresponding base image, and is instructed to consult, in order: the pre-existing container configurations, CI/CD pipeline, and other documentation for reproducing the testing workflow. It then invokes Docker commands to create a new image with successful installation and testing steps baked in.
+In short, Env-agent starts inside the corresponding base image and consults (in order) the pre-existing container configurations, CI/CD pipeline, and other documentation for reproducing the testing workflow. It then invokes Docker commands to create a new image with successful installation and testing steps baked in.
 
 First, prepare the agent run:
 
@@ -72,9 +77,11 @@ python -m susvibes.curate.env_setup.build_repo \
   --run_id playground
 ```
 
-Then run the environment building agent as specified in [runs](utils/agents/runs.sh). This step can be resource-consuming in both time and space, as the agent repeatedly installs dependencies, tests the environment, and builds Docker images.
+Then run the environment building agent as specified in [`utils/agents/runs.sh`](utils/agents/runs.sh).
 
-After the agent has finished, build the environment Docker images from the agent output:
+> **Note:** *This step can be resource-consuming in both time and space, as the agent repeatedly installs dependencies, tests the environment, and builds Docker images. We recommend at least 2GB of free storage per instance and adjusting parallelism based on available CPU cores.*
+
+After the agent finishes, build the environment Docker images from its output:
 
 ```bash
 python -m susvibes.curate.env_setup.build_repo \
@@ -88,7 +95,7 @@ python -m susvibes.curate.env_setup.build_repo \
 
 ## Validating Test Cases via Execution
 
-Next, run validation: this synthesizes test suite output parsers and verifies each collected task instance against its execution environment.
+Finally, run validation: this synthesizes test suite output parsers and verifies each collected task instance against its execution environment.
 
 ```bash
 python -m susvibes.curate.validate.with_test \
@@ -98,9 +105,9 @@ python -m susvibes.curate.validate.with_test \
   [--from_existing_specs]  # Optional: reuse the cached logs_parser in env_specs instead of re-synthesizing it via LLM
 ```
 
-This step requires an LLM API setup for generating test suite output parsers. Configure which LLM to use in [constants](constants.py), and set the API key in your `.env` file. Set your desired repository name of produced docker images also in [constants](constants.py).
+This step requires an LLM API setup for generating test suite output parsers. Configure which LLM to use in [`constants.py`](constants.py), and set the API key in your `.env` file. Set your Docker Hub namespace under which produced images are tagged in [`susvibes/constants.py`](../constants.py).
 
-Finally, produce the SusVibes dataset as `susvibes_dataset.jsonl`:
+Then produce the final SusVibes dataset as `susvibes_dataset.jsonl`:
 
 ```bash
 python -m susvibes.curate.validate.wrapup \
