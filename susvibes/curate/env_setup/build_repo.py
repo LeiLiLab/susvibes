@@ -192,8 +192,7 @@ def prologue(
         dockerfile_template = dockerfiles.DOCKERFILE_ENV_PY_TEMPLATE.format_map(
             SafeDict(base_image=f'base_py:{dev_tool["version"]}'))
         test_files = [] if no_require_test else data_record["test_files"]
-        coverage_files = sorted(touched_files(data_record.get("task_patch", ""))) \
-            if no_require_test else []
+        coverage_files = sorted(touched_files(data_record.get("task_patch", "")))
         port.add_task(
             image=image_name,
             repo_type="local",

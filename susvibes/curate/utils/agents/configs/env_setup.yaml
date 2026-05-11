@@ -27,10 +27,12 @@ agent:
       4. Do NOT edit any project source or test file. Resolve every issue through environment configuration (dependency versions, environment variables, command-line flags).
       5. Older repos frequently have unpinned dependencies; `pip install` today picks modern versions that conflict with the repo's code. On install/import errors, pin to era-appropriate versions.
       6. Keep steps straightforward. Whenever a chosen approach fails or appears to demand non-trivial customization—fabricating dummy packages, rewriting lock files, etc.—STOP immediately. Go back to the sources in #3 and pivot. Do NOT invent complex workarounds.
+      7. Always install the project as editable.
 
       SHELL INTERACTION IN THIS ENVIRONMENT
-      7. The shell cannot detect when a backgrounded command finishes. Do NOT background commands with `&`—run them in the foreground.
-      8. The environment enforces a 1800s timeout per shell command. It is fine as long as your commands finish within that window.
+      8. The shell cannot detect when a backgrounded command finishes. Do NOT background commands with `&`—run them in the foreground.
+      9. The environment enforces a 900s timeout per shell command. It is fine as long as your commands finish within that window.
+      10. You may enable test parallelism, but do not exceed 4 workers.
 
       (Open file: {{open_file}})
       (Current directory: {{working_dir}})
@@ -65,7 +67,7 @@ agent:
     enable_bash_tool: true
     parse_function:
       type: function_calling
-    execution_timeout: 1800
+    execution_timeout: 900
     total_execution_timeout: 10800
   history_processors:
     - type: cache_control
