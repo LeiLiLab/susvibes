@@ -12,7 +12,7 @@ from pathlib import Path
 
 from susvibes.constants import *
 from susvibes.curate.constants import LOCAL_REPOS_DIR, ENV_SETUP_LOG_DIR, get_path
-from susvibes.env_specs import AVAILABLE_DEV_TOOL_VERSIONS
+from susvibes.env_specs import DEV_TOOL_VERSIONS
 from susvibes.curate.env_setup.prompts import DEV_TOOLS_PROMPT_TEMPLATE
 from susvibes.curate.utils.agents.ports import SWEAgentPort
 from susvibes.utils import load_file, save_file, setup_logger, parse_instance_id
@@ -71,16 +71,21 @@ def epilogue(agent_output_dir: Path, run_id: str = "default"):
             dev_tool = load_file(repo_dir / "dev_tools.json")
             assert "name" in dev_tool and "version" in dev_tool
             cleaned_version = re.sub(r"[^0-9.]", "", dev_tool["version"])
-            dev_tool["version"] = ".".join(cleaned_version.split(".")[:2])
-            if dev_tool["name"] not in AVAILABLE_DEV_TOOL_VERSIONS:
+            parts = cleaned_version.split(".")[:2]
+            if len(parts) == 1:
+                parts.append("0")
+            dev_tool["version"] = ".".join(parts)
+            if dev_tool["name"] not in DEV_TOOL_VERSIONS:
                 detail_logger.warning("Unsupported dev tool for %s: %s", pred["instance_id"], dev_tool["name"])
                 continue
-            available_versions = AVAILABLE_DEV_TOOL_VERSIONS[dev_tool["name"]]
+            tool_config = DEV_TOOL_VERSIONS[dev_tool["name"]]
+            available_versions = list(tool_config["versions"])
             to_num = lambda v: sum(int(part) * 10 ** (2 * i)
                 for i, part in enumerate(v.split(".")[::-1]))
             if dev_tool["version"] not in available_versions:
-                if to_num(dev_tool["version"]) < to_num("3.6"):
-                    detail_logger.warning("Skipping %s: version %s < 3.6", pred["instance_id"], dev_tool["version"])
+                min_compat = tool_config["minimal_compatible_version"]
+                if to_num(dev_tool["version"]) < to_num(min_compat):
+                    detail_logger.warning("Skipping %s: version %s < %s", pred["instance_id"], dev_tool["version"], min_compat)
                     continue
                 nearest_version = min(available_versions, key=lambda v: abs(to_num(v) - to_num(dev_tool["version"])))
                 detail_logger.info("Rounding version %s to %s for %s", dev_tool["version"], nearest_version, pred["instance_id"])

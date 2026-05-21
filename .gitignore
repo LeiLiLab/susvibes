@@ -18,6 +18,9 @@ __pycache__/
 !/datasets/default/examples/
 !/datasets/default/examples/**
 
+/susvibes/env_specs/*/
+!/susvibes/env_specs/default/
+
 slurm*
 /slurm/
 logs/

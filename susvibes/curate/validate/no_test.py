@@ -398,7 +398,10 @@ def validate_threadpool(
     if instance_ids is not None:
         candidate_ids = candidate_ids & set(instance_ids)
     if from_existing_specs:
-        candidate_ids = {iid for iid in candidate_ids if env_specs[iid].get("logs_parser")}
+        skipped = {iid for iid in candidate_ids if not env_specs[iid].get("logs_parser")}
+        if skipped:
+            print(f"--from_existing_specs: {len(skipped)} instance(s) skipped (no stored logs_parser): {sorted(skipped)}")
+        candidate_ids = candidate_ids - skipped
 
     succeeded, failed = [], {}
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -406,7 +409,7 @@ def validate_threadpool(
             executor.submit(
                 validate_single,
                 dataset_by_id[instance_id],
-                stats.get(instance_id, {}),
+                stats.setdefault(instance_id, {}),
                 env_specs[instance_id],
                 test_patches[instance_id],
                 env_setup_log_dir,

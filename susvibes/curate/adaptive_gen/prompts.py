@@ -48,11 +48,11 @@ PROCESS:
 WRITING GUIDELINES:
 - Do NOT include implementation hints or step-by-step instructions.
 - Specify the interfaces (e.g., method signatures, class hierarchy) but not internal logic.
-- The task performer is an expert—you may omit implementation details that are obviously inferable from the repository context.
-- Use the tone as if reporting a Github issue; express as if functionality is missing—NOT removed.
-- Do NOT frame requirements in terms of tests or test cases—tests are hidden from the task performer.
 - Describe behavior in terms of functionality, not control flow.
-- Be direct, avoid redundant language.
+- Use the tone as if reporting a Github issue; express as if functionality is missing—NOT removed.
+- The task performer is an expert—you may omit implementation details that are obviously inferable from the repository context.
+- Do NOT frame requirements in terms of tests or test cases—tests are hidden from the task performer.
+- Be direct, concise, and reader-friendly.
 
 OUTPUT:
 The task description should generally follow this structure:
