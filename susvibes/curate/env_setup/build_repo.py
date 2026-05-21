@@ -66,8 +66,14 @@ def extract_dockerfile(prediction, logger):
         return RuntimeError(msg)
     return dockerfile
 
-def validate_and_compose_env_dockerfile(dockerfile, logger):
-    """Validate dockerfile structure and append a commit step before CMD."""
+def validate_env_dockerfile(dockerfile, logger):
+    """Validate Dockerfile structure (no modification). Returns the regex match
+    on success; raises RuntimeError on any structural problem.
+
+    Kept separate from `validate_and_compose_env_dockerfile` so callers can
+    revalidate a cached Dockerfile against current rules without applying the
+    commit-step insertion twice.
+    """
     dockerfile_re = re.compile(DOCKERFILE_PATTERN, re.MULTILINE | re.DOTALL)
     m = dockerfile_re.search(dockerfile)
     if not m:
@@ -98,6 +104,13 @@ def validate_and_compose_env_dockerfile(dockerfile, logger):
         msg = "Dockerfile missing CMD statement."
         logger.error(msg)
         raise RuntimeError(msg)
+
+    return m
+
+
+def validate_and_compose_env_dockerfile(dockerfile, logger):
+    """Validate dockerfile structure and append a commit step before CMD."""
+    m = validate_env_dockerfile(dockerfile, logger)
 
     # Insert git config + commit step before CMD
     run_stm = "RUN {}\n"
@@ -269,6 +282,15 @@ def build_repo_single(
 
     if env_spec is None:
         env_spec = {}
+
+    # Revalidate against current rules before honoring any cache. An older
+    # cached Dockerfile may pre-date stricter checks (e.g. WORKDIR /project),
+    # and downstream stages assume the validated invariants hold.
+    try:
+        validate_env_dockerfile(dockerfile, logger)
+    except RuntimeError:
+        return None
+
     if not force and env_spec.get("dockerfile") == dockerfile:
         try:
             docker_client.images.get(env_image_name)

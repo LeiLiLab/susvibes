@@ -23,6 +23,8 @@ CONTAINER_MEM_LIMIT = "{}g".format(
 CONTAINER_CPU_LIMIT = min(int(os.cpu_count() * 0.75), 16)
 
 DOCKERHUB_USERNAME = "songwen6968"
+HF_DATASET_REPO = "songwen6968/SusVibes"
+HF_DATASET_FILENAME = "susvibes_dataset.jsonl"
 ARCH = os.uname().machine
 
 class SafetyStrategies(Enum):

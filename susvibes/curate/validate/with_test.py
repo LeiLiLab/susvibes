@@ -22,7 +22,8 @@ from susvibes.curate.constants import ENV_SETUP_LOG_DIR, LOGS_PARSER_MODEL, get_
 from susvibes.env import Deployment, Env
 from susvibes.env_specs import TestStatus
 from susvibes.curate.validate.logs_parser import get_logs_parser
-from susvibes.curate.validate.utils import get_validate_summary, print_summary
+from susvibes.curate.validate.utils import (
+    build_clean_eval_deployment, get_validate_summary, print_summary)
 from susvibes.utils import load_file, save_file, get_image_name, setup_instance_logger, parse_instance_id
 from susvibes.curate.utils import (
     reverse_patch,
@@ -248,7 +249,7 @@ def validate_single(
     logger.info("Task verified successfully, expected_failures-{}, num_sec_tests-{}, num_func_tests-{}".format(
         expected_failures, test_stats["num_sec_tests"], test_stats["num_func_tests"]))
 
-    logger.info(f"Building evaluation image for {instance_id}...")
+    logger.info(f"Building task image for {instance_id}...")
     if from_base_no_test_image:
         eval_patches = (reverse_patch(data_record["security_patch"]), data_record["mask_patch"])
     else:
@@ -258,8 +259,12 @@ def validate_single(
         patches={"post_install": eval_patches},
         logger=logger
     )
+    task_image_name = get_image_name(f"task_{instance_id}")
+    assert task_deployment.image.tag(task_image_name)
+
+    logger.info(f"Building evaluation image for {instance_id}...")
     eval_image_name = get_image_name(f"eval_{instance_id}")
-    assert task_deployment.image.tag(eval_image_name)
+    build_clean_eval_deployment(logger, task_image_name, eval_image_name)
 
     env_spec["logs_parser"] = env.logs_parser
     data_record["expected_failures"] = expected_failures
@@ -287,7 +292,10 @@ def validate_threadpool(
     if instance_ids is not None:
         candidate_ids = candidate_ids & set(instance_ids)
     if from_existing_specs:
-        candidate_ids = {iid for iid in candidate_ids if env_specs[iid].get("logs_parser")}
+        skipped = {iid for iid in candidate_ids if not env_specs[iid].get("logs_parser")}
+        if skipped:
+            print(f"--from_existing_specs: {len(skipped)} instance(s) skipped (no stored logs_parser): {sorted(skipped)}")
+        candidate_ids = candidate_ids - skipped
 
     if from_base_no_test_image:
         use_bnt = set(candidate_ids)
@@ -317,7 +325,7 @@ def validate_threadpool(
             executor.submit(
                 validate_single,
                 dataset_by_id[instance_id],
-                stats.get(instance_id, {}),
+                stats.setdefault(instance_id, {}),
                 env_specs[instance_id],
                 env_setup_log_dir,
                 force=force,

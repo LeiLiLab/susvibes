@@ -44,8 +44,27 @@ TEST_SYMBOL_RESOLUTION_ERROR_PATTERNS = [
     r"Unknown keyword argument"
 ]
 
-AVAILABLE_DEV_TOOL_VERSIONS = {
-    "python": ["3.7", "3.8", "3.9", "3.10", "3.11", "3.12"],
+# Per dev tool: a config dict containing
+#   - `versions`: minor -> full Docker Hub tag of the canonical base image to
+#     FROM when building base_<tool> for that minor (mapping rationale in
+#     env_specs/dockerfiles.py)
+#   - `minimal_compatible_version`: floor below which a discovered version is
+#     dropped instead of rounded up to the nearest available.
+DEV_TOOL_VERSIONS = {
+    "python": {
+        "minimal_compatible_version": "2.5",
+        "versions": {
+            "2.7":  "2.7-buster",
+            "3.5":  "3.5-buster",
+            "3.6":  "3.6-bullseye",
+            "3.7":  "3.7-bookworm",
+            "3.8":  "3.8-bookworm",
+            "3.9":  "3.9-bookworm",
+            "3.10": "3.10-bookworm",
+            "3.11": "3.11-bookworm",
+            "3.12": "3.12-bookworm",
+        },
+    },
 }
 DOCKERFILE_PATTERN = (
     r'^(FROM(?:[^\r\n]*\\\r?\n)*[^\r\n]*\r?\n)'

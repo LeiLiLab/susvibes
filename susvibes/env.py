@@ -86,7 +86,7 @@ class Deployment():
             raise docker.errors.BuildError(f"API error: {e}", "")
 
     @classmethod
-    def from_pull(cls, 
+    def from_pull(cls,
         logger: logging.Logger,
         image_name: str,
         remove_image: bool = False,
@@ -236,7 +236,7 @@ class Deployment():
         else:
             self.stop()
         return run_logs.decode(), timed_out
-    
+
 class Env:
     project: str
     deployment: Deployment

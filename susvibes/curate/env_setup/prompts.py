@@ -6,12 +6,13 @@ PROCESS:
 1. Review the project documentation, especially the CI/CD pipeline for tests (e.g. GitHub Actions, CircleCI) to locate the stated Python version(s).
 2. If multiple versions are listed, favor the most clearly stated version, or the latest.
 3. If no version is explicitly stated, infer from environment files or tooling configuration, and note your inference.
+4. Report the version at the most precise level the evidence supports, at minimum `X.Y`. Infer the minor from context if only a major is stated.
 
 OUTPUT:
 Produce a JSON object saved to `dev_tools.json` at the project root with the following structure:
 {
     "name": "python",
-    "version": "<single_identified_version>",
+    "version": "<at least X.Y>",
     "additional_info": "<optional notes on tools or context>"
 }
 """
@@ -19,7 +20,7 @@ Produce a JSON object saved to `dev_tools.json` at the project root with the fol
 INSTALL_TEST_PROMPT_TEMPLATE = """\
 PHASE 1 — INSTALL & TEST THE CODEBASE
 ---
-In this Python repository on Debian 12, your objective is to install and test the codebase by setting up the execution environments and running the test suite. To accomplish this task, your primary approach is to follow the repository's explicit install and test instructions.
+In this Python repository on Debian, your objective is to install and test the codebase by setting up the execution environments and running the test suite. To accomplish this task, your primary approach is to follow the repository's explicit install and test instructions.
 
 CORE STARTING STRATEGY (in this order):
 1. Check for a Dockerfile in the repository.
