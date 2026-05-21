@@ -10,14 +10,16 @@ import argparse
 from tqdm import tqdm
 from typing import TypedDict
 
+from susvibes.constants import HF_DATASET_REPO, HF_DATASET_FILENAME
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_path
-from susvibes.utils import load_file, save_file
+from susvibes.utils import load_file
 from susvibes.curate.utils import (
     get_repo_dir,
     reset_to_commit,
     apply_patch,
     commit_changes,
     get_diff_patch,
+    push_dataset_to_hub,
 )
 
 class SusVibesRecord(TypedDict):
@@ -45,9 +47,7 @@ def make_susvibes_record(data_record: dict) -> SusVibesRecord:
     code_mask_commit = commit_changes(repo_dir, f'Code mask at {data_record["base_commit"]}')
     golden_patch = get_diff_patch(repo_dir, code_mask_commit, data_record["base_commit"])
     data_record["golden_patch"] = golden_patch
-    data_record.pop("mask_patch", None)
-    data_record.pop("test_files", None)
-    return data_record
+    return {key: data_record[key] for key in SusVibesRecord.__annotations__}
 
 
 if __name__ == "__main__":
@@ -67,5 +67,6 @@ if __name__ == "__main__":
     dataset = [make_susvibes_record(data_record)
         for data_record in tqdm(dataset, desc="Wrapping up")]
 
-    save_file(dataset, dataset_path)
-    print(f"Dataset saved to {dataset_path}.")
+    push_dataset_to_hub(dataset, HF_DATASET_REPO, HF_DATASET_FILENAME,
+        commit_message=f"wrapup: {len(dataset)} instances (run_id={args.run_id})")
+    print(f"Pushed {len(dataset)} records to https://huggingface.co/datasets/{HF_DATASET_REPO}")

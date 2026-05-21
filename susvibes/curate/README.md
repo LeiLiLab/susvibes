@@ -107,9 +107,14 @@ python -m susvibes.curate.validate.with_test \
 
 This step requires an LLM API setup for generating test suite output parsers. Configure which LLM to use in [`constants.py`](constants.py), and set the API key in your `.env` file. Set your Docker Hub namespace under which produced images are tagged in [`susvibes/constants.py`](../constants.py).
 
-Then produce the final SusVibes dataset as `susvibes_dataset.jsonl`:
+Then finalize the dataset and publish it to Hugging Face:
 
 ```bash
 python -m susvibes.curate.validate.wrapup \
   --run_id playground
 ```
+
+This filters to validated instances, computes each golden patch, strips records to the released
+schema, and uploads `susvibes_dataset.jsonl` to the Hugging Face dataset repo configured by
+`HF_DATASET_REPO` in [`susvibes/constants.py`](../constants.py) — it does **not** write the local
+dataset. Set `HF_TOKEN` (with write access to that repo) in your `.env` first.
