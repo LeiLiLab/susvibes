@@ -1,6 +1,6 @@
 <div align="center">
 
-# SusVibes: Benchmarking Vulnerability of Agent-Generated Code in Real-World Software Engineering Tasks
+# SusVibes: Benchmarking Vulnerability of Agent-Generated Code in Real-World Tasks
 
 <p>
 <a href="https://arxiv.org/pdf/2512.03262"><b>📃 Paper</b></a>
@@ -97,88 +97,38 @@ python -m susvibes.run_evaluation \
   --run_id <unique_run_identifier> \
   --predictions_path <path_to_predictions_jsonl> \
   --max_workers 5 \
-  --summary_path <path_to_output_summary_json> \
   [--force]  # Optional: force re-evaluation
 ```
 
 #### Parameters:
-- `--run_id`: Name of this evaluation run
+- `--run_id`: Name of this evaluation run (defaults to `default`)
 - `--predictions_path`: Path to your agent's predictions file
 - `--max_workers`: Number of parallel workers (adjust based on available CPU cores)
-- `--summary_path`: Output path for evaluation results
 - `--force`: Force re-evaluation even if previous logs exist
+
+The evaluation summary is written automatically to `logs/run_evaluation/<run_id>/<strategy>/summary.json` (where `<strategy>` defaults to `generic`); the path is printed at the end of the run.
 
 ### ✅ Verify Setup with Examples:
 
-You can use our provided `datasets/examples/sample_predictions.json` to verify your setup. This should give you a summary in `datasets/examples/sample_predictions.summary.json`.
+You can use our provided `datasets/examples/sample_predictions.json` to verify your setup. This should give you a summary in `logs/run_evaluation/test/generic/summary.json`.
 
 ```bash
 python -m susvibes.run_evaluation \
   --run_id test \
   --predictions_path datasets/examples/sample_predictions.json \
   --max_workers 5 \
-  --summary_path datasets/examples/sample_predictions.summary.json \
   --force
 ```
 
 ## 🛠️ Advanced Usage
 
-### 🗂️ Task Curation Pipeline
+### 🗂️ Task Creation at Scale
 
 See the subfolder's [README](susvibes/curate/README.md) for more details.
 
-### 🛡️ Security-Enhanced Evaluation
+### 🛡️ Advanced Strategies
 
-SusVibes supports evaluating agents with security-enhanced designs through prompting strategies from different aspects. This feature allows you to prepare datasets that incorporate specific safeguard guidance and evaluate how agents perform under these enhanced circumstances.
-
-#### 1. Prepare Enhanced Dataset
-
-First, enhance the dataset with your chosen safety strategy. This will generate a new dataset file `susvibes_dataset_{safety_strategy}.jsonl` in the `datasets/` directory.
-
-```bash
-python -m susvibes.run_evaluation \
-  --prepare \
-  --safety_strategy <safety_strategy_name>
-```
-
-#### Available Safety Strategies
-
-| Strategy | Description |
-|----------|-------------|
-| **`generic`** | Provides general security guidelines to the agent without specific vulnerability information |
-| **`self-selection`** | Allows the agent to select relevant security concerns from a provided list of all possible CWE (Common Weakness Enumeration) types in the dataset |
-| **`oracle`** | Provides the agent with the exact CWE vulnerabilities that are relevant to the specific task |
-| **`feedback-driven`** | Iteratively improve the implementation based on feedback from executing security tests. This mode requires `--feedback_tool` and agent-level integration. (Comming soon)|
-| **`sec-test`** | Exposes the agent to the actual security test patch used for evaluation, allowing it to inspect the tests and implement a solution that is explicitly secure against them |
-
-#### 2. Run Agent with Enhanced Dataset
-
-After preparing the security-enhanced dataset, use it to harness your agent instead. Evaluate with the same command as before plus the safety strategy option:
-
-```bash
-python -m susvibes.run_evaluation \
-  --safety_strategy <safety_strategy_name>
-  # ... other parameters
-```
-
-The evaluation will allows you to assess additional security measures and insights in place.
-
-## 📁 Project Structure
-
-```
-susvibes/
-├── susvibes/
-│   ├── curate/             # Task curation
-│   ├── env_specs/          # Environment specifications
-│   ├── safety_strategies/  # Security-enhanced strategies (Advanced Usage)
-│   ├── env.py              # Environment management
-│   ├── tasks.py            # Task definitions
-│   └── run_evaluation.py   # Main evaluation entry
-├── datasets/             # Dataset storage
-├── evaluation_harness/   # Example evaluation harness for agent framework
-├── README.md             # README file
-└── requirements.txt      # Dependencies
-```
+SusVibes supports advanced strategies for security-enhanced evaluation (`generic`, `self-selection`, `oracle`, `feedback-driven`, `sec-test`). See the subfolder's [README](susvibes/strategies/README.md) for more details.
 
 ## ❓ Troubleshooting
 

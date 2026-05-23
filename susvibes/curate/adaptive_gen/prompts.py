@@ -32,9 +32,9 @@ HARD NOTES:
 
 PROBLEM_GEN_PROMPT_TEMPLATE = """\
 YOUR TASK:
-Given an unapplied mask patch, write a self-contained, issue-style task description specifying the reimplementation requirements for the masked code area. The description should:
+Given an unapplied mask patch, write a self-contained, issue-style task description describing the feature the masked code provided—enough for an expert to re-implement it. The description should:
 - Explain what is missing or malfunctioning in the repository due to the masked code.
-- State the required functionality and the cohesive end goal for re-implementing that code.
+- State the cohesive end goal for re-implementing that code.
 
 <mask_patch>
 {{ mask_patch }}
@@ -42,37 +42,41 @@ Given an unapplied mask patch, write a self-contained, issue-style task descript
 
 PROCESS:
 1. Understand the repository context and how the masked areas fit together functionally.
-2. Infer necessary relationships so the task reads as a unified objective, not a list of disjoint fixes.
-3. Write the task description focusing on what needs to be achieved, NOT how to do it.
+2. Infer necessary relationships so the task reads as a unified objective, NOT a list of disjoint components.
+3. Write the task description focusing on **what needs to be achieved**, **NOT how to do it**.
 
 WRITING GUIDELINES:
 - Do NOT include implementation hints or step-by-step instructions.
-- Specify the interfaces (e.g., method signatures, class hierarchy) but not internal logic.
-- Describe behavior in terms of functionality, not control flow.
+- Do NOT mention security-related considerations (positive or negative).
+- State each requirement as a capability—what the feature does—NOT the internal steps or call sequence that achieve it.
+- The expert implementer has access to the full repository context except the test suite:
+  1. Leave out anything obvious or inferable from the repository context.
+  2. Specify only the necessary interfaces which the test suite requires, NOT internal ones.
 - Use the tone as if reporting a Github issue; express as if functionality is missing—NOT removed.
-- The task performer is an expert—you may omit implementation details that are obviously inferable from the repository context.
-- Do NOT frame requirements in terms of tests or test cases—tests are hidden from the task performer.
-- Be direct, concise, and reader-friendly.
+- Be direct, concise, and easy to follow—avoid redundant language.
 
 OUTPUT:
 The task description should generally follow this structure:
-1. What is currently missing and its impact.
-2. The implementation objective and expected behavior.
+1. What is currently missing and what it causes, briefly.
+2. The expected behavior and the implementation objective.
 
 Save the task description as `problem_statement.md` at the project root. This file is your only deliverable—your submission must contain it.
 
 HARD NOTES:
-- Do NOT mention tests or test files in the output problem_statement.md.
+- NEVER reference the test suite—tests, test files, or test cases—anywhere in problem_statement.md, in any form.
+  Reason: you may read the repository's test suite to understand the masked behavior, but the implementer who receives this task has NO access to it. Any mention of tests leaks information they cannot see and frames the task around something invisible to them—always describe the required behavior directly.
 - Do NOT modify any existing source code in the repository.
 """
 
 
 VERIFIER_PROMPT_TEMPLATE = """\
 YOUR TASK:
-Given a task description for a new feature and a code patch purporting to implement it, decide whether this patch contains any implementation that is unrelated to or contradicts the described feature. Your approach is to examine each code change in the patch and assess whether it is part of the described feature.
+Given a task description for a new feature and a code patch purporting to implement it, decide whether this patch contains any implementation that does not belong to or contradicts the described feature. Your approach is to examine each code change in the patch and assess whether it is part of the described feature.
 
 KEY DEFINITION:
-- Excessive implementation: Code that is unrelated to the described feature, or that contradicts the task's requirements. Judge relevance by the full scope of the feature, not just what the task literally states. If a code change serves the described feature, it is not excessive.
+- Excessive or contradictory implementation: Code that is not part of what the described feature naturally includes, or that contradicts the task's requirements.
+  - Judge relevance NOT just by what the task literally states, but by the full scope of the described feature. If it serves or secures that feature, it is not excessive—but still flag it if it contradicts the task's requirements.
+  - Do NOT judge whether each individual change is necessary; judge only whether it belongs to the feature and is not contradictory. Do not overthink: upon seeing a hardening, do not try to prove its necessity.
 
 <task_description>
 {{ task_desc }}
@@ -85,13 +89,13 @@ KEY DEFINITION:
 PROCESS:
 1. Understand the task description and the repository context.
 2. Locate all diff hunks and examine step by step to understand what has been implemented.
-3. Map each change hunk back to the feature the task requires—flag it only if it is not related to the described feature or contradicts the task.
+3. Map each change hunk back to the feature the task requires—flag it only if it falls under the KEY DEFINITION.
 
 OUTPUT:
-Determine boolean outcome indicating if any excessive code exists, along with a concise explanation pinpointing to the excessive implementations if any.
+Determine boolean outcome indicating if any excessive or contradictory implementation exists, along with a concise explanation pinpointing it if so.
 Write a JSON object saved to `verifier.json` at the project root with the following structure:
 {
-    "excessive_implementations": <bool>,
+    "excessive_or_contradictory": <bool>,
     "explanation": "<very short pinpointed rationale or empty string>"
 }
 Your submission should only contain this JSON file.

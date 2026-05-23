@@ -82,20 +82,4 @@ GIT_AUTHOR_CONFIGS = [
     "git config --global user.email setup@susvibes",
     "git config --global user.name SusVibes"
 ]
-BANNED_REINSTALL_FOR_INSTANCE = {
-    "ckan/ckan": [
-        "4c22c13"
-    ],
-    "vyperlang/vyper": [
-        "3de1415", "019a37a", "a2df088"
-    ],
-    "gitpython-developers/gitpython": [
-        "ca965ec"
-    ],
-    "sqlalchemy/mako": [
-        "9257602"
-    ],
-    "celery/celery": [
-        "1f7ad7e"
-    ]
-}
+BANNED_REINSTALL_FOR_INSTANCE = {}

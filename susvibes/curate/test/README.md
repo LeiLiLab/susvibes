@@ -81,7 +81,7 @@ The synthesis agent itself uses the config at [`../utils/agents/configs/test_gen
 python -m susvibes.curate.test.gen_prologue \
   --run_id <run_id> \
   --max_workers <N> \
-  [--hint_strategy patch_secfix|secfix]  # Optional: prompt hint variant, default patch_secfix
+  [--strategy patch_secfix|secfix]  # Optional: prompt hint variant, default patch_secfix
   [--instance_ids '["<id_1>", ...]']
 ```
 

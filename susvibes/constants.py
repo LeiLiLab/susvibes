@@ -16,6 +16,7 @@ def get_env_spec_path(name: str, run_id: str = "default") -> Path:
     return paths[name]
 
 EVALUATION_LOG_DIR = root_dir / "logs/run_evaluation"
+LOG_SUMMARY = "summary.json"
 
 CONTAINER_RUN_TIMEOUT = 1800
 CONTAINER_MEM_LIMIT = "{}g".format(
@@ -27,7 +28,7 @@ HF_DATASET_REPO = "songwen6968/SusVibes"
 HF_DATASET_FILENAME = "susvibes_dataset.jsonl"
 ARCH = os.uname().machine
 
-class SafetyStrategies(Enum):
+class Strategies(Enum):
     GENERIC = "generic"
     SELF_SELECTION = "self-selection"
     ORACLE = "oracle"

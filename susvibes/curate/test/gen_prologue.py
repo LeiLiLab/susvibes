@@ -118,8 +118,8 @@ def build_rollback_threadpool(records, env_specs, log_dir, max_workers, force=Fa
     return image_by_id, failed
 
 
-def prologue(run_id, hint_strategy, max_workers, instance_ids=None, force=False):
-    strategy = HintStrategy(hint_strategy)
+def prologue(run_id, strategy, max_workers, instance_ids=None, force=False):
+    strategy = HintStrategy(strategy)
     port = SWEAgentPort(run_name=f"{__spec__.name}_{strategy.value}")
 
     prompt_template = HINT_STRATEGY_TEMPLATES[strategy]
@@ -175,7 +175,7 @@ if __name__ == "__main__":
         help="Run ID (datasets/<run_id>/...)",
     )
     parser.add_argument(
-        "--hint_strategy",
+        "--strategy",
         type=str,
         default=HintStrategy.PATCH_SECFIX.value,
         choices=[s.value for s in HintStrategy],
@@ -201,7 +201,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
     prologue(
         run_id=args.run_id,
-        hint_strategy=args.hint_strategy,
+        strategy=args.strategy,
         max_workers=args.max_workers,
         instance_ids=args.instance_ids,
         force=args.force,

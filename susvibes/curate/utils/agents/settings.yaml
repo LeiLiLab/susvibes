@@ -16,7 +16,7 @@ Env-agent:
   model: 
     name: claude-sonnet-4-5-20250929
     per_instance_cost_limit: 10.0
-    per_instance_call_limit: 150
+    per_instance_call_limit: 200
   agent_env: envagent1.1.0   # Conda environment name for the Env-agent
   config_name: susvibes_env_setup   # Name of configuration file for the Env-agent
   num_workers: 5

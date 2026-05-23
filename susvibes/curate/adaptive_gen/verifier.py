@@ -78,7 +78,7 @@ def epilogue(agent_output_dir: Path, task_dataset_path: Path, no_require_test: b
         result_path = repo_dir / "verifier.json"
         if result_path.exists():
             result = load_file(result_path)
-            assert "excessive_implementations" in result and "explanation" in result
+            assert "excessive_or_contradictory" in result and "explanation" in result
         else:
             logger.warning("Verifier result for %s not found or invalid.", pred["instance_id"])
             continue
@@ -93,7 +93,7 @@ def epilogue(agent_output_dir: Path, task_dataset_path: Path, no_require_test: b
             continue
         
         successful_instance_ids.append(pred["instance_id"])
-        if result["excessive_implementations"]:
+        if result["excessive_or_contradictory"]:
             logger.warning("Excessive implementation found for %s.", pred["instance_id"])
             continue
         verified_instance_ids.append(data_record["instance_id"])
