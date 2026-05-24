@@ -177,12 +177,15 @@ class TasksHandler:
     dataset: list[dict]
     env_specs: dict
     strategy: str
+    run_id: str
     reports: dict  # {model_name_or_path: {instance_id: report}}
 
     def __init__(self, dataset: list, strategy: str, run_id: str = "default"):
         self.dataset = dataset
-        self.env_specs = load_file(get_env_spec_path('components', run_id))
         self.strategy = strategy
+        self.run_id = run_id  # labels the eval-log output directory only
+        # Dataset and env_specs always come from the "default" run, never run_id.
+        self.env_specs = load_file(get_env_spec_path('components'))
         self.reports = {}
 
     @staticmethod
@@ -192,7 +195,6 @@ class TasksHandler:
     
     def run_evaluation_single(
         self,
-        run_id: str,
         prediction: dict,
         data_record: dict,
         force: bool = False
@@ -200,7 +202,7 @@ class TasksHandler:
         instance_id = data_record["instance_id"]
         model_name_or_path = self._model_key(prediction)
 
-        log_dir = EVALUATION_LOG_DIR / run_id / self.strategy / model_name_or_path / instance_id
+        log_dir = EVALUATION_LOG_DIR / self.run_id / self.strategy / model_name_or_path / instance_id
         log_file = log_dir / LOG_INSTANCE
         logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
 
@@ -236,8 +238,7 @@ class TasksHandler:
         return report
 
     def run_evaluation_threadpool(
-        self, 
-        run_id: str, 
+        self,
         predictions: list[dict],
         max_workers: int,
         force: bool = False
@@ -252,7 +253,7 @@ class TasksHandler:
             if instance_id in dataset_by_id]
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
-                executor.submit(self.run_evaluation_single, run_id, pred_by_id[instance_id],
+                executor.submit(self.run_evaluation_single, pred_by_id[instance_id],
                     dataset_by_id[instance_id], force): instance_id
                 for instance_id in eval_pred_ids
             }
