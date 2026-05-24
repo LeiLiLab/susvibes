@@ -6,12 +6,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from susvibes.constants import *
 from susvibes.env import Env
-from susvibes.safety_strategies.tools import eval_selected_cwes, get_cwes_selection_stats
+from susvibes.strategies.tools import eval_selected_cwes, get_cwe_selection_stats
 from susvibes.utils import (
     load_file,
     save_file,
     touched_files,
-    filter_patch,
+    filter_target_files,
+    filter_binary_files,
     setup_instance_logger
 )
 
@@ -21,7 +22,7 @@ LOG_REPORT = "report.json"
 EVALUATION_RUNS = ["func", "sec"]
 
 
-def get_summary(dataset: list, reports: dict, safety_strategy: str) -> dict:
+def get_summary(dataset: list, reports: dict, strategy: str) -> dict:
     eval_summary = {
         "num_instances": len(dataset),
         "num_submitted_instances": len(reports),
@@ -46,8 +47,8 @@ def get_summary(dataset: list, reports: dict, safety_strategy: str) -> dict:
     eval_summary["correct_secure_ratio"] = len(details["correct_secure"]) / len(dataset)
 
     eval_summary["details"] = details
-    if safety_strategy == SafetyStrategies.SELF_SELECTION.value:
-        eval_summary["cwes_selection"] = get_cwes_selection_stats(
+    if strategy == Strategies.SELF_SELECTION.value:
+        eval_summary["cwe_selection"] = get_cwe_selection_stats(
             reports, details["correct"], details["correct_secure"])
     return eval_summary
 
@@ -69,7 +70,6 @@ class Task:
     base_commit: str
     cwe_ids: str
     language: str
-    task_patch: dict[str, str]
     test_patch: dict[str, str]
     expected_failures: dict
     env: Env
@@ -84,7 +84,6 @@ class Task:
         self.base_commit = data_record['base_commit']
         self.cwe_ids = data_record['cwe_ids']
         self.language = data_record['language']
-        self.task_patch = data_record['task_patch']
         self.test_patch = data_record['test_patch']
         self.expected_failures = data_record['expected_failures']
         self.env = Env(
@@ -105,7 +104,7 @@ class Task:
         try:
             deployment = self.env.build_instance_deployment(
                 base_commit=self.base_commit,
-                patches={"pre_install": patches[:-1], "post_install": patches[-1:]},
+                patches={"post_install": patches},
                 logger=logger
             )
         except Exception as e:
@@ -117,7 +116,7 @@ class Task:
             logger.warning(f"Failed to create container for {run_name}.")
             return "", EvalStatus.MODEL_PATCH_ERROR.value
         test_logs, timed_out = deployment.run_with_timeout()
-        eval_status = self.env.get_test_status(test_logs, timed_out)
+        eval_status = self.env.check_test_logs(test_logs, timed_out)
 
         if eval_status == EvalStatus.TIMEOUT.value:
             logger.warning(f"Failed to run tests for {run_name}: timeout.")
@@ -130,9 +129,9 @@ class Task:
         return test_logs, eval_status
 
     def evaluate(
-        self, 
-        prediction: dict, 
-        log_dir: Path, 
+        self,
+        filtered_patch: str,
+        log_dir: Path,
         logger: logging.Logger,
         force: bool = False
     ):
@@ -140,15 +139,11 @@ class Task:
         if report_path.exists() and not force:
             logger.info(f"Report found; reusing.")
             return load_file(report_path)
-        report = {run_name : {"pass": None, "status": None} 
+        report = {run_name : {"pass": None, "status": None}
             for run_name in EVALUATION_RUNS}
-        
-        model_patch = prediction.get(PredictionKeys.PREDICTION.value, "")
-        exclude_targets = touched_files(self.test_patch)
-        filtered_patch = filter_patch(model_patch, exclude_targets, exclude=True)
-        
-        runs_list = [(self.task_patch, filtered_patch,), 
-            (self.task_patch, self.test_patch, filtered_patch)]
+
+        runs_list = [(filtered_patch,),
+            (self.test_patch, filtered_patch)]
         expected_failures = None
         for run_patches, run_name in zip(runs_list, EVALUATION_RUNS):
             test_logs, eval_status = self.run_test_suite(
@@ -181,14 +176,18 @@ class Task:
 class TasksHandler:
     dataset: list[dict]
     env_specs: dict
-    safety_strategy: str
-    reports: dict
-    
-    def __init__(self, dataset: list, safety_strategy: str, run_id: str = "default"):
+    strategy: str
+    reports: dict  # {model_name_or_path: {instance_id: report}}
+
+    def __init__(self, dataset: list, strategy: str, run_id: str = "default"):
         self.dataset = dataset
         self.env_specs = load_file(get_env_spec_path('components', run_id))
-        self.safety_strategy = safety_strategy
+        self.strategy = strategy
         self.reports = {}
+
+    @staticmethod
+    def _model_key(prediction: dict) -> str:
+        return prediction.get(PredictionKeys.MODEL.value, "none").replace("/", "__")
         
     
     def run_evaluation_single(
@@ -199,14 +198,17 @@ class TasksHandler:
         force: bool = False
     ):
         instance_id = data_record["instance_id"]
-        model_name_or_path = prediction.get(PredictionKeys.MODEL.value, "none").replace("/", "__")
+        model_name_or_path = self._model_key(prediction)
 
-        log_dir = EVALUATION_LOG_DIR / run_id / self.safety_strategy / model_name_or_path / instance_id
+        log_dir = EVALUATION_LOG_DIR / run_id / self.strategy / model_name_or_path / instance_id
         log_file = log_dir / LOG_INSTANCE
         logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
 
-        if not prediction.get(PredictionKeys.PREDICTION.value):
-            logger.warning("Empty model patch for %s, skipping.", instance_id)
+        model_patch = prediction.get(PredictionKeys.PREDICTION.value, "")
+        filtered_patch = filter_target_files(model_patch, touched_files(data_record["test_patch"]), exclude=True)
+        filtered_patch = filter_binary_files(filtered_patch)
+        if not filtered_patch.strip():
+            logger.warning("No applicable (non-test) patch for %s, skipping.", instance_id)
             return {run_name: {"pass": False, "status": EvalStatus.NO_PATCH.value}
                 for run_name in EVALUATION_RUNS}
 
@@ -226,9 +228,9 @@ class TasksHandler:
             raise RuntimeError(msg)
 
         logger.info(f"Evaluating task {instance_id}...")
-        report = task.evaluate(prediction, log_dir, logger, force)
-        if self.safety_strategy == SafetyStrategies.SELF_SELECTION.value:
-            report["cwes_selection"] = eval_selected_cwes(prediction, task.cwe_ids)
+        report = task.evaluate(filtered_patch, log_dir, logger, force)
+        if self.strategy == Strategies.SELF_SELECTION.value:
+            report["cwe_selection"] = eval_selected_cwes(prediction, task.cwe_ids)
 
         logger.info(f"Report for {instance_id}: {report}")
         return report
@@ -262,5 +264,6 @@ class TasksHandler:
                         report = future.result()
                     except Exception as e:
                         raise RuntimeError(f"Internal error for {instance_id}: {e}")
-                    self.reports[instance_id] = report
+                    model = self._model_key(pred_by_id[instance_id])
+                    self.reports.setdefault(model, {})[instance_id] = report
                     pbar.update(1)

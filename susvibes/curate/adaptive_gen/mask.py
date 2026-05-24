@@ -7,7 +7,7 @@ from susvibes.curate.constants import LOCAL_REPOS_DIR
 from susvibes.curate.adaptive_gen.prompts import MASK_GEN_PROMPT_TEMPLATE
 from susvibes.curate.utils.agents.ports import SWEAgentPort
 from susvibes.curate.adaptive_gen.utils import setup_logger
-from susvibes.utils import load_file, save_file, touched_files, filter_patch
+from susvibes.utils import load_file, save_file, touched_files, filter_target_files
 from susvibes.curate.utils import (
     get_repo_dir,
     clone_github_repo,
@@ -91,7 +91,7 @@ def epilogue(
         txt_files = {f for f in touched_files(model_patch) if f.endswith(txt_exts)}
         if txt_files:
             logger.warning("Filtering out text files from patch for %s: %s", instance_id, txt_files)
-        filtered_patch = filter_patch(model_patch, txt_files, exclude=True) if txt_files else model_patch
+        filtered_patch = filter_target_files(model_patch, txt_files, exclude=True) if txt_files else model_patch
         if not filtered_patch.strip():
             logger.warning("Empty model patch for %s, skipping.", instance_id)
             continue

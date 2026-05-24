@@ -100,6 +100,7 @@ def epilogue(agent_output_dir: Path, run_id: str = "default"):
     if total_cost is not None:
         logger.info("Agent cost: $%.2f", total_cost)
     dev_tools_path = get_env_spec_path('dev_tools', run_id)
+    dev_tools_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(dev_tools, dev_tools_path)
     print(f"Dev tools saved to {dev_tools_path}.")
 

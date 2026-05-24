@@ -9,7 +9,7 @@ from susvibes.curate.adaptive_gen.utils import set_log_dir, setup_logger
 from susvibes.utils import load_file, save_file, confirm_overwrite_logs
 from susvibes.curate.utils import len_patch, dump_task
 
-LENGTH_RATIO_FUNC = [1, 1, 2, 2, 5, 5, 5, 10, 10, 50]
+LENGTH_RATIO_FUNC = [1, 2, 2, 5, 10, 15, 50]
 TASK_MAX_LENGTH = 2000
 MASK_RATIO_TOLERANCE = 0.5
 

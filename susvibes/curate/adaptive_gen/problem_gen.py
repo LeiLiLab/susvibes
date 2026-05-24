@@ -18,6 +18,20 @@ from susvibes.curate.utils import (
 
 logger = None
 
+# Genuine test-suite references (NOT benign words like a `test` parameter, an example
+# URL like /test.html, "membership testing", or a CLI command named `test`).
+TEST_REF_PATTERN = re.compile(
+    r"(?i)\b(?:"
+    r"test\s+(?:suite|file|files|case|cases|fixture|fixtures|harness|coverage)"
+    r"|(?:unit|integration|functional|regression)\s+tests?"
+    r"|(?:repo(?:sitory)?(?:'s)?)\s+tests?"
+    r"|pytest|unittest"
+    r"|test_\w+\.py"
+    r"|tests?\s+(?:pass|passes|passing|fail|fails|expect|expects|verify|cover)"
+    r"|(?:pass|passing|satisfy)\s+(?:the\s+)?tests?"
+    r")"
+)
+
 def init_logger():
     global logger
     logger = setup_logger("problem_gen.log", __name__, add_stdout=False)
@@ -71,7 +85,7 @@ def epilogue(agent_output_dir: Path, task_dataset_path: Path, no_require_test: b
         else:
             logger.warning("Problem statement for %s not found.", pred["instance_id"])
             continue
-        if re.search(r"(?<![A-Za-z])test", problem_statement):
+        if TEST_REF_PATTERN.search(problem_statement):
             logger.warning("Problem statement for %s references tests, skipping.", pred["instance_id"])
             continue
 

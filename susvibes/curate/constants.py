@@ -7,6 +7,8 @@ curate_log_dir = root_dir / "logs/curate"
 COLLECT_LOG_DIR = curate_log_dir / "collect"
 ADAPTIVE_GEN_LOG_DIR = curate_log_dir / "adaptive_gen"
 ENV_SETUP_LOG_DIR = curate_log_dir / "env_setup"
+TEST_LOG_DIR = curate_log_dir / "test"
+VALIDATE_LOG_DIR = curate_log_dir / "validate"
 AGENT_RUN_LOG_DIR = root_dir / "logs/agent_runs"
 
 LOGS_PARSER_MODEL = "o3"

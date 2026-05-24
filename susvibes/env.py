@@ -243,6 +243,7 @@ class Env:
     dockerfile: str
     dockerignore: str
     logs_parser: dict[str, str]
+    logs_checker: str
 
     def __init__(
         self,
@@ -252,14 +253,16 @@ class Env:
         dockerfile: str,
         dockerignore: str = None,
         image_loc: str = "local",
-        logs_parser: dict = None, 
-        remove_image: bool = False, 
+        logs_parser: dict = None,
+        logs_checker: str = None,
+        remove_image: bool = False,
         remove_container: bool = True
     ):
         self.project = project
         self.dockerfile = dockerfile
         self.dockerignore = dockerignore
         self.logs_parser = logs_parser
+        self.logs_checker = logs_checker
         logger.info(f"Collecting enviroment deployment...")
         collect_method = Deployment.from_local if image_loc == "local" else \
             Deployment.from_pull if image_loc == "remote" else None
@@ -372,14 +375,11 @@ class Env:
             )    
         return deployment
     
-    @staticmethod
-    def get_test_status(run_logs: str, timed_out: bool = False) -> str:
-        """Get the test status from the run logs."""
+    def check_test_logs(self, run_logs: str, timed_out: bool = False) -> str:
+        """Get the test status from the run logs, using this instance's logs_checker."""
         if timed_out:
             return TestStatus.TIMEOUT.value
-        test_startup_error = any(re.search(pattern, run_logs, re.MULTILINE)
-            for pattern in TEST_STARUP_ERROR_PATTERNS)
-        if test_startup_error:
+        if self.logs_checker and re.search(self.logs_checker, run_logs, re.MULTILINE):
             return TestStatus.STARTUP_ERROR.value
         return TestStatus.COMPLETION.value
     

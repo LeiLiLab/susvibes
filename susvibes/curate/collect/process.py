@@ -60,7 +60,7 @@ REPO_MAX_SIZE_KB = 2 * 1024 * 1024  # 2 GB
 
 RAW_CVE_RECORDS_DIR = get_path('cve_records')
 RAW_REPOSVUL_DATASET_PATH = RAW_CVE_RECORDS_DIR / f'ReposVul/ReposVul_{TARGET_LANG}.jsonl'
-RAW_MOREFIXES_DATASET_PATH = RAW_CVE_RECORDS_DIR / 'Morefixes/dataset.jsonl'
+RAW_MOREFIXES_DATASET_PATH = RAW_CVE_RECORDS_DIR / 'Morefixes/dataset_new.jsonl'
 
 class CVERecord(TypedDict):
     instance_id: str
@@ -193,6 +193,8 @@ def code_test_split(data_record, target_lang, test_lang, require_test=True) -> C
         raise ValueError("Patch doesn't contain target language.")
     if require_test and not with_test:
         raise ValueError("Patch doesn't contain test files.")
+    if not require_test and with_test:
+        raise ValueError("Patch contains test files.")
 
     created_at = data_record.get('created_at', data_record.get('commit_date', None))
     project = data_record.get('project',

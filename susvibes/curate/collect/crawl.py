@@ -1,5 +1,6 @@
 import os
 import time
+import argparse
 import requests
 
 from tqdm import tqdm
@@ -71,7 +72,24 @@ def fetch_github_commit_patch(owner: str, repo: str, sha: str,
     return None
 
 if __name__ == "__main__":
-    url_dataset = load_file(RAW_MOREFIXES_DIR / URL_DATASET_NAME)
+    parser = argparse.ArgumentParser(
+        description="Fetch GitHub commit patches for a Morefixes URL dataset."
+    )
+    parser.add_argument(
+        "--input_file",
+        type=str,
+        default=URL_DATASET_NAME,
+        help="Input URL-dataset filename under the Morefixes directory.",
+    )
+    parser.add_argument(
+        "--output_file",
+        type=str,
+        default=DATASET_NAME,
+        help="Output dataset filename under the Morefixes directory.",
+    )
+    args = parser.parse_args()
+
+    url_dataset = load_file(RAW_MOREFIXES_DIR / args.input_file)
     dataset = []
     for data_record in url_dataset:
         if int(data_record['cve_id'].split('-')[1]) >= RECENT_YR_CUTOFF and len(data_record['commits']) == 1:
@@ -83,4 +101,4 @@ if __name__ == "__main__":
                 repo=data_record["repo"],
                 sha=data_record["commits"][0]["commit_sha"],
             )
-    save_file(dataset, RAW_MOREFIXES_DIR / DATASET_NAME)
+    save_file(dataset, RAW_MOREFIXES_DIR / args.output_file)

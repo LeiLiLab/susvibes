@@ -18,14 +18,14 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from susvibes.constants import *
-from susvibes.curate.constants import ENV_SETUP_LOG_DIR, LOGS_PARSER_MODEL, get_path
+from susvibes.curate.constants import VALIDATE_LOG_DIR, LOGS_PARSER_MODEL, get_path
 from susvibes.env import Deployment, Env
 from susvibes.env_specs import TestStatus
-from susvibes.curate.validate.logs_parser import get_logs_parser
+from susvibes.curate.validate.logs import get_logs_parser, get_logs_checker
 from susvibes.curate.validate.utils import (
     build_clean_eval_deployment, get_validate_summary, print_summary)
 from susvibes.curate.utils.agents.ports import SWEAgentPort
-from susvibes.utils import load_file, save_file, get_image_name, setup_instance_logger, parse_instance_id
+from susvibes.utils import load_file, save_file, get_image_name, setup_instance_logger, parse_instance_id, filter_binary_files
 from susvibes.curate.utils import (
     reverse_patch,
 )
@@ -47,9 +47,14 @@ def run_repo_test_suite_multi(
     data_record: dict,
     log_dir: Path,
     logger: logging.Logger,
-    force: bool = False
+    force: bool = False,
+    from_existing_specs: bool = False,
+    env_spec: dict = None,
 ) -> tuple[list, list]:
-    """Run 3 repo test variants: base, rollback (vulnerable), task (masked)."""
+    """Run 3 repo test variants: base, rollback (vulnerable), task (masked).
+    Collects each run's logs, then ensures a per-instance logs_checker exists (reused
+    from env_spec or synthesized from these logs) BEFORE classifying — the checker is
+    what decides startup_error vs completion. Finally applies the critical-abort checks."""
     logger.info(f"Running repo tests in environment deployment {env.deployment.image.tags[0]}...")
     runs_list = [
         (),                                           # base: original (secure)
@@ -59,24 +64,16 @@ def run_repo_test_suite_multi(
     allow_timeout = lambda id: id == 2        # only task may timeout
     allow_startup_error = lambda id: id == 2  # only task may have startup error
 
-    test_logs_list, test_status_dict = [], {}
     test_statuses_path = log_dir / LOG_TEST_STATUSES
-    for id, (run_patches, run_name) in enumerate(zip(runs_list, REPO_TEST_RUNS)):
-        test_output_path = log_dir / LOG_TEST_OUTPUT.format(run_name)
-        test_status_dict_from_log = {}
-        if test_statuses_path.exists():
-            test_status_dict_from_log = load_file(test_statuses_path)
+    cached_statuses = load_file(test_statuses_path) if test_statuses_path.exists() else {}
 
-        with_log = test_output_path.exists() and run_name in test_status_dict_from_log
-        if not force and with_log:
+    test_logs_list, timed_out_list = [], []
+    for run_patches, run_name in zip(runs_list, REPO_TEST_RUNS):
+        test_output_path = log_dir / LOG_TEST_OUTPUT.format(run_name)
+        if not force and test_output_path.exists():
             logger.info("Container logs found; reusing.")
             test_logs = load_file(test_output_path)
-            test_logs_list.append(test_logs)
-            test_status_dict[run_name] = test_status_dict_from_log[run_name]
-
-            for k, v in test_status_dict_from_log.items():
-                if k not in test_status_dict:
-                    test_status_dict[k] = v
+            timed_out = cached_statuses.get(run_name) == TestStatus.TIMEOUT.value
         else:
             try:
                 deployment: Deployment = env.build_instance_deployment(
@@ -95,14 +92,24 @@ def run_repo_test_suite_multi(
                 logger.error(msg)
                 raise RuntimeError(msg)
             test_logs, timed_out = deployment.run_with_timeout()
-            test_status = env.get_test_status(test_logs, timed_out)
-            test_logs_list.append(test_logs)
-            test_status_dict[run_name] = test_status
-
             test_output_path.parent.mkdir(parents=True, exist_ok=True)
             save_file(test_logs, test_output_path)
-            save_file(test_status_dict, test_statuses_path)
+        test_logs_list.append(test_logs)
+        timed_out_list.append(timed_out)
 
+    # The logs_checker must exist before classification (it decides startup_error vs
+    # completion). Reuse the stored one under --from_existing_specs, else synthesize.
+    if from_existing_specs and env_spec is not None and "logs_checker" in env_spec:
+        logger.info("Reusing logs checker from env_spec.")
+    else:
+        get_logs_checker(env, test_logs_list, model=LOGS_PARSER_MODEL,
+            log_dir=log_dir, logger=logger, force=force)
+
+    test_status_dict = {run_name: env.check_test_logs(test_logs, timed_out)
+        for run_name, test_logs, timed_out in zip(REPO_TEST_RUNS, test_logs_list, timed_out_list)}
+    save_file(test_status_dict, test_statuses_path)
+
+    for id, run_name in enumerate(REPO_TEST_RUNS):
         if test_status_dict[run_name] == TestStatus.TIMEOUT.value \
             and not allow_timeout(id):
             msg = "Failed to run tests because of critical timeout."
@@ -307,7 +314,7 @@ def validate_single(
     instance_stats: dict,
     env_spec: dict,
     test_patch: str,
-    env_setup_log_dir: Path,
+    validate_log_dir: Path,
     force: bool = False,
     from_existing_specs: bool = False,
 ) -> tuple[dict | None, str | None]:
@@ -317,7 +324,7 @@ def validate_single(
     instance_id = data_record["instance_id"]
     project, _ = parse_instance_id(instance_id)
 
-    log_dir = env_setup_log_dir / instance_id
+    log_dir = validate_log_dir / instance_id
     log_file = log_dir / LOG_INSTANCE
     logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
     logger.info(f"Validating environment (no_require_test) for {instance_id}...")
@@ -345,13 +352,15 @@ def validate_single(
         raise RuntimeError(msg)
 
     try:
-        test_logs_list, test_statuses = run_repo_test_suite_multi(env, data_record, log_dir, logger, force)
+        test_logs_list, test_statuses = run_repo_test_suite_multi(
+            env, data_record, log_dir, logger, force,
+            from_existing_specs=from_existing_specs, env_spec=env_spec)
         if from_existing_specs and env_spec.get("logs_parser"):
             logger.info("Reusing logs parser from env_spec.")
         else:
             get_logs_parser(env, test_logs_list, test_statuses,
                 log_dir=log_dir, logger=logger, model=LOGS_PARSER_MODEL,
-                ordering_checks=[(2, 1)], force=force)
+                ordering_checks=[(2, 1)], require_failures=False, force=force)
         expected_failures, test_stats = validate_repo_test_breaks(env, test_logs_list, test_statuses, logger)
         sec_stats, sec_test_names = validate_sec_test_breaks(
             env, data_record, test_patch, log_dir, logger, force)
@@ -376,6 +385,7 @@ def validate_single(
     build_clean_eval_deployment(logger, task_image_name, eval_image_name)
 
     env_spec["logs_parser"] = env.logs_parser
+    env_spec["logs_checker"] = env.logs_checker
     data_record["test_patch"] = test_patch
     data_record["sec_test_names"] = sec_test_names
     data_record["expected_failures"] = expected_failures
@@ -389,7 +399,7 @@ def validate_threadpool(
     stats: dict,
     max_workers: int,
     env_specs_path: Path,
-    env_setup_log_dir: Path,
+    validate_log_dir: Path,
     test_patches: dict,
     force: bool = False,
     save_specs: bool = True,
@@ -417,7 +427,7 @@ def validate_threadpool(
                 stats.setdefault(instance_id, {}),
                 env_specs[instance_id],
                 test_patches[instance_id],
-                env_setup_log_dir,
+                validate_log_dir,
                 force=force,
                 from_existing_specs=from_existing_specs,
             ): instance_id
@@ -443,7 +453,7 @@ def validate_threadpool(
                 if save_specs:
                     save_file(env_specs, env_specs_path)
     summary = get_validate_summary(succeeded, failed)
-    summary_path = env_setup_log_dir / LOG_SUMMARY
+    summary_path = validate_log_dir / LOG_SUMMARY
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(summary, summary_path)
     print_summary(summary)
@@ -499,17 +509,17 @@ if __name__ == "__main__":
     dataset_path = get_path('dataset', args.run_id)
     stats_path = get_path('stats', args.run_id)
     env_specs_path = get_env_spec_path('components', args.run_id)
-    env_setup_log_dir = ENV_SETUP_LOG_DIR / args.run_id
+    validate_log_dir = VALIDATE_LOG_DIR / args.run_id
 
     dataset = load_file(dataset_path)
     stats = load_file(stats_path) if stats_path.exists() else {}
 
     # Load test synthesis agent predictions
     predictions, _ = SWEAgentPort.after_completion(args.test_agent_output_dir)
-    test_patches = {pred["instance_id"]: pred.get("model_patch", "") for pred in predictions}
+    test_patches = {pred["instance_id"]: filter_binary_files(pred.get("model_patch", "")) for pred in predictions}
 
     validate_threadpool(
-        dataset, stats, args.max_workers, env_specs_path, env_setup_log_dir,
+        dataset, stats, args.max_workers, env_specs_path, validate_log_dir,
         test_patches,
         force=args.force,
         save_specs=not args.skip_specs,
