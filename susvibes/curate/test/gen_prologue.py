@@ -20,7 +20,7 @@ from tqdm import tqdm
 from jinja2 import Template
 
 from susvibes.constants import get_env_spec_path
-from susvibes.curate.constants import ENV_SETUP_LOG_DIR, get_path
+from susvibes.curate.constants import TEST_LOG_DIR, get_path
 from susvibes.curate.test.prompts import (
     SEC_TEST_GEN_PATCH_SECFIX_PROMPT_TEMPLATE,
     SEC_TEST_GEN_SECFIX_PROMPT_TEMPLATE,
@@ -126,7 +126,7 @@ def prologue(run_id, strategy, max_workers, instance_ids=None, force=False):
 
     dataset_path = get_path('dataset', run_id)
     env_specs_path = get_env_spec_path('components', run_id)
-    log_dir = ENV_SETUP_LOG_DIR / run_id
+    log_dir = TEST_LOG_DIR / run_id
 
     dataset = load_file(dataset_path)
     env_specs = load_file(env_specs_path)

@@ -31,7 +31,7 @@ from susvibes.env import Deployment
 from susvibes.env_specs import dockerfiles, DOCKERFILE_PATTERN, GIT_AUTHOR_CONFIGS, WORKSPACE_DIR_NAME
 from susvibes.curate.env_setup.prompts import INSTALL_TEST_PROMPT_TEMPLATE
 from susvibes.curate.utils.agents.ports import EnvAgentPort
-from susvibes.utils import load_file, save_file, filter_patch, get_image_name, setup_instance_logger, parse_instance_id, touched_files
+from susvibes.utils import load_file, save_file, filter_target_files, filter_binary_files, get_image_name, setup_instance_logger, parse_instance_id, touched_files
 from susvibes.curate.utils import (
     RepoLocks,
     clone_github_repo,
@@ -52,7 +52,7 @@ def extract_dockerfile(prediction, logger):
     reset_to_commit(repo_dir, base_commit, new_branch=False)
     try:
         targets = {"Dockerfile"}
-        apply_patch(repo_dir, filter_patch(prediction["model_patch"], targets))
+        apply_patch(repo_dir, filter_target_files(prediction["model_patch"], targets))
     except Exception as e:
         msg = f"Error applying model patch: {e}"
         logger.error(msg)

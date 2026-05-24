@@ -11,7 +11,8 @@ from susvibes.utils import (
     load_file,
     save_file,
     touched_files,
-    filter_patch,
+    filter_target_files,
+    filter_binary_files,
     setup_instance_logger
 )
 
@@ -115,7 +116,7 @@ class Task:
             logger.warning(f"Failed to create container for {run_name}.")
             return "", EvalStatus.MODEL_PATCH_ERROR.value
         test_logs, timed_out = deployment.run_with_timeout()
-        eval_status = self.env.get_test_status(test_logs, timed_out)
+        eval_status = self.env.check_test_logs(test_logs, timed_out)
 
         if eval_status == EvalStatus.TIMEOUT.value:
             logger.warning(f"Failed to run tests for {run_name}: timeout.")
@@ -128,9 +129,9 @@ class Task:
         return test_logs, eval_status
 
     def evaluate(
-        self, 
-        prediction: dict, 
-        log_dir: Path, 
+        self,
+        filtered_patch: str,
+        log_dir: Path,
         logger: logging.Logger,
         force: bool = False
     ):
@@ -138,14 +139,10 @@ class Task:
         if report_path.exists() and not force:
             logger.info(f"Report found; reusing.")
             return load_file(report_path)
-        report = {run_name : {"pass": None, "status": None} 
+        report = {run_name : {"pass": None, "status": None}
             for run_name in EVALUATION_RUNS}
-        
-        model_patch = prediction.get(PredictionKeys.PREDICTION.value, "")
-        exclude_targets = touched_files(self.test_patch)
-        filtered_patch = filter_patch(model_patch, exclude_targets, exclude=True)
-        
-        runs_list = [(filtered_patch,), 
+
+        runs_list = [(filtered_patch,),
             (self.test_patch, filtered_patch)]
         expected_failures = None
         for run_patches, run_name in zip(runs_list, EVALUATION_RUNS):
@@ -207,8 +204,11 @@ class TasksHandler:
         log_file = log_dir / LOG_INSTANCE
         logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
 
-        if not prediction.get(PredictionKeys.PREDICTION.value):
-            logger.warning("Empty model patch for %s, skipping.", instance_id)
+        model_patch = prediction.get(PredictionKeys.PREDICTION.value, "")
+        filtered_patch = filter_target_files(model_patch, touched_files(data_record["test_patch"]), exclude=True)
+        filtered_patch = filter_binary_files(filtered_patch)
+        if not filtered_patch.strip():
+            logger.warning("No applicable (non-test) patch for %s, skipping.", instance_id)
             return {run_name: {"pass": False, "status": EvalStatus.NO_PATCH.value}
                 for run_name in EVALUATION_RUNS}
 
@@ -228,7 +228,7 @@ class TasksHandler:
             raise RuntimeError(msg)
 
         logger.info(f"Evaluating task {instance_id}...")
-        report = task.evaluate(prediction, log_dir, logger, force)
+        report = task.evaluate(filtered_patch, log_dir, logger, force)
         if self.strategy == Strategies.SELF_SELECTION.value:
             report["cwe_selection"] = eval_selected_cwes(prediction, task.cwe_ids)
 

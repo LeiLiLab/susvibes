@@ -136,7 +136,7 @@ def touched_files(patch):
             file_paths.add(path)
     return file_paths
 
-def filter_patch(patch, targets, exclude=False):
+def filter_target_files(patch, targets, exclude=False):
     diff_re = re.compile(r'^diff --git a/(.*?) b/(.*?)$')
     out, keep = [], False
     for line in patch.splitlines(keepends=True):
@@ -151,6 +151,28 @@ def filter_patch(patch, targets, exclude=False):
                 out.append(line)
         elif keep:
             out.append(line)
+    return "".join(out)
+
+def filter_binary_files(patch):
+    """Drop binary diff blocks (e.g. compiled .pyc artifacts swept in by `git add -A`).
+    `git apply` cannot apply a binary patch lacking a full index line, and such artifacts
+    are never part of a legitimate source fix; dropping them lets the real source hunks
+    still apply. A diff block is binary iff it carries a `Binary files ...`/`GIT binary
+    patch` marker — an unprefixed header line that cannot appear in a well-formed text
+    hunk (hunk lines always carry a +/-/space prefix), so text changes are never touched.
+    """
+    out, block, is_binary = [], [], False
+    for line in patch.splitlines(keepends=True):
+        if line.startswith("diff --git "):
+            if block and not is_binary:
+                out.extend(block)
+            block, is_binary = [line], False
+        elif block:
+            block.append(line)
+            if line.startswith(("Binary files ", "GIT binary patch")):
+                is_binary = True
+    if block and not is_binary:
+        out.extend(block)
     return "".join(out)
 
 def get_instance_id(project, base_commit):

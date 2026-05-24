@@ -22,7 +22,7 @@ from tqdm import tqdm
 
 from susvibes.constants import get_env_spec_path
 from susvibes.curate.constants import (
-    ENV_SETUP_LOG_DIR,
+    TEST_LOG_DIR,
     FEATURE_VULN_FILE,
     PATCH_TEMPLATE,
     PROBLEM_STATEMENT_FILE,
@@ -267,7 +267,7 @@ if __name__ == "__main__":
 
     if args.mode == "dump":
         env_specs = load_file(get_env_spec_path("components", args.run_id))
-        log_dir = ENV_SETUP_LOG_DIR / args.run_id
+        log_dir = TEST_LOG_DIR / args.run_id
         edits_dir.mkdir(parents=True, exist_ok=True)
         dumped, failed = dump_threadpool(
             dataset, env_specs, edits_dir, log_dir, args.max_workers,
