@@ -32,8 +32,8 @@ The benchmark consists of 200 realistic coding tasks constructed from 108 existi
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/LeiLiLab/susvibes-project.git
-cd susvibes-project
+git clone https://github.com/LeiLiLab/susvibes.git
+cd susvibes
 ```
 
 2. Install Python dependencies:

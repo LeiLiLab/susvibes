@@ -47,8 +47,8 @@ def _run_evaluation(
     force: bool = False
 ):
     dataset = load_file(dataset_path)
-    handler = TasksHandler(dataset, strategy)
-    handler.run_evaluation_threadpool(run_id, predictions, max_workers, force)
+    handler = TasksHandler(dataset, strategy, run_id)
+    handler.run_evaluation_threadpool(predictions, max_workers, force)
     for model_name_or_path, model_reports in handler.reports.items():
         eval_summary = get_summary(dataset, model_reports, strategy)
         summary_path = EVALUATION_LOG_DIR / run_id / strategy / model_name_or_path / LOG_SUMMARY
@@ -145,6 +145,8 @@ def main():
     )
 
     args = parser.parse_args()
+    # Always read the dataset from the "default" run; --run_id only sets the
+    # eval-log output directory (logs/run_evaluation/<run_id>/...).
     dataset_path = get_path('dataset')
     if args.prologue:
         prologue(dataset_path, args.strategy)
