@@ -5,7 +5,7 @@
       "FAILED": "^FAILED \\(failures=(\\d+)\\)$",
       "PASSED": "",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^(?:OK|FAILED).*?errors=(\\d+)",
       "XFAIL": ""
     },
     "logs_checker": "(?:\\A\\s*Traceback)"
@@ -104,7 +104,7 @@
       "FAILED": "^=+\\s+(\\d+)\\s+failed\\b.*$",
       "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*$",
       "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b.*$",
-      "ERROR": "",
+      "ERROR": "^=+\\s+(\\d+)\\s+errors?\\b.*$",
       "XFAIL": "^=+.*?\\b(\\d+)\\s+xfailed\\b.*$"
     },
     "logs_checker": null
@@ -115,7 +115,7 @@
       "FAILED": "^FAILED \\(failures=(\\d+)",
       "PASSED": "",
       "SKIPPED": "^(?:OK|FAILED).*?skipped=(\\d+)",
-      "ERROR": "",
+      "ERROR": "^(?:OK|FAILED).*?errors=(\\d+)",
       "XFAIL": "^(?:OK|FAILED).*?expected failures=(\\d+)"
     },
     "logs_checker": "(?:\\A\\s*Traceback)"
@@ -137,7 +137,7 @@
       "FAILED": "^(?:\\x1b\\[[0-9;]*m)?=+.*?(\\d+)\\s+failed\\b",
       "PASSED": "^(?:\\x1b\\[[0-9;]*m)?=+.*?(\\d+)\\s+passed\\b",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^(?:\\x1b\\[[0-9;]*m)?=+.*?(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -148,7 +148,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
       "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
       "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -170,7 +170,7 @@
       "FAILED": "^\\s*[^\\s][^:]*\\s*:.*?ok=\\d+.*?failed=(\\d+)",
       "PASSED": "^\\s*[^\\s][^:]*\\s*:.*?ok=(\\d+)",
       "SKIPPED": "^\\s*[^\\s][^:]*\\s*:.*?ok=\\d+.*?skipped=(\\d+)",
-      "ERROR": "",
+      "ERROR": "^\\s*[^\\s][^:]*\\s*:.*?ok=\\d+.*?errors?\\b=(\\d+)",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -181,7 +181,7 @@
       "FAILED": "^\\s*(\\d+)\\s+failed\\b",
       "PASSED": "^.*?(\\d+)\\s+passed\\b",
       "SKIPPED": "^.*?(\\d+)\\s+skipped\\b",
-      "ERROR": "",
+      "ERROR": "^\\s*(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -214,7 +214,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
       "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": "(?:errors? during collection)"
@@ -269,7 +269,7 @@
       "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+failed\\b",
       "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+passed\\b",
       "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+skipped\\b",
-      "ERROR": "",
+      "ERROR": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": "(?:errors? during collection)"
@@ -313,7 +313,7 @@
       "FAILED": "^FAILED\\s+\\(.*?failures=(\\d+)\\)\\s*$",
       "PASSED": "^Ran\\s+(\\d+)\\s+tests.*\\n\\nOK\\s*$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^(?:OK|FAILED).*?errors=(\\d+)",
       "XFAIL": ""
     },
     "logs_checker": "(?:\\A\\s*Traceback)"
@@ -324,7 +324,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed.*$",
       "PASSED": "^=+.*?(\\d+)\\s+passed.*$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b.*$",
       "XFAIL": ""
     },
     "logs_checker": "(?:ImportError while loading)"
@@ -335,7 +335,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*$",
       "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b.*$",
       "XFAIL": "^=+.*?(\\d+)\\s+xfailed\\b.*$"
     },
     "logs_checker": "(?:ImportError while loading)"
@@ -357,7 +357,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*$",
       "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
       "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b.*$",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b.*$",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -379,7 +379,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed.*$",
       "PASSED": "^=+.*?(\\d+)\\s+passed.*$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b.*$",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -390,7 +390,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*$",
       "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
       "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b.*$",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b.*$",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -412,7 +412,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed",
       "PASSED": "^=+.*?(\\d+)\\s+passed",
       "SKIPPED": "^=+.*?(\\d+)\\s+skipped",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -423,7 +423,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed",
       "PASSED": "^=+.*?(\\d+)\\s+passed",
       "SKIPPED": "^=+.*?(\\d+)\\s+skipped",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -445,7 +445,7 @@
       "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b.*$",
       "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*$",
       "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b.*$",
-      "ERROR": "",
+      "ERROR": "^=+.*?\\b(\\d+)\\s+errors?\\b.*$",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -522,7 +522,7 @@
       "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*([0-9]+)\\s+failed\\b.*$",
       "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*([0-9]+)\\s+passed\\b.*$",
       "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*([0-9]+)\\s+skipped\\b.*$",
-      "ERROR": "",
+      "ERROR": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*([0-9]+)\\s+errors?\\b.*$",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -566,7 +566,7 @@
       "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b",
       "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
       "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b",
-      "ERROR": "",
+      "ERROR": "^=+.*?\\b(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": "(?:errors? during collection)"
@@ -577,7 +577,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*$",
       "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
       "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b.*$",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b.*$",
       "XFAIL": ""
     },
     "logs_checker": "(?:errors? during collection)"
@@ -588,7 +588,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
       "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
       "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -599,7 +599,7 @@
       "FAILED": "^=+\\s+(\\d+)\\s+failed,",
       "PASSED": "^=+.*?\\b(\\d+)\\s+passed,",
       "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped,",
-      "ERROR": "",
+      "ERROR": "^=+\\s+(\\d+)\\s+errors?\\b,",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -621,7 +621,7 @@
       "FAILED": "^(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+failed\\b",
       "PASSED": "^.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+passed\\b",
       "SKIPPED": "^.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+skipped\\b",
-      "ERROR": "",
+      "ERROR": "^(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+errors?\\b",
       "XFAIL": "^.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+xfailed\\b"
     },
     "logs_checker": null
@@ -632,7 +632,7 @@
       "FAILED": "^FAILED\\s+\\(failures=(\\d+)\\)",
       "PASSED": "(?s)^Ran\\s+(\\d+)\\s+tests?\\s+in[^\\n]*\\s*\\n\\s*OK",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^(?:OK|FAILED).*?errors=(\\d+)",
       "XFAIL": ""
     },
     "logs_checker": "(?:^Destroying test database for alias 'default'.*\\.\\.\\.\\s*\\r?\\nTraceback)"
@@ -643,7 +643,7 @@
       "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b",
       "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
       "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b",
-      "ERROR": "",
+      "ERROR": "^=+.*?\\b(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": "(?:errors? during collection)"
@@ -654,7 +654,7 @@
       "FAILED": "^FAILED \\(failures=(\\d+)",
       "PASSED": "",
       "SKIPPED": "^(?:OK|FAILED) \\((?:failures=\\d+, )?skipped=(\\d+)\\)",
-      "ERROR": "",
+      "ERROR": "^(?:OK|FAILED).*?errors=(\\d+)",
       "XFAIL": ""
     },
     "logs_checker": "(?:Admin Command Error)"
@@ -687,7 +687,7 @@
       "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b.*$",
       "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+.*?\\b(\\d+)\\s+errors?\\b.*$",
       "XFAIL": "^=+.*?\\b(\\d+)\\s+xfailed\\b.*$"
     },
     "logs_checker": null
@@ -720,7 +720,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
       "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
       "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": "(?:errors? during collection)"
@@ -731,7 +731,7 @@
       "FAILED": "^=+\\s*(\\d+)\\s+failed[^\\n]*$",
       "PASSED": "^=+[^\\n]*?\\s(\\d+)\\s+passed[^\\n]*$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+\\s*(\\d+)\\s+errors?\\b[^\\n]*$",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -764,7 +764,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed",
       "PASSED": "^=+.*?(\\d+)\\s+passed",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -775,7 +775,7 @@
       "FAILED": "^=+ [^\\n]*?(\\d+) failed",
       "PASSED": "^=+ [^\\n]*?(\\d+) passed",
       "SKIPPED": "^=+ [^\\n]*?(\\d+) skipped",
-      "ERROR": "",
+      "ERROR": "^=+ [^\\n]*?(\\d+) errors?\\b",
       "XFAIL": "^=+ [^\\n]*?(\\d+) xfailed"
     },
     "logs_checker": null
@@ -808,7 +808,7 @@
       "FAILED": "^=+\\s+(\\d+)\\s+failed\\b.*$",
       "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+\\s+(\\d+)\\s+errors?\\b.*$",
       "XFAIL": ""
     },
     "logs_checker": "(?:ImportError while loading)"
@@ -819,7 +819,7 @@
       "FAILED": "^=\\s*([0-9]+) failed\\b",
       "PASSED": "^=.*?([0-9]+) passed\\b",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=\\s*([0-9]+) errors?\\b",
       "XFAIL": "^=.*?([0-9]+) xfailed\\b"
     },
     "logs_checker": "(?:ImportError while loading)"
@@ -830,7 +830,7 @@
       "FAILED": "^(?:\\x1b\\[[0-9;]*m)*={3,}[^\\n]*?(?:\\x1b\\[[0-9;]*m)*([0-9]+)\\s+failed",
       "PASSED": "^(?:\\x1b\\[[0-9;]*m)*={3,}[^\\n]*?(?:\\x1b\\[[0-9;]*m)*([0-9]+)\\s+passed",
       "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*={3,}[^\\n]*?(?:\\x1b\\[[0-9;]*m)*([0-9]+)\\s+skipped",
-      "ERROR": "",
+      "ERROR": "^(?:\\x1b\\[[0-9;]*m)*={3,}[^\\n]*?(?:\\x1b\\[[0-9;]*m)*([0-9]+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": "(?:ImportError while loading)"
@@ -863,7 +863,7 @@
       "FAILED": "^=+\\s*(\\d+)\\sfailed\\b",
       "PASSED": "^=+.*?\\b(\\d+)\\spassed\\b",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+\\s*(\\d+)\\serrors?\\b",
       "XFAIL": "^=+.*?\\b(\\d+)\\sxfailed\\b"
     },
     "logs_checker": "(?:ImportError while loading)"
@@ -885,7 +885,7 @@
       "FAILED": "^= +(\\d+) failed",
       "PASSED": "^=.*? (\\d+) passed",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^= +(\\d+) errors?\\b",
       "XFAIL": "^=.*? (\\d+) xfailed"
     },
     "logs_checker": null
@@ -896,7 +896,7 @@
       "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b",
       "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+.*?\\b(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": "(?:ImportError while loading)"
@@ -929,7 +929,7 @@
       "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+failed",
       "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+passed",
       "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+skipped",
-      "ERROR": "",
+      "ERROR": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -940,7 +940,7 @@
       "FAILED": "^=+\\s+(?:\\d+ \\w+,\\s+)*?(\\d+) failed\\b.*$",
       "PASSED": "^=+\\s+(?:\\d+ \\w+,\\s+)*?(\\d+) passed\\b.*$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+\\s+(?:\\d+ \\w+,\\s+)*?(\\d+) errors?\\b.*$",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -951,7 +951,7 @@
       "FAILED": "^=+\\s+(\\d+)\\s+failed,.*$",
       "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*$",
       "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b.*$",
-      "ERROR": "",
+      "ERROR": "^=+\\s+(\\d+)\\s+errors?\\b,.*$",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -962,7 +962,7 @@
       "FAILED": "^\\s*(\\d+)\\s+failed\\b",
       "PASSED": "^\\s*(\\d+)\\s+passed\\b",
       "SKIPPED": "^\\s*(\\d+)\\s+skipped\\b",
-      "ERROR": "",
+      "ERROR": "^\\s*(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -973,7 +973,7 @@
       "FAILED": "^=+\\s+(\\d+)\\s+failed",
       "PASSED": "^=+\\s+(?:\\d+\\s+failed,\\s+)?(\\d+)\\s+passed",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+\\s+(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1028,7 +1028,7 @@
       "FAILED": "^=+\\s+(\\d+) failed\\b",
       "PASSED": "^=+.*?\\s(\\d+) passed\\b",
       "SKIPPED": "^=+.*?\\s(\\d+) skipped\\b",
-      "ERROR": "",
+      "ERROR": "^=+\\s+(\\d+) errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": "(?:ImportError while loading)"
@@ -1039,7 +1039,7 @@
       "FAILED": "^=+\\s+(\\d+)\\sfailed",
       "PASSED": "^=+.*?failed,\\s+(\\d+)\\spassed",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+\\s+(\\d+)\\serrors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1050,7 +1050,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
       "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
       "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1105,7 +1105,7 @@
       "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b.*in [\\d\\.]+s =+$",
       "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*in [\\d\\.]+s =+$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+.*?\\b(\\d+)\\s+errors?\\b.*in [\\d\\.]+s =+$",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1160,7 +1160,7 @@
       "FAILED": "^=+\\s+(\\d+) failed,",
       "PASSED": "^=+.*? (\\d+) passed,",
       "SKIPPED": "^=+.*? (\\d+) skipped,",
-      "ERROR": "",
+      "ERROR": "^=+\\s+(\\d+) errors?\\b,",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1248,7 +1248,7 @@
       "FAILED": "^FAILED \\(failures=(\\d+)",
       "PASSED": "",
       "SKIPPED": "^FAILED \\(.*?skipped=(\\d+)",
-      "ERROR": "",
+      "ERROR": "^(?:OK|FAILED).*?errors=(\\d+)",
       "XFAIL": "^FAILED \\(.*?expected failures=(\\d+)"
     },
     "logs_checker": null
@@ -1259,7 +1259,7 @@
       "FAILED": "^=+\\s*(\\d+)\\s+failed\\b.*$",
       "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+\\s*(\\d+)\\s+errors?\\b.*$",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1270,7 +1270,7 @@
       "FAILED": "^=+\\s+(\\d+)\\s+failed,.*?in\\s+[0-9.]+s\\s+=+$",
       "PASSED": "^=+\\s+.*?(\\d+)\\s+passed,.*?in\\s+[0-9.]+s\\s+=+$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+\\s+(\\d+)\\s+errors?\\b,.*?in\\s+[0-9.]+s\\s+=+$",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1281,7 +1281,7 @@
       "FAILED": "^\\s*(\\d+)\\s+failed\\b",
       "PASSED": "^\\s*(?:\\d+\\s+\\w+,\\s+)*(\\d+)\\s+passed\\b",
       "SKIPPED": "^\\s*(?:\\d+\\s+\\w+,\\s+)*(\\d+)\\s+skipped\\b",
-      "ERROR": "",
+      "ERROR": "^\\s*(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": "(?:errors? during collection)"
@@ -1292,7 +1292,7 @@
       "FAILED": "^FAILED \\(failures=(\\d+)\\)$",
       "PASSED": "",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^(?:OK|FAILED).*?errors=(\\d+)",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1303,7 +1303,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
       "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
       "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
       "XFAIL": "^=+.*?(\\d+)\\s+xfailed\\b"
     },
     "logs_checker": "(?:errors? during collection)"
@@ -1325,7 +1325,7 @@
       "FAILED": "^=+.*\\b(\\d+)\\sfailed\\b",
       "PASSED": "^=+.*\\b(\\d+)\\spassed\\b",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+.*\\b(\\d+)\\serrors?\\b",
       "XFAIL": "^=+.*\\b(\\d+)\\sxfailed\\b"
     },
     "logs_checker": null
@@ -1336,7 +1336,7 @@
       "FAILED": "^FAILED \\([^)]*failures=(\\d+)[^)]*\\)$",
       "PASSED": "",
       "SKIPPED": "^(?:OK|FAILED) \\([^)]*skipped=(\\d+)[^)]*\\)$",
-      "ERROR": "",
+      "ERROR": "^(?:OK|FAILED).*?errors=(\\d+)",
       "XFAIL": "^(?:OK|FAILED) \\([^)]*expected failures=(\\d+)[^)]*\\)$"
     },
     "logs_checker": "(?:^Destroying test database for alias 'default'.*\\.\\.\\.\\s*\\r?\\nTraceback)"
@@ -1391,7 +1391,7 @@
       "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+\\s+(\\d+)\\s+failed\\b",
       "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?,\\s+(\\d+)\\s+passed\\b",
       "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?\\b(\\d+)\\s+skipped\\b",
-      "ERROR": "",
+      "ERROR": "^(?:\\x1b\\[[0-9;]*m)*=+\\s+(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1402,7 +1402,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*$",
       "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b.*$",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1413,7 +1413,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
       "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1435,7 +1435,7 @@
       "FAILED": "^\\s*(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+failed",
       "PASSED": "^\\s*(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+passed",
       "SKIPPED": "^\\s*(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+skipped",
-      "ERROR": "",
+      "ERROR": "^\\s*(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1468,7 +1468,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*$",
       "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b.*$",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1501,7 +1501,7 @@
       "FAILED": "^=+\\s+(\\d+)\\s+failed\\b.*$",
       "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+\\s+(\\d+)\\s+errors?\\b.*$",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1523,7 +1523,7 @@
       "FAILED": "^=+ .*?(\\d+) +failed.*$",
       "PASSED": "^=+ .*?(\\d+) +passed.*$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+ .*?(\\d+) +errors?\\b.*$",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1589,7 +1589,7 @@
       "FAILED": "^=+.*?\\b(\\d+)\\s+failed",
       "PASSED": "^=+.*?\\b(\\d+)\\s+passed",
       "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped",
-      "ERROR": "",
+      "ERROR": "^=+.*?\\b(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1600,7 +1600,7 @@
       "FAILED": "^(\\d+)\\s+failed,",
       "PASSED": "^\\d+\\s+failed,\\s+(\\d+)\\s+passed,",
       "SKIPPED": "^\\d+\\s+failed,\\s+\\d+\\s+passed,\\s+(\\d+)\\s+skipped",
-      "ERROR": "",
+      "ERROR": "^(\\d+)\\s+errors?\\b,",
       "XFAIL": ""
     },
     "logs_checker": "(?:ImportError while loading)"
@@ -1611,7 +1611,7 @@
       "FAILED": "^=+\\s*(\\d+)\\s+failed\\b.*$",
       "PASSED": "^=+\\s*(?:\\d+\\s+\\w+,?\\s*)*(\\d+)\\s+passed\\b.*$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+\\s*(\\d+)\\s+errors?\\b.*$",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1622,7 +1622,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*$",
       "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b.*$",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1633,7 +1633,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
       "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1644,7 +1644,7 @@
       "FAILED": "^=+ .*?(\\d+)\\s+failed\\b.*$",
       "PASSED": "^=+ .*?(\\d+)\\s+passed\\b.*$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+ .*?(\\d+)\\s+errors?\\b.*$",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1677,7 +1677,7 @@
       "FAILED": "^(?:\\x1b\\[[0-9;]*m)?=+.*?(\\d+)\\s+failed",
       "PASSED": "^(?:\\x1b\\[[0-9;]*m)?=+.*?(\\d+)\\s+passed",
       "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)?=+.*?(\\d+)\\s+skipped",
-      "ERROR": "",
+      "ERROR": "^(?:\\x1b\\[[0-9;]*m)?=+.*?(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": "(?:ImportError while loading)"
@@ -1688,7 +1688,7 @@
       "FAILED": "^[\\x1b\\[[0-9;]*m={2,}.*?(\\d+)\\s+failed",
       "PASSED": "^[\\x1b\\[[0-9;]*m={2,}.*?(\\d+)\\s+passed",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^[\\x1b\\[[0-9;]*m={2,}.*?(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1699,7 +1699,7 @@
       "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+failed(?:\\x1b\\[[0-9;]*m)*.*$",
       "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+passed(?:\\x1b\\[[0-9;]*m)*.*$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+errors?\\b(?:\\x1b\\[[0-9;]*m)*.*$",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1721,7 +1721,7 @@
       "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*in\\s+[0-9.]+s\\s+=+$",
       "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*in\\s+[0-9.]+s\\s+=+$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+.*?(\\d+)\\s+errors?\\b.*in\\s+[0-9.]+s\\s+=+$",
       "XFAIL": "^=+.*?(\\d+)\\s+xfailed\\b.*in\\s+[0-9.]+s\\s+=+$"
     },
     "logs_checker": "(?:ImportError while loading)"
@@ -1743,7 +1743,7 @@
       "FAILED": "^=+\\s+(\\d+)\\s+failed.*in\\s+\\d+\\.\\d+s\\s+=+$",
       "PASSED": "^=+\\s+.*?(\\d+)\\s+passed.*in\\s+\\d+\\.\\d+s\\s+=+$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+\\s+(\\d+)\\s+errors?\\b.*in\\s+\\d+\\.\\d+s\\s+=+$",
       "XFAIL": ""
     },
     "logs_checker": "(?:ImportError while loading)"
@@ -1754,7 +1754,7 @@
       "FAILED": "^.*=+.*?(\\d+)\\s+failed",
       "PASSED": "^.*=+.*?(\\d+)\\s+passed",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^.*=+.*?(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1765,7 +1765,7 @@
       "FAILED": "^=+.*? (\\d+) failed[^\\n]*$",
       "PASSED": "^=+.*? (\\d+) passed[^\\n]*$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+.*? (\\d+) errors?\\b[^\\n]*$",
       "XFAIL": ""
     },
     "logs_checker": "(?:errors? during collection)"
@@ -1787,7 +1787,7 @@
       "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+failed",
       "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+passed",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1798,7 +1798,7 @@
       "FAILED": "^=+\\s+(\\d+)\\s+failed\\b",
       "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+\\s+(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1820,7 +1820,7 @@
       "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b",
       "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
       "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b",
-      "ERROR": "",
+      "ERROR": "^=+.*?\\b(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": "(?:errors? during collection)"
@@ -1831,7 +1831,7 @@
       "FAILED": "^=\\s*(\\d+)\\s+failed,",
       "PASSED": "^=.*?\\b(\\d+)\\s+passed,",
       "SKIPPED": "^=.*?\\b(\\d+)\\s+skipped,",
-      "ERROR": "",
+      "ERROR": "^=\\s*(\\d+)\\s+errors?\\b,",
       "XFAIL": "^=.*?\\b(\\d+)\\s+xfailed,"
     },
     "logs_checker": null
@@ -1853,7 +1853,7 @@
       "FAILED": "^(?:\\x1b\\[[0-9;]*m)?=+.*?(\\d+)\\s+failed\\b",
       "PASSED": "^(?:\\x1b\\[[0-9;]*m)?=+.*?(\\d+)\\s+passed\\b",
       "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)?=+.*?(\\d+)\\s+skipped\\b",
-      "ERROR": "",
+      "ERROR": "^(?:\\x1b\\[[0-9;]*m)?=+.*?(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": "(?:ImportError while loading)"
@@ -1886,7 +1886,7 @@
       "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+failed",
       "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+passed",
       "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+skipped",
-      "ERROR": "",
+      "ERROR": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1897,7 +1897,7 @@
       "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b",
       "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+.*?\\b(\\d+)\\s+errors?\\b",
       "XFAIL": ""
     },
     "logs_checker": null
@@ -1941,7 +1941,7 @@
       "FAILED": "^FAILED \\(failures=(\\d+)",
       "PASSED": "",
       "SKIPPED": "^FAILED.*skipped=(\\d+)",
-      "ERROR": "",
+      "ERROR": "^(?:OK|FAILED).*?errors=(\\d+)",
       "XFAIL": "^FAILED.*expected failures=(\\d+)"
     },
     "logs_checker": "(?:^Creating test database for alias 'default'.*\\.\\.\\.\\s*\\r?\\nTraceback)"
@@ -2007,7 +2007,7 @@
       "FAILED": "^=+\\s+(\\d+)\\s+failed\\b",
       "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+\\s+(\\d+)\\s+errors?\\b",
       "XFAIL": "^=+.*?\\b(\\d+)\\s+xfailed\\b"
     },
     "logs_checker": null
@@ -2040,7 +2040,7 @@
       "FAILED": "^FAILED \\(.*?failures=(\\d+).*\\)$",
       "PASSED": "",
       "SKIPPED": "^FAILED \\(.*?skipped=(\\d+).*\\)$",
-      "ERROR": "",
+      "ERROR": "^(?:OK|FAILED).*?errors=(\\d+)",
       "XFAIL": "^FAILED \\(.*?expected failures=(\\d+).*\\)$"
     },
     "logs_checker": "(?:Applying .*? OK\\r?\\nTraceback)"
@@ -2084,7 +2084,7 @@
       "FAILED": "^=+\\s+(\\d+)\\s+failed\\b.*$",
       "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*$",
       "SKIPPED": "",
-      "ERROR": "",
+      "ERROR": "^=+\\s+(\\d+)\\s+errors?\\b.*$",
       "XFAIL": ""
     },
     "logs_checker": null

@@ -381,6 +381,8 @@ class Env:
             return TestStatus.TIMEOUT.value
         if self.logs_checker and re.search(self.logs_checker, run_logs, re.MULTILINE):
             return TestStatus.STARTUP_ERROR.value
+        if any(re.search(p, run_logs, re.MULTILINE) for p in PREMATURE_ABORT_PATTERNS):
+            return TestStatus.STARTUP_ERROR.value
         return TestStatus.COMPLETION.value
     
     @staticmethod
@@ -389,10 +391,16 @@ class Env:
         return sum(len(re.findall(pattern, run_logs, re.MULTILINE))
             for pattern in TEST_SYMBOL_RESOLUTION_ERROR_PATTERNS)
     
-    def parse_test_logs(self, run_logs: str, logger: logging.Logger) -> dict[str, int]:
-        """Parse the run logs based on test statuses."""
+    def parse_test_logs(self, run_logs: str, logger: logging.Logger) -> dict[str, int] | None:
+        """Parse the run logs based on test statuses.
+
+        Returns None if no configured pattern matched anywhere in the log,
+        indicating the test session did not produce a recognizable summary
+        (e.g. crashed, OOM, or never started).
+        """
         logger.info(f"Parsing test logs...")
         test_result = {}
+        any_match = False
         for status, pattern in self.logs_parser.items():
             if pattern:
                 logs_parse_re = re.compile(pattern, re.MULTILINE)
@@ -401,9 +409,13 @@ class Env:
                     pass
                 if m:
                     test_result[status] = int(m.group(1))
+                    any_match = True
                 else:
                     test_result[status] = 0
-        return test_result 
+        if not any_match:
+            logger.warning("No test summary pattern matched in the log output.")
+            return None
+        return test_result
     
     @staticmethod
     def get_test_failures(test_result: dict[str, int]) -> int:

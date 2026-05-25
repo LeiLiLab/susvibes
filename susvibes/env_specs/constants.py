@@ -14,6 +14,10 @@ class TestStatus(Enum):
     
 FAILURE_STATUSES = {TestItemStatus.FAILED, TestItemStatus.ERROR}
 
+PREMATURE_ABORT_PATTERNS = [
+    r'^!+\s*stopping after \d+ failures?\s*!+$',
+]
+
 TEST_SYMBOL_RESOLUTION_ERROR_PATTERNS = [
     r"ImportError: cannot import",
     r"AttributeError:.*?attribute", 

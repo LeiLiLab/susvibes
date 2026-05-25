@@ -157,6 +157,11 @@ class Task:
                 report[run_name]["pass"] = False
                 continue
             test_result = self.env.parse_test_logs(test_logs, logger)
+            if test_result is None:
+                logger.warning(f"No recognizable test summary in {run_name} logs; treating as startup error.")
+                report[run_name]["status"] = EvalStatus.STARTUP_ERROR.value
+                report[run_name]["pass"] = False
+                continue
             test_failures = self.env.get_test_failures(test_result) 
             expected_failures = self.expected_failures[run_name] if expected_failures is None \
                 else expected_failures + self.expected_failures[run_name]
