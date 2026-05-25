@@ -31,7 +31,7 @@ From these vulnerability fixing commits, an adaptive pipeline creates a SusVibes
 3. **A verifier agent** checks whether the task description covers all lines in feature implementation with *security fixes*. If verification fails, go back to step 1; otherwise, proceed to step 4.
 4. Return the task description and the mask.
 
-These stages are implemented in [`adaptive_gen/pipeline.py`](adaptive_gen/pipeline.py) and leverage [SWE-agent](https://github.com/SWE-agent/SWE-agent).
+These stages are implemented in [`adaptive_gen/pipeline.py`](adaptive_gen/pipeline.py) and leverage [SWE-agent (sv)](https://github.com/songwen6968/SWE-agent/tree/sv).
 
 Follow the installation [guidelines](https://swe-agent.com/latest/installation/source/) to install SWE-agent from source (a `conda` environment is recommended). Set up SWE-agent with the config file at [`utils/agents/configs/adaptive_gen.yaml`](utils/agents/configs/adaptive_gen.yaml) by placing it under the `config/` directory of SWE-agent. You may configure the SWE-agent setup itself in [`utils/agents/settings.yaml`](utils/agents/settings.yaml); a pre-filled example is provided.
 
@@ -48,7 +48,7 @@ The resulting tasks are saved at `datasets/<run_id>/task_dataset.jsonl` and prev
 
 ## Building Execution Environment
 
-Next, build a Docker image for each task capable of executing the test suite of the associated repository. We leverage an [environment building agent](https://github.com/songwen6968/Env-agent) for automation.
+Next, build a Docker image for each task capable of executing the test suite of the associated repository. We leverage an [environment building agent](https://github.com/songwen6968/SWE-agent/tree/sv-env-setup) for automation.
 
 The image building process has two phases: (i) identifying basic developer tools required (e.g., Python versions) and creating a base image equipped with these tools; and (ii) installing the repository and running the test suite within the base image.
 
@@ -65,9 +65,9 @@ The `build_repo --prologue` command in Step 2 will automatically pull the canoni
 
 ### Step 2: Installing Repo and Executing Test Suite
 
-This step uses a specialized environment building agent, [Env-agent](https://github.com/songwen6968/Env-agent), whose config file is located at [`utils/agents/configs/env_setup.yaml`](utils/agents/configs/env_setup.yaml). Configure it similarly via [`utils/agents/settings.yaml`](utils/agents/settings.yaml).
+This step uses a specialized environment building agent, [SWE-agent (sv-env-setup)](https://github.com/songwen6968/SWE-agent/tree/sv-env-setup), whose config file is located at [`utils/agents/configs/env_setup.yaml`](utils/agents/configs/env_setup.yaml). Configure it similarly via [`utils/agents/settings.yaml`](utils/agents/settings.yaml).
 
-In short, Env-agent starts inside the corresponding base image and consults (in order) the pre-existing container configurations, CI/CD pipeline, and other documentation for reproducing the testing workflow. It then invokes Docker commands to create a new image with successful installation and testing steps baked in.
+In short, SWE-agent (sv-env-setup) starts inside the corresponding base image and consults (in order) the pre-existing container configurations, CI/CD pipeline, and other documentation for reproducing the testing workflow. It then invokes Docker commands to create a new image with successful installation and testing steps baked in.
 
 First, prepare the agent run:
 

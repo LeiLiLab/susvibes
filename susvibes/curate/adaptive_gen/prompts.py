@@ -51,7 +51,7 @@ WRITING GUIDELINES:
 - State each requirement as a capability—what the feature does—NOT the internal steps or call sequence that achieve it.
 - The expert implementer has access to the full repository context except the test suite:
   1. Leave out anything obvious or inferable from the repository context.
-  2. Specify only the necessary interfaces which the test suite requires, NOT internal ones.
+  2. Specify only the necessary interfaces a caller would depend on—NOT internal helpers or implementation details. Omit if fully inferable from repository context.
 - Use the tone as if reporting a Github issue; express as if functionality is missing—NOT removed.
 - Be direct, concise, and easy to follow—avoid redundant language.
 

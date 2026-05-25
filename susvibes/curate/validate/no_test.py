@@ -21,7 +21,7 @@ from susvibes.constants import *
 from susvibes.curate.constants import VALIDATE_LOG_DIR, LOGS_PARSER_MODEL, get_path
 from susvibes.env import Deployment, Env
 from susvibes.env_specs import TestStatus
-from susvibes.curate.validate.logs import get_logs_parser, get_logs_checker
+from susvibes.curate.validate.logs import get_logs_parser, get_logs_checker, get_llm_cost, reset_llm_cost
 from susvibes.curate.validate.utils import (
     build_clean_eval_deployment, get_validate_summary, print_summary)
 from susvibes.curate.utils.agents.ports import SWEAgentPort
@@ -418,6 +418,7 @@ def validate_threadpool(
             print(f"--from_existing_specs: {len(skipped)} instance(s) skipped (no stored logs_parser): {sorted(skipped)}")
         candidate_ids = candidate_ids - skipped
 
+    reset_llm_cost()
     succeeded, failed = [], {}
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
@@ -457,6 +458,7 @@ def validate_threadpool(
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(summary, summary_path)
     print_summary(summary)
+    print(f"Logs-parser/checker LLM cost: ${get_llm_cost():.4f}")
     if save_specs:
         print(f"Environments saved to {env_specs_path}.")
     print(f"Summary saved to {summary_path}.")
