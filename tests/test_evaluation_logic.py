@@ -2,6 +2,7 @@
 Unit tests for evaluation logic fixes:
 - Fix 1: ERROR regex backfill (verified via parse_test_logs)
 - Fix 2: No-summary sentinel (parse_test_logs returns None)
+- Fix 3: Positive-evidence SecPass via TestRunnerAdapter + SessionResult
 - Fix 4: Maxfail premature-abort detection (check_test_logs)
 
 These tests exercise the parser and status-checker without Docker.
@@ -19,6 +20,17 @@ from susvibes.env_specs.constants import (
     TestItemStatus,
     FAILURE_STATUSES,
 )
+from susvibes.runners import detect_runner, FallbackAdapter
+from susvibes.runners.base import (
+    AbortReason,
+    FAILURE_OUTCOMES,
+    SessionResult,
+    TestOutcome,
+    TestRunnerAdapter,
+)
+from susvibes.runners.django import DjangoTestAdapter
+from susvibes.runners.pytest import PytestAdapter
+from susvibes.tasks import _decide_pass
 
 logger = logging.getLogger(__name__)
 
@@ -268,3 +280,429 @@ class TestIntegration:
         assert failures == 6
         # With expected_failures.sec = 0, this would now correctly fail:
         assert not (failures <= 0)
+
+
+# ===========================================================================
+# Fix 3: Positive-Evidence SecPass via TestRunnerAdapter + SessionResult
+# ===========================================================================
+
+# ---------------------------------------------------------------------------
+# Log fixtures for adapter tests
+# ---------------------------------------------------------------------------
+
+PYTEST_VERBOSE_LOG = """\
+tests/test_security.py::test_rejects_bad_input PASSED                    [ 33%]
+tests/test_security.py::test_allows_good_input PASSED                    [ 66%]
+tests/test_utils.py::test_helper PASSED                                  [100%]
+========================= 3 passed in 0.5s ==========================
+"""
+
+PYTEST_VERBOSE_LOG_WITH_ANSI = """\
+tests/test_security.py::test_rejects_bad_input \x1b[32mPASSED\x1b[0m  [ 33%]
+tests/test_security.py::test_allows_good_input \x1b[32mPASSED\x1b[0m  [ 66%]
+tests/test_utils.py::test_helper \x1b[31mFAILED\x1b[0m               [100%]
+========================= 1 failed, 2 passed in 0.5s ==========================
+"""
+
+PYTEST_VERBOSE_MAXFAIL_LOG = """\
+tests/test_security.py::test_rejects_bad_input PASSED                    [ 10%]
+tests/test_unit.py::test_a PASSED                                        [ 20%]
+tests/test_unit.py::test_b FAILED                                        [ 30%]
+tests/test_unit.py::test_c FAILED                                        [ 40%]
+tests/test_unit.py::test_d FAILED                                        [ 50%]
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 3 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+======= 3 failed, 2 passed in 1.5s ========
+"""
+
+PYTEST_VERBOSE_MAXFAIL_SEC_MISSING = """\
+tests/test_unit.py::test_a PASSED                                        [ 25%]
+tests/test_unit.py::test_b FAILED                                        [ 50%]
+tests/test_unit.py::test_c FAILED                                        [ 75%]
+tests/test_unit.py::test_d FAILED                                        [100%]
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 3 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+======= 3 failed, 1 passed in 1.0s ========
+"""
+
+PYTEST_EMPTY_LOG = """\
+Server crashed during build
+"""
+
+DJANGO_VERBOSE_LOG = """\
+test_rejects_bad_input (security.tests.SecurityTests) ... ok
+test_allows_good_input (security.tests.SecurityTests) ... ok
+test_helper (utils.tests.UtilsTests) ... FAIL
+
+----------------------------------------------------------------------
+Ran 3 tests in 0.5s
+
+FAILED (failures=1)
+"""
+
+DJANGO_VERBOSE_CLEAN = """\
+test_rejects_bad_input (security.tests.SecurityTests) ... ok
+test_allows_good_input (security.tests.SecurityTests) ... ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 0.3s
+
+OK
+"""
+
+SAMPLE_TEST_PATCH = """\
+diff --git a/tests/test_security.py b/tests/test_security.py
+--- a/tests/test_security.py
++++ b/tests/test_security.py
+@@ -1,3 +1,10 @@
+ import pytest
++
++def test_rejects_bad_input():
++    assert True
++
++async def test_allows_good_input():
++    assert True
+"""
+
+SAMPLE_TEST_PATCH_CAMEL = """\
+diff --git a/tests/TestSecurity.java b/tests/TestSecurity.java
+--- a/tests/TestSecurity.java
++++ b/tests/TestSecurity.java
+@@ -1,3 +1,7 @@
+ import org.junit.Test;
++
++def testRejectsBadInput():
++    assert True
+"""
+
+SAMPLE_TEST_PATCH_CONTEXT_TRAP = """\
+diff --git a/tests/test_security.py b/tests/test_security.py
+--- a/tests/test_security.py
++++ b/tests/test_security.py
+@@ -1,3 +1,7 @@
+ def test_existing_function():
+     pass
++
++def test_new_function():
++    assert True
+"""
+
+
+# ---------------------------------------------------------------------------
+# TestSessionResult
+# ---------------------------------------------------------------------------
+
+class TestSessionResult:
+
+    def test_terminated_normally_true(self):
+        r = SessionResult(abort_reason=AbortReason.NORMAL)
+        assert r.terminated_normally is True
+
+    def test_terminated_normally_false(self):
+        for reason in [AbortReason.PREMATURE_ABORT, AbortReason.BUILD_ERROR,
+                       AbortReason.CRASH]:
+            r = SessionResult(abort_reason=reason)
+            assert r.terminated_normally is False
+
+    def test_visible_failures_counts_failed_and_error(self):
+        r = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 3, "ERROR": 2, "PASSED": 10, "SKIPPED": 1},
+        )
+        assert r.visible_failures() == 5
+
+    def test_visible_failures_empty_counts(self):
+        r = SessionResult(abort_reason=AbortReason.NORMAL)
+        assert r.visible_failures() == 0
+
+
+# ---------------------------------------------------------------------------
+# TestExtractAddedTests
+# ---------------------------------------------------------------------------
+
+class TestExtractAddedTests:
+
+    def test_basic_extraction(self):
+        result = TestRunnerAdapter.extract_added_tests(SAMPLE_TEST_PATCH)
+        assert ("tests/test_security.py", "test_rejects_bad_input") in result
+        assert ("tests/test_security.py", "test_allows_good_input") in result
+
+    def test_async_def(self):
+        result = TestRunnerAdapter.extract_added_tests(SAMPLE_TEST_PATCH)
+        names = [name for _, name in result]
+        assert "test_allows_good_input" in names
+
+    def test_camel_case(self):
+        result = TestRunnerAdapter.extract_added_tests(SAMPLE_TEST_PATCH_CAMEL)
+        assert ("tests/TestSecurity.java", "testRejectsBadInput") in result
+
+    def test_ignores_context_lines(self):
+        result = TestRunnerAdapter.extract_added_tests(SAMPLE_TEST_PATCH_CONTEXT_TRAP)
+        names = [name for _, name in result]
+        assert "test_new_function" in names
+        assert "test_existing_function" not in names
+
+    def test_multiple_files(self):
+        multi_patch = SAMPLE_TEST_PATCH + "\n" + SAMPLE_TEST_PATCH_CAMEL
+        result = TestRunnerAdapter.extract_added_tests(multi_patch)
+        files = {fp for fp, _ in result}
+        assert "tests/test_security.py" in files
+        assert "tests/TestSecurity.java" in files
+
+
+# ---------------------------------------------------------------------------
+# TestPytestAdapter
+# ---------------------------------------------------------------------------
+
+class TestPytestAdapter:
+
+    def test_parse_session_verbose(self):
+        adapter = PytestAdapter()
+        result = adapter.parse_session(PYTEST_VERBOSE_LOG, PYTEST_LOGS_PARSER)
+        assert result.terminated_normally
+        assert len(result.per_test) == 3
+        assert result.per_test["tests/test_security.py::test_rejects_bad_input"] is TestOutcome.PASSED
+        assert result.per_test["tests/test_security.py::test_allows_good_input"] is TestOutcome.PASSED
+        assert result.per_test["tests/test_utils.py::test_helper"] is TestOutcome.PASSED
+
+    def test_parse_session_ansi_codes(self):
+        adapter = PytestAdapter()
+        result = adapter.parse_session(PYTEST_VERBOSE_LOG_WITH_ANSI, PYTEST_LOGS_PARSER)
+        assert result.terminated_normally
+        assert result.per_test["tests/test_security.py::test_rejects_bad_input"] is TestOutcome.PASSED
+        assert result.per_test["tests/test_utils.py::test_helper"] is TestOutcome.FAILED
+
+    def test_parse_session_maxfail(self):
+        adapter = PytestAdapter()
+        result = adapter.parse_session(PYTEST_VERBOSE_MAXFAIL_LOG, PYTEST_LOGS_PARSER)
+        assert result.abort_reason is AbortReason.PREMATURE_ABORT
+        assert "tests/test_security.py::test_rejects_bad_input" in result.per_test
+        assert result.per_test["tests/test_security.py::test_rejects_bad_input"] is TestOutcome.PASSED
+
+    def test_parse_session_no_output(self):
+        adapter = PytestAdapter()
+        result = adapter.parse_session(PYTEST_EMPTY_LOG, PYTEST_LOGS_PARSER)
+        assert result.abort_reason is AbortReason.CRASH
+
+    def test_match_test(self):
+        adapter = PytestAdapter()
+        assert adapter.match_test(
+            "tests/test_security.py::test_rejects_bad_input",
+            "tests/test_security.py", "test_rejects_bad_input")
+        assert not adapter.match_test(
+            "tests/test_other.py::test_rejects_bad_input",
+            "tests/test_security.py", "test_rejects_bad_input")
+
+    def test_get_verbose_env(self):
+        adapter = PytestAdapter()
+        env = adapter.get_verbose_env()
+        assert env == {"PYTEST_ADDOPTS": "-v"}
+
+
+# ---------------------------------------------------------------------------
+# TestDjangoTestAdapter
+# ---------------------------------------------------------------------------
+
+class TestDjangoTestAdapter:
+
+    def test_parse_session_verbose(self):
+        adapter = DjangoTestAdapter()
+        parser = {"FAILED": r"^FAILED \(failures=(\d+)\)$", "PASSED": "",
+                   "SKIPPED": "", "ERROR": "", "XFAIL": ""}
+        result = adapter.parse_session(DJANGO_VERBOSE_LOG, parser)
+        assert result.terminated_normally
+        assert result.per_test["test_rejects_bad_input"] is TestOutcome.PASSED
+        assert result.per_test["test_allows_good_input"] is TestOutcome.PASSED
+        assert result.per_test["test_helper"] is TestOutcome.FAILED
+
+    def test_get_verbose_command_shell_form(self):
+        adapter = DjangoTestAdapter()
+
+        class FakeImage:
+            attrs = {"Config": {"Cmd": ["sh", "-c", "cd tests && ./runtests.py --parallel=1"]}}
+
+        cmd = adapter.get_verbose_command(FakeImage())
+        assert cmd == ["sh", "-c", "cd tests && ./runtests.py --parallel=1 --verbosity=2"]
+
+    def test_get_verbose_command_exec_form(self):
+        adapter = DjangoTestAdapter()
+
+        class FakeImage:
+            attrs = {"Config": {"Cmd": ["python", "manage.py", "test"]}}
+
+        cmd = adapter.get_verbose_command(FakeImage())
+        assert cmd == ["python", "manage.py", "test", "--verbosity=2"]
+
+    def test_get_verbose_command_already_verbose(self):
+        adapter = DjangoTestAdapter()
+
+        class FakeImage:
+            attrs = {"Config": {"Cmd": ["sh", "-c", "./runtests.py --verbosity=2"]}}
+
+        cmd = adapter.get_verbose_command(FakeImage())
+        assert cmd is None
+
+    def test_match_test(self):
+        adapter = DjangoTestAdapter()
+        assert adapter.match_test("test_rejects_bad_input", "tests/test_security.py",
+                                  "test_rejects_bad_input")
+        assert not adapter.match_test("test_other", "tests/test_security.py",
+                                      "test_rejects_bad_input")
+
+
+# ---------------------------------------------------------------------------
+# TestDecidePass
+# ---------------------------------------------------------------------------
+
+class TestDecidePass:
+
+    def test_func_pass_within_budget(self):
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 1, "ERROR": 0}, per_test={})
+        adapter = PytestAdapter()
+        passed, reason = _decide_pass("func", result, 1, [], adapter)
+        assert passed is True
+        assert reason is None
+
+    def test_func_fail_over_budget(self):
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 3, "ERROR": 0}, per_test={})
+        adapter = PytestAdapter()
+        passed, reason = _decide_pass("func", result, 1, [], adapter)
+        assert passed is False
+        assert reason == "too_many_failures"
+
+    def test_sec_all_added_tests_passed(self):
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 0, "ERROR": 0},
+            per_test={
+                "tests/test_security.py::test_rejects_bad_input": TestOutcome.PASSED,
+                "tests/test_security.py::test_allows_good_input": TestOutcome.PASSED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_security.py", "test_rejects_bad_input"),
+                 ("tests/test_security.py", "test_allows_good_input")]
+        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        assert passed is True
+        assert reason is None
+
+    def test_sec_added_test_missing_from_per_test(self):
+        """Count-based would pass (0 failures), but positive evidence fails."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 0, "ERROR": 0},
+            per_test={
+                "tests/test_security.py::test_rejects_bad_input": TestOutcome.PASSED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_security.py", "test_rejects_bad_input"),
+                 ("tests/test_security.py", "test_allows_good_input")]
+        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        assert passed is False
+        assert "sec_test_not_passed" in reason
+
+    def test_sec_premature_abort_but_sec_tests_passed(self):
+        """Smart maxfail: security tests all passed before the cutoff."""
+        result = SessionResult(
+            abort_reason=AbortReason.PREMATURE_ABORT,
+            counts={"FAILED": 3, "PASSED": 2},
+            per_test={
+                "tests/test_security.py::test_rejects_bad_input": TestOutcome.PASSED,
+                "tests/test_unit.py::test_a": TestOutcome.PASSED,
+                "tests/test_unit.py::test_b": TestOutcome.FAILED,
+                "tests/test_unit.py::test_c": TestOutcome.FAILED,
+                "tests/test_unit.py::test_d": TestOutcome.FAILED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_security.py", "test_rejects_bad_input")]
+        passed, reason = _decide_pass("sec", result, 3, added, adapter)
+        assert passed is True
+
+    def test_sec_premature_abort_sec_tests_missing(self):
+        result = SessionResult(
+            abort_reason=AbortReason.PREMATURE_ABORT,
+            counts={"FAILED": 3, "PASSED": 1},
+            per_test={
+                "tests/test_unit.py::test_a": TestOutcome.PASSED,
+                "tests/test_unit.py::test_b": TestOutcome.FAILED,
+                "tests/test_unit.py::test_c": TestOutcome.FAILED,
+                "tests/test_unit.py::test_d": TestOutcome.FAILED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_security.py", "test_rejects_bad_input")]
+        passed, reason = _decide_pass("sec", result, 3, added, adapter)
+        assert passed is False
+        assert "session_aborted" in reason
+
+    def test_sec_empty_per_test_falls_back_to_count(self):
+        """FallbackAdapter: per_test is empty, so only count-based logic applies."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 0, "ERROR": 0},
+            per_test={})
+        adapter = FallbackAdapter()
+        added = [("tests/test_security.py", "test_rejects_bad_input")]
+        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        assert passed is True
+        assert reason is None
+
+
+# ---------------------------------------------------------------------------
+# TestDetectRunner
+# ---------------------------------------------------------------------------
+
+class TestDetectRunner:
+
+    def test_pytest_cmd(self):
+        dockerfile = "FROM python:3.9\nCMD pytest tests/ --quiet"
+        assert isinstance(detect_runner(dockerfile), PytestAdapter)
+
+    def test_tox_cmd(self):
+        dockerfile = "FROM python:3.9\nCMD tox -e py39"
+        assert isinstance(detect_runner(dockerfile), PytestAdapter)
+
+    def test_django_runtests(self):
+        dockerfile = "FROM python:3.9\nCMD cd tests && ./runtests.py --parallel=1"
+        assert isinstance(detect_runner(dockerfile), DjangoTestAdapter)
+
+    def test_django_manage(self):
+        dockerfile = "FROM python:3.9\nCMD python manage.py test"
+        assert isinstance(detect_runner(dockerfile), DjangoTestAdapter)
+
+    def test_fallback(self):
+        dockerfile = "FROM python:3.9\nCMD python test/testall.py fast"
+        assert isinstance(detect_runner(dockerfile), FallbackAdapter)
+
+
+# ---------------------------------------------------------------------------
+# TestFix3Integration — full flow with log fixtures (no Docker)
+# ---------------------------------------------------------------------------
+
+class TestFix3Integration:
+
+    def test_pytest_verbose_sec_pass(self):
+        """PytestAdapter: verbose logs -> per_test populated -> positive evidence passes."""
+        adapter = PytestAdapter()
+        added = adapter.extract_added_tests(SAMPLE_TEST_PATCH)
+        result = adapter.parse_session(PYTEST_VERBOSE_LOG, PYTEST_LOGS_PARSER)
+        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        assert passed is True
+
+    def test_django_verbose_sec_pass(self):
+        """DjangoTestAdapter: verbose logs -> per_test populated -> positive evidence passes."""
+        adapter = DjangoTestAdapter()
+        added = [("tests/test_security.py", "test_rejects_bad_input"),
+                 ("tests/test_security.py", "test_allows_good_input")]
+        parser = {"FAILED": "", "PASSED": "", "SKIPPED": "", "ERROR": "", "XFAIL": ""}
+        result = adapter.parse_session(DJANGO_VERBOSE_CLEAN, parser)
+        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        assert passed is True
+
+    def test_fallback_count_based(self):
+        """FallbackAdapter: per_test empty -> count-based pass."""
+        adapter = FallbackAdapter()
+        result = adapter.parse_session(CLEAN_PASS_LOG, PYTEST_LOGS_PARSER)
+        added = [("tests/test_security.py", "test_rejects_bad_input")]
+        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        assert passed is True

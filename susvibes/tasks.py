@@ -6,6 +6,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from susvibes.constants import *
 from susvibes.env import Env
+from susvibes.runners import detect_runner
+from susvibes.runners.base import (
+    AbortReason,
+    SessionResult,
+    TestOutcome,
+    TestRunnerAdapter,
+)
 from susvibes.strategies.tools import eval_selected_cwes, get_cwe_selection_stats
 from susvibes.utils import (
     load_file,
@@ -20,6 +27,57 @@ LOG_INSTANCE = "run_instance.log"
 LOG_TEST_OUTPUT = "test_outputs/{}.txt"
 LOG_REPORT = "report.json"
 EVALUATION_RUNS = ["func", "sec"]
+
+
+def _decide_pass(
+    run_name: str,
+    result: SessionResult,
+    expected_failures: int,
+    added_tests: list[tuple[str, str]],
+    adapter: TestRunnerAdapter,
+) -> tuple[bool, str | None]:
+    """Language-agnostic pass rule consuming a SessionResult.
+
+    Returns ``(passed, reason)`` where *reason* is ``None`` on success
+    or a short tag explaining the failure.
+    """
+    if not result.terminated_normally:
+        # Smart maxfail: allow sec runs where all security tests verifiably
+        # passed before the cutoff.
+        if (
+            run_name == "sec"
+            and added_tests
+            and result.abort_reason is AbortReason.PREMATURE_ABORT
+        ):
+            all_passed = all(
+                any(
+                    adapter.match_test(tid, fp, tn)
+                    and result.per_test.get(tid) is TestOutcome.PASSED
+                    for tid in result.per_test
+                )
+                for fp, tn in added_tests
+            )
+            if not all_passed:
+                return False, f"session_aborted:{result.abort_reason.value}"
+            # all security tests passed — continue to count checks below
+        else:
+            return False, f"session_aborted:{result.abort_reason.value}"
+
+    if result.visible_failures() > expected_failures:
+        return False, "too_many_failures"
+
+    # Positive-evidence check (sec only, when per_test is available)
+    if run_name == "sec" and added_tests and result.per_test:
+        for file_path, test_name in added_tests:
+            found_passed = any(
+                adapter.match_test(tid, file_path, test_name)
+                and result.per_test[tid] is TestOutcome.PASSED
+                for tid in result.per_test
+            )
+            if not found_passed:
+                return False, f"sec_test_not_passed:{file_path}::{test_name}"
+
+    return True, None
 
 
 def get_summary(dataset: list, reports: dict, strategy: str) -> dict:
@@ -95,11 +153,12 @@ class Task:
         )
 
     def run_test_suite(
-        self, 
-        run_name: str, 
-        patches: tuple[str, ...], 
-        log_dir: Path, 
-        logger: logging.Logger
+        self,
+        run_name: str,
+        patches: tuple[str, ...],
+        log_dir: Path,
+        logger: logging.Logger,
+        adapter: TestRunnerAdapter | None = None,
     ):
         try:
             deployment = self.env.build_instance_deployment(
@@ -110,23 +169,28 @@ class Task:
         except Exception as e:
             logger.warning(f"Failed to build instance deployment for {run_name}.")
             return "", EvalStatus.MODEL_PATCH_ERROR.value
+
+        env_vars = adapter.get_verbose_env() if adapter else None
+        cmd_override = (
+            adapter.get_verbose_command(deployment.image) if adapter else None
+        )
         try:
-            deployment.create_container(mem_limit=CONTAINER_MEM_LIMIT, cpu_limit=CONTAINER_CPU_LIMIT)
+            deployment.create_container(
+                command=cmd_override,
+                mem_limit=CONTAINER_MEM_LIMIT,
+                cpu_limit=CONTAINER_CPU_LIMIT,
+                environment=env_vars,
+            )
         except docker.errors.ContainerError as e:
             logger.warning(f"Failed to create container for {run_name}.")
             return "", EvalStatus.MODEL_PATCH_ERROR.value
-        test_logs, timed_out = deployment.run_with_timeout()
-        eval_status = self.env.check_test_logs(test_logs, timed_out)
 
-        if eval_status == EvalStatus.TIMEOUT.value:
-            logger.warning(f"Failed to run tests for {run_name}: timeout.")
-        elif eval_status == EvalStatus.STARTUP_ERROR.value:
-            logger.warning(f"Failed to run tests for {run_name}: startup error.")
+        test_logs, timed_out = deployment.run_with_timeout()
 
         test_output_path = log_dir / LOG_TEST_OUTPUT.format(run_name)
         test_output_path.parent.mkdir(parents=True, exist_ok=True)
         save_file(test_logs, test_output_path)
-        return test_logs, eval_status
+        return test_logs, timed_out
 
     def evaluate(
         self,
@@ -142,32 +206,99 @@ class Task:
         report = {run_name : {"pass": None, "status": None}
             for run_name in EVALUATION_RUNS}
 
+        adapter = detect_runner(self.env.dockerfile)
+        added_tests = adapter.extract_added_tests(self.test_patch)
+        logger.info("Detected runner: %s (%d security tests extracted)",
+                     adapter.runner_id, len(added_tests))
+
         runs_list = [(filtered_patch,),
             (self.test_patch, filtered_patch)]
         expected_failures = None
         for run_patches, run_name in zip(runs_list, EVALUATION_RUNS):
-            test_logs, eval_status = self.run_test_suite(
+            is_sec = run_name == "sec"
+            test_logs, timed_out = self.run_test_suite(
                 run_name=run_name,
                 patches=run_patches,
                 log_dir=log_dir,
-                logger=logger
+                logger=logger,
+                adapter=adapter if is_sec else None,
             )
-            report[run_name]["status"] = eval_status
-            if eval_status != EvalStatus.COMPLETION.value:
+
+            if isinstance(timed_out, str):
+                # run_test_suite returned early with (logs, EvalStatus) on build/container error
+                report[run_name]["status"] = timed_out
                 report[run_name]["pass"] = False
                 continue
-            test_result = self.env.parse_test_logs(test_logs, logger)
-            if test_result is None:
-                logger.warning(f"No recognizable test summary in {run_name} logs; treating as startup error.")
-                report[run_name]["status"] = EvalStatus.STARTUP_ERROR.value
-                report[run_name]["pass"] = False
-                continue
-            test_failures = self.env.get_test_failures(test_result) 
-            expected_failures = self.expected_failures[run_name] if expected_failures is None \
+
+            if is_sec and adapter.runner_id != "fallback":
+                result = adapter.parse_session(
+                    test_logs, self.env.logs_parser,
+                    timed_out=timed_out,
+                    logs_checker=self.env.logs_checker,
+                )
+            else:
+                eval_status = self.env.check_test_logs(test_logs, timed_out)
+                test_result = self.env.parse_test_logs(test_logs, logger)
+                if eval_status == EvalStatus.TIMEOUT.value:
+                    abort = AbortReason.CRASH
+                elif eval_status == EvalStatus.STARTUP_ERROR.value:
+                    abort = AbortReason.BUILD_ERROR
+                elif test_result is None:
+                    abort = AbortReason.CRASH
+                else:
+                    abort = AbortReason.NORMAL
+                result = SessionResult(
+                    abort_reason=abort,
+                    counts=test_result or {},
+                    per_test={},
+                )
+
+            expected_failures = (
+                self.expected_failures[run_name]
+                if expected_failures is None
                 else expected_failures + self.expected_failures[run_name]
-            report[run_name]["pass"] = (test_failures <= expected_failures)
-            expected_failures = min(expected_failures, test_failures)
-                
+            )
+
+            logger.info(
+                "Run %s: %s | adapter=%s failures=%d budget=%d per_test=%d",
+                run_name, result.abort_reason.value, adapter.runner_id,
+                result.visible_failures(), expected_failures,
+                len(result.per_test),
+            )
+            logger.debug("Run %s counts: %s", run_name, result.counts)
+
+            if is_sec and added_tests:
+                sec_matches = []
+                for fp, tn in added_tests:
+                    matched = next(
+                        (result.per_test[tid].value
+                         for tid in result.per_test
+                         if adapter.match_test(tid, fp, tn)),
+                        None,
+                    )
+                    sec_matches.append(f"{tn}={'NOT_RUN' if matched is None else matched}")
+                logger.info("Sec tests: %s", ", ".join(sec_matches))
+
+            passed, reason = _decide_pass(
+                run_name, result, expected_failures,
+                added_tests if is_sec else [], adapter,
+            )
+            report[run_name]["pass"] = passed
+            report[run_name]["status"] = (
+                EvalStatus.COMPLETION.value
+                if result.terminated_normally
+                else EvalStatus.STARTUP_ERROR.value
+            )
+            if reason:
+                logger.warning("Run %s failed: %s (failures=%d budget=%d)",
+                               run_name, reason,
+                               result.visible_failures(), expected_failures)
+
+            if result.terminated_normally:
+                expected_failures = min(
+                    expected_failures, result.visible_failures()
+                )
+
         if any(report[run_name]["status"] == EvalStatus.MODEL_PATCH_ERROR.value 
             for run_name in EVALUATION_RUNS):
             logger.warning("Model patch error detected, marking all runs as failed.")
