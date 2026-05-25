@@ -3,7 +3,7 @@
 This module manages the security test patches (`test_patch` field of `susvibes_dataset.jsonl`). Two workflows are supported:
 
 - **Editing** ([`edit.py`](edit.py)) — dump existing `test_patch` entries to disk for manual refinement, then sync the edits back into the dataset.
-- **Synthesis** ([`gen_prologue.py`](gen_prologue.py)) — for instances where no usable test patch exist, drive a SWE-agent to author `test_patch` from the security fix.
+- **Synthesis** ([`gen_prologue.py`](gen_prologue.py)) — for instances where no usable test patch exist, drive a SWE-agent (sv) to author `test_patch` from the security fix.
 
 Both workflows assume the per-instance environment images from [`env_setup/build_repo.py`](../env_setup/build_repo.py) already exist and the dataset is otherwise complete (`task_patch`, `security_patch`, `mask_patch`, `env_image_name`, etc.).
 
@@ -71,7 +71,7 @@ This path expects the upstream pipeline to have been run in `--no_require_test` 
 
 - `python -m susvibes.curate.collect.process --no_require_test ...` — keeps vulnerability records that have no associated test files
 - `python -m susvibes.curate.adaptive_gen.pipeline --no_require_test ...` — produces tasks without requiring a `test_patch` field
-- `python -m susvibes.curate.env_setup.build_repo --prologue --no_require_test ...` — instructs Env-agent to run the full repo test suite instead of a designated set of test files
+- `python -m susvibes.curate.env_setup.build_repo --prologue --no_require_test ...` — instructs SWE-agent (sv-env-setup) to run the full repo test suite instead of a designated set of test files
 
 The synthesis agent itself uses the config at [`../utils/agents/configs/test_gen.yaml`](../utils/agents/configs/test_gen.yaml). Set it up the same way as other SWE-agent configs in this curation pipeline (place under SWE-agent's `config/` directory; see [`../utils/agents/settings.yaml`](../utils/agents/settings.yaml)).
 

@@ -2,9 +2,10 @@ import re
 import json
 import tiktoken
 import logging
+import threading
 from pathlib import Path
 from jinja2 import Template
-from litellm import completion, get_max_tokens
+from litellm import completion, completion_cost, get_max_tokens
 from dotenv import load_dotenv
 
 from susvibes.env import Env
@@ -23,6 +24,36 @@ load_dotenv()
 
 LOG_TEST_LOGS_PARSER = "logs_parser.json"
 LOG_TEST_LOGS_CHECKER = "logs_checker.json"
+
+
+# --- LLM cost tracking (thread-safe; run total over logs-parser + logs-checker calls) ---
+_llm_cost_lock = threading.Lock()
+_llm_cost_total = 0.0
+
+
+def _record_llm_cost(response) -> None:
+    """Add this LLM response's USD cost to the run total."""
+    cost = (getattr(response, "_hidden_params", None) or {}).get("response_cost")
+    if cost is None:
+        try:
+            cost = completion_cost(completion_response=response)
+        except Exception:
+            cost = 0.0
+    cost = cost or 0.0
+    global _llm_cost_total
+    with _llm_cost_lock:
+        _llm_cost_total += cost
+
+
+def get_llm_cost() -> float:
+    """Total USD cost of logs-parser/checker LLM calls since the last reset_llm_cost()."""
+    return _llm_cost_total
+
+
+def reset_llm_cost() -> None:
+    global _llm_cost_total
+    with _llm_cost_lock:
+        _llm_cost_total = 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -98,10 +129,12 @@ def get_logs_parser(
         if retry:
             logger.info(f"Retrying... {retry + 1}/{max_retries}")
         try:
-            message = completion(model=model, messages=messages).choices[0].message
+            response = completion(model=model, messages=messages)
         except Exception as e:
             logger.warning(f"Failed to get model response: {e}")
             continue
+        _record_llm_cost(response)
+        message = response.choices[0].message
         try:
             logs_parser = json.loads(message.content.split("```")[1].strip()) \
                 if "```" in message.content else json.loads(message.content)
@@ -241,10 +274,12 @@ def get_logs_checker(
         if retry:
             logger.info(f"Retrying... {retry + 1}/{max_retries}")
         try:
-            message = completion(model=model, messages=messages).choices[0].message
+            response = completion(model=model, messages=messages)
         except Exception as e:
             logger.warning(f"Failed to get model response: {e}")
             continue
+        _record_llm_cost(response)
+        message = response.choices[0].message
         try:
             response = json.loads(message.content.split("```")[1].strip()) \
                 if "```" in message.content else json.loads(message.content)

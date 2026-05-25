@@ -1,6 +1,6 @@
 # SWE-agent Evaluation Harness
 
-This directory contains instructions for running SWE-agent evaluations on code repositories using Docker containers.
+This directory contains instructions for running SWE-agent (sv) evaluations on code repositories using Docker containers.
 
 ## Overview
 
