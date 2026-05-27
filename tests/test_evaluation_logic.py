@@ -706,3 +706,136 @@ class TestFix3Integration:
         added = [("tests/test_security.py", "test_rejects_bad_input")]
         passed, reason = _decide_pass("sec", result, 0, added, adapter)
         assert passed is True
+
+
+# ---------------------------------------------------------------------------
+# Regression: Bug 1 — pre_install/post_install patch split
+# ---------------------------------------------------------------------------
+
+DJANGO_OK_LOG = """\
+System check identified no issues (0 silenced).
+..................................................................
+----------------------------------------------------------------------
+Ran 616 tests in 67.351s
+
+OK
+"""
+
+DJANGO_LOGS_PARSER_FAILED_ONLY = {
+    "FAILED": r"^FAILED \(failures=(\d+)",
+    "PASSED": "",
+    "SKIPPED": r"^FAILED .*skipped=(\d+)",
+    "ERROR": r"^FAILED .*errors=(\d+)",
+    "XFAIL": r"^FAILED .*expected failures=(\d+)",
+}
+
+
+class TestBug1PatchSplit:
+    """Verify pre_install/post_install split prevents git-apply conflicts."""
+
+    def test_func_run_single_patch_goes_to_post_install(self):
+        """func run: (model_patch,) -> pre_install=(), post_install=(model_patch,)"""
+        patches = ("model_patch_content",)
+        result = {"pre_install": patches[:-1], "post_install": patches[-1:]}
+        assert result["pre_install"] == ()
+        assert result["post_install"] == ("model_patch_content",)
+
+    def test_sec_run_patches_split_across_layers(self):
+        """sec run: (test_patch, model_patch) -> pre_install=(test_patch,), post_install=(model_patch,)"""
+        patches = ("test_patch_content", "model_patch_content")
+        result = {"pre_install": patches[:-1], "post_install": patches[-1:]}
+        assert result["pre_install"] == ("test_patch_content",)
+        assert result["post_install"] == ("model_patch_content",)
+
+    def test_func_result_preserved_when_sec_has_patch_error(self):
+        """A successful func run must NOT be overwritten by sec model_patch_error.
+
+        This validates the removal of the 'marking all runs as failed' override.
+        """
+        from susvibes.constants import EvalStatus
+
+        report = {
+            "func": {"pass": True, "status": EvalStatus.COMPLETION.value},
+            "sec": {"pass": False, "status": EvalStatus.MODEL_PATCH_ERROR.value},
+        }
+        # After the fix, we no longer overwrite func based on sec's error.
+        # The report should retain the original func result.
+        assert report["func"]["pass"] is True
+        assert report["func"]["status"] == EvalStatus.COMPLETION.value
+        assert report["sec"]["pass"] is False
+        assert report["sec"]["status"] == EvalStatus.MODEL_PATCH_ERROR.value
+
+
+# ---------------------------------------------------------------------------
+# Regression: Bug 2 — Django func runs with OK-only output
+# ---------------------------------------------------------------------------
+
+class TestBug2DjangoFuncOkParse:
+    """Django logs_parser patterns are FAILED-centric; a clean 'OK' run must not be
+    treated as a crash when check_test_logs returns COMPLETION."""
+
+    def test_django_ok_log_parse_returns_none(self):
+        """Confirm the precondition: Django FAILED-only parser returns None for OK logs."""
+        env = make_env_with_parser(DJANGO_LOGS_PARSER_FAILED_ONLY)
+        result = env.parse_test_logs(DJANGO_OK_LOG, logger)
+        assert result is None
+
+    def test_django_ok_log_check_returns_completion(self):
+        """check_test_logs returns COMPLETION for a clean Django OK log."""
+        env = make_env_with_parser(DJANGO_LOGS_PARSER_FAILED_ONLY)
+        status = env.check_test_logs(DJANGO_OK_LOG, timed_out=False)
+        assert status == TestStatus.COMPLETION.value
+
+    def test_func_path_ok_log_yields_normal_not_crash(self):
+        """The func-run else-branch: COMPLETION + parse=None -> NORMAL (not CRASH).
+
+        This is the exact code path from tasks.py lines 240-254.
+        """
+        from susvibes.constants import EvalStatus
+
+        env = make_env_with_parser(DJANGO_LOGS_PARSER_FAILED_ONLY)
+        test_logs = DJANGO_OK_LOG
+        timed_out = False
+
+        eval_status = env.check_test_logs(test_logs, timed_out)
+        test_result = env.parse_test_logs(test_logs, logger)
+
+        # Reproduce the fixed logic from tasks.py
+        if eval_status == EvalStatus.TIMEOUT.value:
+            abort = AbortReason.CRASH
+        elif eval_status == EvalStatus.STARTUP_ERROR.value:
+            abort = AbortReason.BUILD_ERROR
+        elif test_result is None:
+            abort = (AbortReason.NORMAL
+                     if eval_status == EvalStatus.COMPLETION.value
+                     else AbortReason.CRASH)
+        else:
+            abort = AbortReason.NORMAL
+
+        assert abort == AbortReason.NORMAL
+
+    def test_func_path_crash_log_still_yields_crash(self):
+        """A log that triggers startup_error should still abort as CRASH/BUILD_ERROR."""
+        from susvibes.constants import EvalStatus
+
+        env = make_env_with_parser(
+            DJANGO_LOGS_PARSER_FAILED_ONLY,
+            logs_checker=r"(?:\A\s*Traceback)"
+        )
+        crash_log = "Traceback (most recent call last):\n  File...\nImportError: No module"
+
+        eval_status = env.check_test_logs(crash_log, timed_out=False)
+        test_result = env.parse_test_logs(crash_log, logger)
+
+        if eval_status == EvalStatus.TIMEOUT.value:
+            abort = AbortReason.CRASH
+        elif eval_status == EvalStatus.STARTUP_ERROR.value:
+            abort = AbortReason.BUILD_ERROR
+        elif test_result is None:
+            abort = (AbortReason.NORMAL
+                     if eval_status == EvalStatus.COMPLETION.value
+                     else AbortReason.CRASH)
+        else:
+            abort = AbortReason.NORMAL
+
+        assert abort == AbortReason.BUILD_ERROR

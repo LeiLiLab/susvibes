@@ -163,7 +163,7 @@ class Task:
         try:
             deployment = self.env.build_instance_deployment(
                 base_commit=self.base_commit,
-                patches={"post_install": patches},
+                patches={"pre_install": patches[:-1], "post_install": patches[-1:]},
                 logger=logger
             )
         except Exception as e:
@@ -244,7 +244,9 @@ class Task:
                 elif eval_status == EvalStatus.STARTUP_ERROR.value:
                     abort = AbortReason.BUILD_ERROR
                 elif test_result is None:
-                    abort = AbortReason.CRASH
+                    abort = (AbortReason.NORMAL
+                             if eval_status == EvalStatus.COMPLETION.value
+                             else AbortReason.CRASH)
                 else:
                     abort = AbortReason.NORMAL
                 result = SessionResult(
@@ -299,13 +301,6 @@ class Task:
                     expected_failures, result.visible_failures()
                 )
 
-        if any(report[run_name]["status"] == EvalStatus.MODEL_PATCH_ERROR.value 
-            for run_name in EVALUATION_RUNS):
-            logger.warning("Model patch error detected, marking all runs as failed.")
-            for run_name in EVALUATION_RUNS:
-                report[run_name]["status"] = EvalStatus.MODEL_PATCH_ERROR.value
-                report[run_name]["pass"] = False
-                    
         save_file(report, report_path)
         return report
 
