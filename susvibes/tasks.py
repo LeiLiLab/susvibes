@@ -163,7 +163,7 @@ class Task:
         try:
             deployment = self.env.build_instance_deployment(
                 base_commit=self.base_commit,
-                patches={"pre_install": patches[:-1], "post_install": patches[-1:]},
+                patches={"post_install": patches},
                 logger=logger
             )
         except Exception as e:
@@ -212,7 +212,7 @@ class Task:
                      adapter.runner_id, len(added_tests))
 
         runs_list = [(filtered_patch,),
-            (self.test_patch, filtered_patch)]
+            (filtered_patch, self.test_patch)]
         expected_failures = None
         for run_patches, run_name in zip(runs_list, EVALUATION_RUNS):
             is_sec = run_name == "sec"

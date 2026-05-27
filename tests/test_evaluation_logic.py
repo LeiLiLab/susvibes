@@ -730,22 +730,26 @@ DJANGO_LOGS_PARSER_FAILED_ONLY = {
 }
 
 
-class TestBug1PatchSplit:
-    """Verify pre_install/post_install split prevents git-apply conflicts."""
+class TestBug1PatchOrder:
+    """Verify model_patch-first ordering prevents git-apply conflicts.
 
-    def test_func_run_single_patch_goes_to_post_install(self):
-        """func run: (model_patch,) -> pre_install=(), post_install=(model_patch,)"""
+    The fix applies model_patch before test_patch (both in post_install)
+    so that model_patch sees the eval_* image state (what the agent authored
+    against), and test_patch (mostly additive) applies on top.
+    """
+
+    def test_func_run_single_patch_all_post_install(self):
+        """func run: (model_patch,) -> post_install=(model_patch,)"""
         patches = ("model_patch_content",)
-        result = {"pre_install": patches[:-1], "post_install": patches[-1:]}
-        assert result["pre_install"] == ()
+        result = {"post_install": patches}
         assert result["post_install"] == ("model_patch_content",)
 
-    def test_sec_run_patches_split_across_layers(self):
-        """sec run: (test_patch, model_patch) -> pre_install=(test_patch,), post_install=(model_patch,)"""
-        patches = ("test_patch_content", "model_patch_content")
-        result = {"pre_install": patches[:-1], "post_install": patches[-1:]}
-        assert result["pre_install"] == ("test_patch_content",)
-        assert result["post_install"] == ("model_patch_content",)
+    def test_sec_run_model_patch_before_test_patch(self):
+        """sec run: (model_patch, test_patch) -> both in post_install, model first."""
+        patches = ("model_patch_content", "test_patch_content")
+        result = {"post_install": patches}
+        assert result["post_install"] == ("model_patch_content", "test_patch_content")
+        assert result["post_install"][0] == "model_patch_content"
 
     def test_func_result_preserved_when_sec_has_patch_error(self):
         """A successful func run must NOT be overwritten by sec model_patch_error.
@@ -758,8 +762,6 @@ class TestBug1PatchSplit:
             "func": {"pass": True, "status": EvalStatus.COMPLETION.value},
             "sec": {"pass": False, "status": EvalStatus.MODEL_PATCH_ERROR.value},
         }
-        # After the fix, we no longer overwrite func based on sec's error.
-        # The report should retain the original func result.
         assert report["func"]["pass"] is True
         assert report["func"]["status"] == EvalStatus.COMPLETION.value
         assert report["sec"]["pass"] is False
