@@ -66,7 +66,21 @@ class PytestAdapter(TestRunnerAdapter):
     def match_test(
         self, test_id: str, file_path: str, test_name: str
     ) -> bool:
-        return test_id.endswith("::" + test_name) and file_path in test_id
+        if file_path not in test_id:
+            return False
+        suffix = "::" + test_name
+        if test_id.endswith(suffix):
+            return True
+        # pytest.mark.parametrize: "::test_name[param]"
+        if (suffix + "[") in test_id:
+            return True
+        # parameterized.expand: "::test_name_0__desc" or "::test_name_1"
+        idx = test_id.find(suffix + "_")
+        if idx != -1:
+            rest = test_id[idx + len(suffix) + 1:]
+            if rest and rest[0].isdigit():
+                return True
+        return False
 
 
 def _parse_counts(run_logs: str, logs_parser: dict[str, str]) -> dict[str, int]:

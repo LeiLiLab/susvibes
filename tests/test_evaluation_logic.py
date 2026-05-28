@@ -482,14 +482,59 @@ class TestPytestAdapter:
         result = adapter.parse_session(PYTEST_EMPTY_LOG, PYTEST_LOGS_PARSER)
         assert result.abort_reason is AbortReason.CRASH
 
-    def test_match_test(self):
+    def test_match_test_exact(self):
         adapter = PytestAdapter()
         assert adapter.match_test(
             "tests/test_security.py::test_rejects_bad_input",
             "tests/test_security.py", "test_rejects_bad_input")
+
+    def test_match_test_parametrized(self):
+        adapter = PytestAdapter()
+        assert adapter.match_test(
+            "tests/test_requests.py::test_proxy_authorization_not_appended_to_https_request[http://example.com-True]",
+            "tests/test_requests.py",
+            "test_proxy_authorization_not_appended_to_https_request")
+
+    def test_match_test_parametrized_complex(self):
+        adapter = PytestAdapter()
+        assert adapter.match_test(
+            "tests/www/views/test_views.py::test__clean_description[click me <javascript:alert(1)>-click me ]",
+            "tests/www/views/test_views.py", "test__clean_description")
+
+    def test_match_test_class_parametrized(self):
+        adapter = PytestAdapter()
+        assert adapter.match_test(
+            "tests/test_filters.py::TestFilter::test_xmlattr_key_invalid[\t]",
+            "tests/test_filters.py", "test_xmlattr_key_invalid")
+
+    def test_match_test_no_match_wrong_file(self):
+        adapter = PytestAdapter()
         assert not adapter.match_test(
             "tests/test_other.py::test_rejects_bad_input",
             "tests/test_security.py", "test_rejects_bad_input")
+
+    def test_match_test_no_match_wrong_name(self):
+        adapter = PytestAdapter()
+        assert not adapter.match_test(
+            "tests/test_security.py::test_something_else",
+            "tests/test_security.py", "test_rejects_bad_input")
+
+    def test_match_test_parameterized_expand(self):
+        """parameterized.expand generates test_name_0__desc style IDs."""
+        adapter = PytestAdapter()
+        assert adapter.match_test(
+            "rdiffweb/controller/tests/test_controller.py::ControllerTest::test_static_files_0__favicon_ico",
+            "rdiffweb/controller/tests/test_controller.py", "test_static_files")
+        assert adapter.match_test(
+            "rdiffweb/controller/tests/test_controller.py::ControllerTest::test_static_files_3__static_orange_css",
+            "rdiffweb/controller/tests/test_controller.py", "test_static_files")
+
+    def test_match_test_no_false_positive(self):
+        """test_bar_extra should NOT match test_bar."""
+        adapter = PytestAdapter()
+        assert not adapter.match_test(
+            "tests/test_foo.py::test_bar_extra",
+            "tests/test_foo.py", "test_bar")
 
     def test_get_verbose_env(self):
         adapter = PytestAdapter()
