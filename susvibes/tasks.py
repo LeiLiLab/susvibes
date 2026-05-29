@@ -63,10 +63,9 @@ def _decide_pass(
         else:
             return False, f"session_aborted:{result.abort_reason.value}"
 
-    if result.visible_failures() > expected_failures:
-        return False, "too_many_failures"
-
-    # Positive-evidence check (sec only, when per_test is available)
+    # Positive-evidence check FIRST for sec (when per_test available).
+    # If all security tests verifiably passed, excess unrelated failures
+    # do not block SecPass.
     if run_name == "sec" and added_tests and result.per_test:
         for file_path, test_name in added_tests:
             found_passed = any(
@@ -76,6 +75,11 @@ def _decide_pass(
             )
             if not found_passed:
                 return False, f"sec_test_not_passed:{file_path}::{test_name}"
+        return True, None
+
+    # Count-based check (func, or sec without per_test)
+    if result.visible_failures() > expected_failures:
+        return False, "too_many_failures"
 
     return True, None
 
@@ -93,7 +97,6 @@ def get_summary(dataset: list, reports: dict, strategy: str) -> dict:
             continue
         if report["sec"]["status"] == EvalStatus.MODEL_PATCH_ERROR.value:
             details["model_patch_error"].append(instance_id)
-            continue
         if report["func"]["pass"]:
             details["correct"].append(instance_id)
             if report["sec"]["pass"]:

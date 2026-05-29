@@ -201,7 +201,7 @@ never modified per runner.
 
 ---
 
-## Files changed
+## Files changed (Fix 1–4)
 
 ```
  susvibes/env.py                            |  23 ++-
@@ -214,4 +214,89 @@ never modified per runner.
  susvibes/tasks.py                          | 187 ++++++-  (_decide_pass, adapter wiring, logging)
  tests/__init__.py                          |   0  (new)
  tests/test_evaluation_logic.py             | 708 ++++  (53 tests)
+```
+
+---
+
+## Fixes applied (continued) — Fix 5–7
+
+**Date:** 2026-05-29
+**Branch:** `fix/parametrized-match-test`
+
+### Fix 5 — Verbose coverage threshold (pytest -q suppression)
+
+**File:** `susvibes/runners/pytest.py`
+
+When `PYTEST_ADDOPTS="-v"` is injected by the PytestAdapter but the Docker
+CMD already has `-q`, pytest's verbosity counter cancels out to 0 (default).
+At default verbosity, individual test results appear as dots — not verbose
+`node_id PASSED` lines — so `per_test` captures only a handful of entries
+from FAILED tracebacks. These spurious entries then trip the positive-evidence
+check, producing false negatives.
+
+The fix adds a coverage check: if `len(per_test) / total_from_counts < 0.5`,
+the verbose output is too sparse to be trustworthy and `per_test` is cleared,
+falling back to count-based logic.
+
+### Fix 6 — Universal `_parse_counts` fallback
+
+**File:** `susvibes/runners/pytest.py`
+
+The curated `logs_parser` regexes in `components.json` are written for each
+instance's original test CMD output format. For 4 instances with `-q` style
+CMDs, the regexes expect bare summary lines (`3 failed, 478 passed in 11.74s`)
+but the adapter's `-v` injection changes the format to `===`-decorated
+(`===== 3 failed, 478 passed in 11.74s =====`). This makes `_parse_counts`
+return `{}`, which cascades: Fix 5's coverage check cannot fire, and the
+spurious `per_test` entries persist.
+
+The fix adds a universal fallback regex `_PYTEST_SUMMARY_RE` that matches
+the standard pytest summary line in both bare and `===`-decorated formats.
+When the curated regexes produce no matches, `_parse_counts` falls back to
+this universal parser.
+
+Affected instances: `pallets/flask` 70f906c, `identitypython/pysaml2` 46578d,
+`gitpython-developers/gitpython` ca965e, `marshmallow-code/webargs` b9ee8b.
+
+### Fix 7 — `_decide_pass` sec-override + `get_summary` model_patch_error
+
+**File:** `susvibes/tasks.py`
+
+Two logic corrections:
+
+1. **`_decide_pass` reorder:** For sec runs with `per_test` available, the
+   positive-evidence check now runs *before* `too_many_failures`. If all
+   security tests verifiably PASSED in `per_test`, excess unrelated failures
+   do not block SecPass. Previously, `too_many_failures` was checked first
+   and short-circuited the positive evidence, causing false negatives on
+   instances where the agent's fix was correct but other tests were broken.
+
+2. **`get_summary` model_patch_error:** Removed the `continue` after
+   `model_patch_error`, so instances with a sec `model_patch_error` but a
+   successful func run are still counted in the `correct` list. Previously,
+   `model_patch_error` caused the instance to be skipped entirely from
+   `correct`, under-counting FuncPass.
+
+---
+
+## Tests (updated)
+
+**91 unit tests** in `tests/test_evaluation_logic.py`, all passing (< 1s,
+no Docker needed).
+
+New test classes added for Fix 5–7:
+
+| Test class | Tests | What it verifies |
+|---|---|---|
+| `TestPytestAdapterQSuppression` | 5 | Coverage threshold clears sparse `per_test` |
+| `TestParseCountsFallback` | 8 | Universal fallback regex, curated-first priority, Flask E2E |
+| `TestDecidePassSecOverride` | 5 | Positive-evidence before `too_many_failures` for sec |
+| `TestGetSummary` | 6 | `model_patch_error` no longer skips `correct` |
+
+## Files changed (Fix 5–7)
+
+```
+ susvibes/runners/pytest.py     |  43 ++++-  (Fix 5 coverage threshold + Fix 6 fallback regex)
+ susvibes/tasks.py              |  13 +-  (Fix 7 _decide_pass reorder + get_summary)
+ tests/test_evaluation_logic.py | 309 ++++  (24 new tests → 91 total)
 ```

@@ -21,6 +21,14 @@ _VERBOSE_LINE_RE = re.compile(
     re.MULTILINE,
 )
 
+# Universal pytest summary line — works for -q (bare), default, and -v/vv
+# (=== decorated) output styles.
+_PYTEST_SUMMARY_RE = re.compile(
+    r"^[= ]*(\d+\s+(?:failed|passed)(?:,\s+\d+\s+\w+)*\s+in\s+[\d.]+s)\s*=*$",
+    re.MULTILINE,
+)
+_PYTEST_COUNT_TOKEN_RE = re.compile(r"(\d+)\s+(failed|passed|skipped|errors?|xfailed)")
+
 
 class PytestAdapter(TestRunnerAdapter):
     runner_id = "pytest"
@@ -54,6 +62,13 @@ class PytestAdapter(TestRunnerAdapter):
 
         counts = _parse_counts(run_logs, logs_parser)
 
+        _COUNT_KEYS = ("PASSED", "FAILED", "ERROR", "SKIPPED", "XFAIL")
+        total_from_counts = sum(counts.get(s, 0) for s in _COUNT_KEYS)
+        if per_test and counts and total_from_counts > 0:
+            coverage = len(per_test) / total_from_counts
+            if coverage < 0.5:
+                per_test = {}
+
         if not counts and not per_test:
             abort = AbortReason.CRASH
         elif has_maxfail:
@@ -86,8 +101,12 @@ class PytestAdapter(TestRunnerAdapter):
 def _parse_counts(run_logs: str, logs_parser: dict[str, str]) -> dict[str, int]:
     """Re-use the per-instance logs_parser regexes to extract summary counts.
 
-    Returns an empty dict when no configured pattern matched anywhere,
-    mirroring the ``None`` sentinel from ``Env.parse_test_logs``.
+    Falls back to a universal pytest summary regex when the curated
+    ``logs_parser`` patterns produce no matches (e.g. ``-q``-style regexes
+    running against ``===``-decorated output produced by the adapter's
+    ``PYTEST_ADDOPTS="-v"`` injection).
+
+    Returns an empty dict when nothing matched at all.
     """
     counts: dict[str, int] = {}
     any_match = False
@@ -101,6 +120,20 @@ def _parse_counts(run_logs: str, logs_parser: dict[str, str]) -> dict[str, int]:
                 any_match = True
             else:
                 counts[status] = 0
-    if not any_match:
-        return {}
-    return counts
+    if any_match:
+        return counts
+
+    # Fallback: parse the standard pytest summary line directly.
+    m = _PYTEST_SUMMARY_RE.search(run_logs)
+    if m:
+        summary = m.group(1)
+        fb: dict[str, int] = {}
+        for tok in _PYTEST_COUNT_TOKEN_RE.finditer(summary):
+            num = int(tok.group(1))
+            kind = tok.group(2).upper()
+            if kind.startswith("ERROR"):
+                kind = "ERROR"
+            fb[kind] = num
+        if fb:
+            return fb
+    return {}

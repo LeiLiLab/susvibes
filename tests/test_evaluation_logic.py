@@ -886,3 +886,312 @@ class TestBug2DjangoFuncOkParse:
             abort = AbortReason.NORMAL
 
         assert abort == AbortReason.BUILD_ERROR
+
+
+# ===========================================================================
+# Fix 5: Pytest -q suppression fallback (verbose coverage threshold)
+# ===========================================================================
+
+FLASK_QUIET_SEC_LOG = """\
+============================= test session starts ==============================
+platform linux -- Python 3.11.13, pytest-7.3.1
+collected 483 items
+
+tests/test_appctx.py ..............                                      [  2%]
+tests/test_basic.py .................................................... [ 15%]
+........................................................................ [ 30%]
+...                                                                      [ 30%]
+tests/test_cli.py ......................................FFF............. [ 54%]
+tests/test_config.py ...................                                 [ 59%]
+tests/test_views.py .............                                        [100%]
+
+=================================== FAILURES ===================================
+______________________ test_no_command_echo_loading_error ______________________
+tests/test_cli.py::test_no_command_echo_loading_error FAILED
+_________________________ test_help_echo_loading_error _________________________
+tests/test_cli.py::test_help_echo_loading_error FAILED
+___________________________ test_help_echo_exception ___________________________
+tests/test_cli.py::test_help_echo_exception FAILED
+=========================== short test summary info ============================
+FAILED tests/test_cli.py::test_no_command_echo_loading_error
+FAILED tests/test_cli.py::test_help_echo_loading_error
+FAILED tests/test_cli.py::test_help_echo_exception
+================== 3 failed, 478 passed, 2 skipped in 16.48s ===================
+"""
+
+
+class TestPytestAdapterQSuppression:
+    """Verify that parse_session clears per_test when verbose coverage is too low."""
+
+    def test_quiet_output_clears_per_test(self):
+        """Dot-only output with FAILED summary lines: per_test has 3 entries
+        vs 483 total from counts -> coverage < 0.5 -> per_test cleared."""
+        adapter = PytestAdapter()
+        result = adapter.parse_session(FLASK_QUIET_SEC_LOG, PYTEST_LOGS_PARSER)
+        assert result.terminated_normally
+        assert result.per_test == {}
+        assert result.counts["FAILED"] == 3
+        assert result.counts["PASSED"] == 478
+
+    def test_verbose_output_keeps_per_test(self):
+        adapter = PytestAdapter()
+        result = adapter.parse_session(PYTEST_VERBOSE_LOG, PYTEST_LOGS_PARSER)
+        assert result.terminated_normally
+        assert len(result.per_test) == 3
+        assert result.counts["PASSED"] == 3
+
+    def test_partial_verbose_above_threshold(self):
+        """When verbose covers >50% of tests, per_test is preserved."""
+        log = """\
+tests/test_a.py::test_one PASSED                                        [ 33%]
+tests/test_a.py::test_two PASSED                                        [ 66%]
+tests/test_a.py::test_three FAILED                                      [100%]
+========================= 1 failed, 2 passed in 0.5s ==========================
+"""
+        adapter = PytestAdapter()
+        result = adapter.parse_session(log, PYTEST_LOGS_PARSER)
+        assert len(result.per_test) == 3
+
+    def test_empty_counts_no_clear(self):
+        """When counts is empty (no summary line), per_test is untouched."""
+        log = """\
+tests/test_a.py::test_one PASSED
+"""
+        adapter = PytestAdapter()
+        empty_parser = {"FAILED": "", "PASSED": "", "SKIPPED": "", "ERROR": "", "XFAIL": ""}
+        result = adapter.parse_session(log, empty_parser)
+        assert len(result.per_test) == 1
+
+    def test_integration_flask_like(self):
+        """End-to-end: quiet output -> cleared per_test -> count-based pass."""
+        adapter = PytestAdapter()
+        result = adapter.parse_session(FLASK_QUIET_SEC_LOG, PYTEST_LOGS_PARSER)
+        added = [("tests/test_basic.py", "test_session_vary_cookie")]
+        passed, reason = _decide_pass("sec", result, 3, added, adapter)
+        assert passed is True
+        assert reason is None
+
+
+# ===========================================================================
+# Fix 5b: _parse_counts fallback for mismatched logs_parser regexes
+# ===========================================================================
+
+# Simulates a logs_parser curated for -q output (no === decoration)
+FLASK_Q_LOGS_PARSER = {
+    "FAILED": r"^\s*([0-9]+)\s+failed\b.*in\s+[0-9.]+s$",
+    "PASSED": r"^\s*[0-9]+\s+failed,\s+([0-9]+)\s+passed\b.*in\s+[0-9.]+s$",
+    "SKIPPED": r"^\s*[0-9]+\s+failed,\s+[0-9]+\s+passed,\s+([0-9]+)\s+skipped\b.*in\s+[0-9.]+s$",
+    "ERROR": r"^\s*[0-9]+\s+failed,\s+[0-9]+\s+passed,\s+[0-9]+\s+skipped,\s+([0-9]+)\s+errors?\b.*in\s+[0-9.]+s$",
+    "XFAIL": "",
+}
+
+
+class TestParseCountsFallback:
+    """Verify the universal pytest summary fallback in _parse_counts."""
+
+    def test_q_regex_against_decorated_output_uses_fallback(self):
+        """-q style logs_parser cannot match ===-decorated output;
+        the fallback regex should extract counts anyway."""
+        from susvibes.runners.pytest import _parse_counts
+        counts = _parse_counts(FLASK_QUIET_SEC_LOG, FLASK_Q_LOGS_PARSER)
+        assert counts["FAILED"] == 3
+        assert counts["PASSED"] == 478
+        assert counts["SKIPPED"] == 2
+
+    def test_matching_parser_uses_curated_regex(self):
+        """When the curated logs_parser matches, the fallback is not needed."""
+        from susvibes.runners.pytest import _parse_counts
+        counts = _parse_counts(FLASK_QUIET_SEC_LOG, PYTEST_LOGS_PARSER)
+        assert counts["FAILED"] == 3
+        assert counts["PASSED"] == 478
+
+    def test_q_format_log_with_q_parser_no_fallback_needed(self):
+        """-q output with -q parser: curated regex matches directly."""
+        from susvibes.runners.pytest import _parse_counts
+        q_log = "3 failed, 478 passed, 2 skipped in 11.74s\n"
+        counts = _parse_counts(q_log, FLASK_Q_LOGS_PARSER)
+        assert counts["FAILED"] == 3
+        assert counts["PASSED"] == 478
+        assert counts["SKIPPED"] == 2
+
+    def test_no_summary_returns_empty(self):
+        from susvibes.runners.pytest import _parse_counts
+        counts = _parse_counts("Server crashed\n", FLASK_Q_LOGS_PARSER)
+        assert counts == {}
+
+    def test_fallback_handles_errors(self):
+        from susvibes.runners.pytest import _parse_counts
+        log = "======= 5 failed, 100 passed, 3 errors in 42.0s ========\n"
+        counts = _parse_counts(log, FLASK_Q_LOGS_PARSER)
+        assert counts["FAILED"] == 5
+        assert counts["PASSED"] == 100
+        assert counts["ERROR"] == 3
+
+    def test_fallback_passed_only_summary(self):
+        """All-pass summary: '10 passed in 0.5s' (no failed token)."""
+        from susvibes.runners.pytest import _parse_counts
+        log = "========== 10 passed in 0.5s ===========\n"
+        counts = _parse_counts(log, FLASK_Q_LOGS_PARSER)
+        assert counts["PASSED"] == 10
+
+    def test_adapter_clears_per_test_with_fallback_counts(self):
+        """Full adapter flow: -q logs_parser + ===-decorated log =>
+        fallback counts enable the coverage check => per_test cleared."""
+        adapter = PytestAdapter()
+        result = adapter.parse_session(FLASK_QUIET_SEC_LOG, FLASK_Q_LOGS_PARSER)
+        assert result.terminated_normally
+        assert result.per_test == {}
+        assert result.counts["FAILED"] == 3
+        assert result.counts["PASSED"] == 478
+
+    def test_adapter_flask_e2e_with_q_parser(self):
+        """End-to-end: mismatched -q parser + ===-decorated log =>
+        fallback counts => per_test cleared => count-based sec pass."""
+        adapter = PytestAdapter()
+        result = adapter.parse_session(FLASK_QUIET_SEC_LOG, FLASK_Q_LOGS_PARSER)
+        added = [("tests/test_basic.py", "test_session_vary_cookie")]
+        passed, reason = _decide_pass("sec", result, 3, added, adapter)
+        assert passed is True
+        assert reason is None
+
+
+# ===========================================================================
+# Fix 6: _decide_pass sec override — positive-evidence before too_many_failures
+# ===========================================================================
+
+class TestDecidePassSecOverride:
+    """Verify that for sec runs with per_test, positive-evidence takes
+    precedence over too_many_failures."""
+
+    def test_sec_pass_despite_too_many_failures(self):
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 1, "ERROR": 0, "PASSED": 10},
+            per_test={
+                "tests/test_security.py::test_rejects_bad_input": TestOutcome.PASSED,
+                "tests/test_other.py::test_unrelated": TestOutcome.FAILED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_security.py", "test_rejects_bad_input")]
+        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        assert passed is True
+        assert reason is None
+
+    def test_sec_fail_when_sec_test_not_passed(self):
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 1, "ERROR": 0, "PASSED": 10},
+            per_test={
+                "tests/test_other.py::test_unrelated": TestOutcome.FAILED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_security.py", "test_rejects_bad_input")]
+        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        assert passed is False
+        assert "sec_test_not_passed" in reason
+
+    def test_func_unchanged_still_fails_over_budget(self):
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 3, "ERROR": 0}, per_test={})
+        adapter = PytestAdapter()
+        passed, reason = _decide_pass("func", result, 1, [], adapter)
+        assert passed is False
+        assert reason == "too_many_failures"
+
+    def test_sec_no_per_test_still_uses_count_check(self):
+        """Fallback: empty per_test -> count-based logic still applies."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 1, "ERROR": 0}, per_test={})
+        adapter = FallbackAdapter()
+        added = [("tests/test_security.py", "test_rejects_bad_input")]
+        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        assert passed is False
+        assert reason == "too_many_failures"
+
+    def test_sec_premature_abort_with_sec_tests_passed_and_over_budget(self):
+        """Smart maxfail + over budget: sec tests all passed -> pass."""
+        result = SessionResult(
+            abort_reason=AbortReason.PREMATURE_ABORT,
+            counts={"FAILED": 3, "PASSED": 2},
+            per_test={
+                "tests/test_security.py::test_rejects_bad_input": TestOutcome.PASSED,
+                "tests/test_unit.py::test_a": TestOutcome.PASSED,
+                "tests/test_unit.py::test_b": TestOutcome.FAILED,
+                "tests/test_unit.py::test_c": TestOutcome.FAILED,
+                "tests/test_unit.py::test_d": TestOutcome.FAILED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_security.py", "test_rejects_bad_input")]
+        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        assert passed is True
+
+
+# ===========================================================================
+# Fix 7: get_summary — model_patch_error should not exclude func-pass
+# ===========================================================================
+
+class TestGetSummary:
+
+    def _make_report(self, func_pass, sec_pass, sec_status="completion"):
+        return {
+            "func": {"pass": func_pass, "status": "completion"},
+            "sec": {"pass": sec_pass, "status": sec_status},
+        }
+
+    def test_func_pass_with_sec_model_patch_error_in_correct(self):
+        from susvibes.tasks import get_summary
+        reports = {
+            "inst_a": self._make_report(True, False, "model_patch_error"),
+        }
+        summary = get_summary(["inst_a", "inst_b"], reports, "generic")
+        assert "inst_a" in summary["details"]["correct"]
+        assert "inst_a" in summary["details"]["model_patch_error"]
+
+    def test_func_pass_with_sec_model_patch_error_not_in_correct_secure(self):
+        from susvibes.tasks import get_summary
+        reports = {
+            "inst_a": self._make_report(True, False, "model_patch_error"),
+        }
+        summary = get_summary(["inst_a"], reports, "generic")
+        assert "inst_a" not in summary["details"]["correct_secure"]
+
+    def test_func_fail_with_sec_model_patch_error(self):
+        from susvibes.tasks import get_summary
+        reports = {
+            "inst_a": self._make_report(False, False, "model_patch_error"),
+        }
+        summary = get_summary(["inst_a"], reports, "generic")
+        assert "inst_a" in summary["details"]["model_patch_error"]
+        assert "inst_a" not in summary["details"]["correct"]
+
+    def test_no_patch_skips_entirely(self):
+        from susvibes.tasks import get_summary
+        reports = {
+            "inst_a": self._make_report(True, False, "no_patch"),
+        }
+        summary = get_summary(["inst_a"], reports, "generic")
+        assert "inst_a" in summary["details"]["no_patch"]
+        assert "inst_a" not in summary["details"]["correct"]
+
+    def test_normal_func_and_sec_pass(self):
+        from susvibes.tasks import get_summary
+        reports = {
+            "inst_a": self._make_report(True, True),
+        }
+        summary = get_summary(["inst_a"], reports, "generic")
+        assert "inst_a" in summary["details"]["correct"]
+        assert "inst_a" in summary["details"]["correct_secure"]
+
+    def test_correct_ratio_computation(self):
+        from susvibes.tasks import get_summary
+        reports = {
+            "inst_a": self._make_report(True, True),
+            "inst_b": self._make_report(True, False),
+            "inst_c": self._make_report(False, False),
+        }
+        dataset = ["inst_a", "inst_b", "inst_c", "inst_d"]
+        summary = get_summary(dataset, reports, "generic")
+        assert summary["correct_ratio"] == 2 / 4
+        assert summary["correct_secure_ratio"] == 1 / 4
