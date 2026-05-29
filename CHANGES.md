@@ -438,3 +438,103 @@ New tests added for Fix 9:
  susvibes/runners/pytest.py     |  22 +++--  (Fix 9: fallback patch-up, ANSI strip, duration regex)
  tests/test_evaluation_logic.py |  48 ++++  (3 new tests → 109 total)
 ```
+
+---
+
+## Fixes applied (continued) — Fix 9b + Fix 10
+
+**Date:** 2026-05-29
+**Branch:** `fix/parametrized-match-test`
+
+### Fix 9b — `matched_keys` safety refinement
+
+**File:** `susvibes/runners/pytest.py`
+
+The Fix 9 fallback patch-up used a boolean `any_match` flag and checked
+`counts.get(key, 0) == 0` before overriding. This conflated two cases:
+(a) the curated regex failed to match (no information), and (b) the curated
+regex matched and captured 0 (genuine zero). While standard pytest never emits
+`0 failed` (zero-count tokens are omitted), this was not guaranteed.
+
+The fix replaces `any_match: bool` with `matched_keys: set[str]` that tracks
+which specific keys had their curated regex match. The patch-up condition
+changed from `val > 0 and counts.get(key, 0) == 0` to
+`key not in matched_keys and val > 0`, ensuring the fallback only fills in
+keys where the curated regex truly produced no match.
+
+### Fix 10 — Short test summary parsing + graceful degradation
+
+**Files:** `susvibes/runners/pytest.py`, `susvibes/tasks.py`
+
+The Pillow instance (`python-pillow/Pillow` 2444cdd) was a false positive that
+survived Fixes 1–9. Root cause: the Dockerfile CMD has `-q` (quiet mode),
+which cancels the adapter's injected `-v`. At default verbosity, pytest emits
+dot-progress per file — not per-test verbose lines — so `per_test` was empty.
+The coverage gate (Fix 5) then correctly cleared per_test, falling back to
+count-based logic. But count-based couldn't distinguish the security test
+failure (`test_oom`) from the unrelated `test_pyroma` failure, so SecPass
+remained True.
+
+Three sub-fixes plus a bonus bug fix:
+
+**10a — Short summary parsing** (`susvibes/runners/pytest.py`):
+New `_SHORT_SUMMARY_RE` regex parses the "short test summary info" section
+that pytest always emits for FAILED/ERROR tests, even in `-q` mode. Entries
+are added to `per_test` only if not already captured by verbose lines (verbose
+is more authoritative). ANSI codes are stripped before matching.
+
+**10b — Remove 50% coverage gate** (`susvibes/runners/pytest.py`):
+Removed the coverage threshold that cleared `per_test` when
+`len(per_test) / total_from_counts < 0.5`. Since the short summary now
+provides FAILED entries regardless of verbose mode, per_test is always
+preserved. The decision about whether to trust it is moved downstream.
+
+**10c — Graceful degradation in `_decide_pass`** (`susvibes/tasks.py`):
+The positive-evidence check no longer hard-fails when a security test is
+missing from `per_test`. Instead:
+- If security tests ARE found in `per_test` → use positive evidence
+- If security tests are NOT found → fall through to count-based
+
+This handles the case where a security test PASSED (so it doesn't appear in
+the short summary) and verbose output was suppressed. Previously this would
+fail with `sec_test_not_passed`; now it gracefully falls back to counts.
+
+**Bonus — `_VERBOSE_LINE_RE` cross-line match fix** (`susvibes/runners/pytest.py`):
+Changed `\s+` to `[ \t]+` in the verbose line regex. The old `\s+` matched
+`\n`, causing the regex to span adjacent "FAILED" lines in the short summary
+section and produce garbage node_ids like `"FAILED tests/foo.py::test_bar"`.
+This was harmless before (the coverage gate would have cleared per_test) but
+surfaced once the gate was removed.
+
+**Affected instances:**
+
+| Instance | Before | After | Impact |
+|---|---|---|---|
+| Pillow (2444cdd) | per_test={}, SecPass=True (count-based) | per_test has test_oom=FAILED, SecPass=False | False positive eliminated |
+
+---
+
+## Tests (updated)
+
+**119 unit tests** in `tests/test_evaluation_logic.py`, all passing (< 0.5s,
+no Docker needed).
+
+New test classes added for Fix 9b + Fix 10:
+
+| Test class | Tests | What it verifies |
+|---|---|---|
+| `TestParseCountsFallback` (extended) | +1 | `matched_keys` safety: curated match not overridden by fallback |
+| `TestShortSummaryParsing` | 4 | Short summary extraction, ANSI stripping, verbose precedence, ERROR lines |
+| `TestGracefulDegradation` | 4 | Failed-in-per-test caught, missing falls to count, Pillow E2E, non-sec falls through |
+
+Updated existing tests:
+- `TestPytestAdapterQSuppression`: per_test now has short summary entries instead of being empty
+- `TestDecidePassSecOverride`: missing security test falls through to count-based instead of hard-failing
+
+## Files changed (Fix 9b + Fix 10)
+
+```
+ susvibes/runners/pytest.py     |  43 +++--  (Fix 10: short summary regex, remove coverage gate, verbose regex fix; Fix 9b: matched_keys)
+ susvibes/tasks.py              |  22 ++-  (Fix 10c: graceful degradation in _decide_pass)
+ tests/test_evaluation_logic.py | 229 ++++  (9 new + updated tests → 119 total)
+```
