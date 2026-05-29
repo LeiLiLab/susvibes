@@ -1054,6 +1054,67 @@ class TestParseCountsFallback:
         assert passed is True
         assert reason is None
 
+    def test_partial_curated_match_patched_by_fallback(self):
+        """When PASSED regex matches but FAILED regex doesn't (e.g. pysaml2's
+        '^\\s*(\\d+)\\s+failed\\b' vs ===-decorated summary), the fallback
+        should patch the missing FAILED count."""
+        from susvibes.runners.pytest import _parse_counts
+        pysaml2_parser = {
+            "FAILED": r"^\s*(\d+)\s+failed\b",
+            "PASSED": r"^.*?(\d+)\s+passed\b",
+            "SKIPPED": r"^.*?(\d+)\s+skipped\b",
+            "ERROR": r"^\s*(\d+)\s+errors?\b",
+            "XFAIL": "",
+        }
+        log = "====== 6 failed, 698 passed, 2 skipped, 187 warnings in 366.41s ======\n"
+        counts = _parse_counts(log, pysaml2_parser)
+        assert counts["FAILED"] == 6
+        assert counts["PASSED"] == 698
+        assert counts["SKIPPED"] == 2
+
+    def test_partial_match_no_false_inflation(self):
+        """When curated regex correctly finds FAILED=0, the fallback should
+        not override it (the fallback should only patch zero values when
+        the fallback found a positive value)."""
+        from susvibes.runners.pytest import _parse_counts
+        log = "========================= 10 passed in 0.5s ==========================\n"
+        counts = _parse_counts(log, PYTEST_LOGS_PARSER)
+        assert counts["PASSED"] == 10
+        assert counts.get("FAILED", 0) == 0
+
+    def test_ansi_colored_summary_with_partial_curated_match(self):
+        """Pillow-style: ANSI-colored summary where PASSED curated regex
+        matches but FAILED doesn't. Fallback must strip ANSI first."""
+        from susvibes.runners.pytest import _parse_counts
+        pillow_parser = {
+            "FAILED": r"^(?:\x1b\[[0-9;]*m)*\s*(\d+)\s+failed\b",
+            "PASSED": r"^.*?(?:\x1b\[[0-9;]*m)*(\d+)\s+passed\b",
+            "SKIPPED": r"^.*?(?:\x1b\[[0-9;]*m)*(\d+)\s+skipped\b",
+            "ERROR": r"^(?:\x1b\[[0-9;]*m)*\s*(\d+)\s+errors?\b",
+            "XFAIL": r"^.*?(?:\x1b\[[0-9;]*m)*(\d+)\s+xfailed\b",
+        }
+        log = (
+            "\x1b[31m= \x1b[31m\x1b[1m2 failed\x1b[0m, "
+            "\x1b[32m3605 passed\x1b[0m, "
+            "\x1b[33m331 skipped\x1b[0m, "
+            "\x1b[33m3 xfailed\x1b[0m, "
+            "\x1b[33m4 warnings\x1b[0m"
+            "\x1b[31m in 474.46s (0:07:54)\x1b[0m\x1b[31m =\n"
+        )
+        counts = _parse_counts(log, pillow_parser)
+        assert counts["FAILED"] == 2
+        assert counts["PASSED"] == 3605
+        assert counts["SKIPPED"] == 331
+        assert counts["XFAIL"] == 3
+
+    def test_duration_with_hours_minutes(self):
+        """Summary lines with (H:MM:SS) after the seconds value."""
+        from susvibes.runners.pytest import _parse_counts
+        log = "====== 6 failed, 698 passed, 2 skipped in 366.41s (0:06:06) ======\n"
+        counts = _parse_counts(log, PYTEST_LOGS_PARSER)
+        assert counts["FAILED"] == 6
+        assert counts["PASSED"] == 698
+
 
 # ===========================================================================
 # Fix 6: _decide_pass sec override — positive-evidence before too_many_failures

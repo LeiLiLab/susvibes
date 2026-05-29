@@ -15,6 +15,8 @@ from susvibes.runners.base import (
     TestRunnerAdapter,
 )
 
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
 _VERBOSE_LINE_RE = re.compile(
     r"^(.*?::.*?)\s+(?:\x1b\[[0-9;]*m)*(PASSED|FAILED|ERROR|SKIPPED|XFAIL)"
     r"(?:\x1b\[[0-9;]*m)*\s*(?:\[\s*\d+%\])?",
@@ -22,9 +24,9 @@ _VERBOSE_LINE_RE = re.compile(
 )
 
 # Universal pytest summary line — works for -q (bare), default, and -v/vv
-# (=== decorated) output styles.
+# (=== decorated) output styles.  Applied to ANSI-stripped text.
 _PYTEST_SUMMARY_RE = re.compile(
-    r"^[= ]*(\d+\s+(?:failed|passed)(?:,\s+\d+\s+\w+)*\s+in\s+[\d.]+s)\s*=*$",
+    r"^[= ]*(\d+\s+(?:failed|passed)(?:,\s+\d+\s+\w+)*\s+in\s+[\d.]+s(?:\s*\([^)]*\))?)\s*=*$",
     re.MULTILINE,
 )
 _PYTEST_COUNT_TOKEN_RE = re.compile(r"(\d+)\s+(failed|passed|skipped|errors?|xfailed)")
@@ -120,20 +122,28 @@ def _parse_counts(run_logs: str, logs_parser: dict[str, str]) -> dict[str, int]:
                 any_match = True
             else:
                 counts[status] = 0
-    if any_match:
-        return counts
 
     # Fallback: parse the standard pytest summary line directly.
-    m = _PYTEST_SUMMARY_RE.search(run_logs)
+    # Strip ANSI codes first — some instances emit colored summary lines.
+    fb: dict[str, int] = {}
+    clean_logs = _ANSI_RE.sub("", run_logs)
+    m = _PYTEST_SUMMARY_RE.search(clean_logs)
     if m:
         summary = m.group(1)
-        fb: dict[str, int] = {}
         for tok in _PYTEST_COUNT_TOKEN_RE.finditer(summary):
             num = int(tok.group(1))
             kind = tok.group(2).upper()
             if kind.startswith("ERROR"):
                 kind = "ERROR"
             fb[kind] = num
-        if fb:
-            return fb
-    return {}
+
+    if not any_match:
+        return fb or {}
+
+    # Patch up zero-valued curated keys with fallback values when the
+    # fallback found a non-zero count — handles mismatched regexes that
+    # only partially match the summary line format.
+    for key, val in fb.items():
+        if val > 0 and counts.get(key, 0) == 0:
+            counts[key] = val
+    return counts

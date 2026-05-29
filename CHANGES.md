@@ -377,3 +377,64 @@ New test classes added for Fix 8:
  susvibes/tasks.py              |  55 ++++-  (Fix 8: _count_sec_variant_failures, sec_budget, call site)
  tests/test_evaluation_logic.py | 222 ++++  (14 new tests → 105 total)
 ```
+
+---
+
+## Fixes applied (continued) — Fix 9
+
+**Date:** 2026-05-29
+**Branch:** `fix/parametrized-match-test`
+
+### Fix 9 — `_parse_counts` partial-match fallback patch-up
+
+**File:** `susvibes/runners/pytest.py`
+
+The `_parse_counts` fallback regex was only invoked when **all** curated
+`logs_parser` regexes failed. If even one matched (e.g. PASSED), the
+function returned results with unmatched keys set to 0 — silently dropping
+real failures. Three sub-issues:
+
+1. **Partial curated match**: PASSED regex matched (`^.*?` consumes `======`
+   prefix) but FAILED regex didn't (`^\s*(\d+)` requires digit at line start).
+   Result: `FAILED: 0` despite 6 actual failures (pysaml2).
+
+2. **ANSI codes in summary**: Some instances emit colored summary lines.
+   The fallback regex couldn't match through ANSI escape sequences (Pillow).
+
+3. **`(H:MM:SS)` duration suffix**: Pytest appends human-readable durations
+   for long runs (e.g. `366.41s (0:06:06)`) which the fallback regex
+   didn't handle.
+
+**Fix**: Always run the fallback and patch up zero-valued curated keys with
+non-zero fallback values. Strip ANSI codes before fallback matching. Allow
+optional `(H:MM:SS)` after the seconds value.
+
+**Affected instances:**
+
+| Instance | Before | After | Impact |
+|---|---|---|---|
+| pysaml2 (46578df) | FAILED:0, SecPass=True | FAILED:6, SecPass=False | False positive eliminated |
+| Pillow (2444cdd) | FAILED:0, SecPass=True | FAILED:2, SecPass=True* | Counts corrected, but count-based still passes (2≤3 budget) |
+| vyper (851f7a1) | FAILED:2, SecPass=True | unchanged | Curated regex already matched |
+
+*Pillow remains a known limitation of count-based fallback (see below).
+
+---
+
+## Tests (updated)
+
+**109 unit tests** in `tests/test_evaluation_logic.py`, all passing (< 0.8s,
+no Docker needed).
+
+New tests added for Fix 9:
+
+| Test class | Tests | What it verifies |
+|---|---|---|
+| `TestParseCountsFallback` (extended) | +3 | Partial curated match patch-up, ANSI-colored summary, `(H:MM:SS)` duration |
+
+## Files changed (Fix 9)
+
+```
+ susvibes/runners/pytest.py     |  22 +++--  (Fix 9: fallback patch-up, ANSI strip, duration regex)
+ tests/test_evaluation_logic.py |  48 ++++  (3 new tests → 109 total)
+```
