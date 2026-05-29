@@ -30,7 +30,7 @@ from susvibes.runners.base import (
 )
 from susvibes.runners.django import DjangoTestAdapter
 from susvibes.runners.pytest import PytestAdapter
-from susvibes.tasks import _decide_pass
+from susvibes.tasks import _count_sec_variant_failures, _decide_pass
 
 logger = logging.getLogger(__name__)
 
@@ -1195,3 +1195,226 @@ class TestGetSummary:
         summary = get_summary(dataset, reports, "generic")
         assert summary["correct_ratio"] == 2 / 4
         assert summary["correct_secure_ratio"] == 1 / 4
+
+
+# ===========================================================================
+# Fix 8: Parametrized security-test matching (all variants must pass)
+# ===========================================================================
+
+class TestCountSecVariantFailures:
+
+    def test_all_variants_passed(self):
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            per_test={
+                "tests/test_http.py::test_host_validate[trio]": TestOutcome.PASSED,
+                "tests/test_http.py::test_host_validate[asyncio]": TestOutcome.PASSED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_http.py", "test_host_validate")]
+        failures, missing = _count_sec_variant_failures(result, added, adapter)
+        assert failures == 0
+        assert missing is None
+
+    def test_one_variant_failed(self):
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            per_test={
+                "tests/test_http.py::test_host_validate[trio]": TestOutcome.FAILED,
+                "tests/test_http.py::test_host_validate[asyncio]": TestOutcome.PASSED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_http.py", "test_host_validate")]
+        failures, missing = _count_sec_variant_failures(result, added, adapter)
+        assert failures == 1
+        assert missing is None
+
+    def test_all_variants_failed(self):
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            per_test={
+                "tests/test_http.py::test_host_validate[trio]": TestOutcome.FAILED,
+                "tests/test_http.py::test_host_validate[asyncio]": TestOutcome.FAILED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_http.py", "test_host_validate")]
+        failures, missing = _count_sec_variant_failures(result, added, adapter)
+        assert failures == 2
+        assert missing is None
+
+    def test_test_not_run(self):
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            per_test={
+                "tests/test_other.py::test_unrelated": TestOutcome.PASSED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_http.py", "test_host_validate")]
+        failures, missing = _count_sec_variant_failures(result, added, adapter)
+        assert missing == "tests/test_http.py::test_host_validate"
+
+    def test_multiple_added_tests(self):
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            per_test={
+                "tests/test_http.py::test_host_validate[trio]": TestOutcome.PASSED,
+                "tests/test_http.py::test_host_validate[asyncio]": TestOutcome.FAILED,
+                "tests/test_http.py::test_path_validate[trio]": TestOutcome.PASSED,
+                "tests/test_http.py::test_path_validate[asyncio]": TestOutcome.PASSED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_http.py", "test_host_validate"),
+                 ("tests/test_http.py", "test_path_validate")]
+        failures, missing = _count_sec_variant_failures(result, added, adapter)
+        assert failures == 1
+        assert missing is None
+
+
+class TestDecidePassParametrized:
+    """Verify that _decide_pass requires ALL variants of parametrized
+    security tests to pass, using sec_budget for tolerance."""
+
+    def test_all_parametrized_variants_pass(self):
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 0, "PASSED": 2},
+            per_test={
+                "tests/test_http.py::test_host_validate[trio]": TestOutcome.PASSED,
+                "tests/test_http.py::test_host_validate[asyncio]": TestOutcome.PASSED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_http.py", "test_host_validate")]
+        passed, reason = _decide_pass("sec", result, 0, added, adapter, sec_budget=0)
+        assert passed is True
+
+    def test_one_variant_fails_no_budget(self):
+        """One variant FAILED with sec_budget=0 -> reject."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 1, "PASSED": 1},
+            per_test={
+                "tests/test_http.py::test_host_validate[trio]": TestOutcome.FAILED,
+                "tests/test_http.py::test_host_validate[asyncio]": TestOutcome.PASSED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_http.py", "test_host_validate")]
+        passed, reason = _decide_pass("sec", result, 0, added, adapter, sec_budget=0)
+        assert passed is False
+        assert "sec_test_variant_failures" in reason
+
+    def test_one_variant_fails_within_budget(self):
+        """One variant FAILED with sec_budget=1 -> accept (starlette case)."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 1, "PASSED": 1},
+            per_test={
+                "tests/test_http.py::test_host_validate[trio]": TestOutcome.FAILED,
+                "tests/test_http.py::test_host_validate[asyncio]": TestOutcome.PASSED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_http.py", "test_host_validate")]
+        passed, reason = _decide_pass("sec", result, 0, added, adapter, sec_budget=1)
+        assert passed is True
+
+    def test_two_variants_fail_exceeds_budget(self):
+        """Two variants FAILED with sec_budget=1 -> reject."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 2, "PASSED": 1},
+            per_test={
+                "tests/test_http.py::test_host_validate[trio]": TestOutcome.FAILED,
+                "tests/test_http.py::test_host_validate[asyncio]": TestOutcome.FAILED,
+                "tests/test_http.py::test_host_validate[curio]": TestOutcome.PASSED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_http.py", "test_host_validate")]
+        passed, reason = _decide_pass("sec", result, 0, added, adapter, sec_budget=1)
+        assert passed is False
+        assert "sec_test_variant_failures" in reason
+
+    def test_non_parametrized_still_works(self):
+        """Non-parametrized test: single match, passes normally."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 0, "PASSED": 1},
+            per_test={
+                "tests/test_security.py::test_rejects_bad_input": TestOutcome.PASSED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_security.py", "test_rejects_bad_input")]
+        passed, reason = _decide_pass("sec", result, 0, added, adapter, sec_budget=0)
+        assert passed is True
+
+    def test_premature_abort_all_variants_passed(self):
+        """Smart maxfail: all parametrized sec variants passed before cutoff."""
+        result = SessionResult(
+            abort_reason=AbortReason.PREMATURE_ABORT,
+            counts={"FAILED": 3, "PASSED": 3},
+            per_test={
+                "tests/test_http.py::test_host_validate[trio]": TestOutcome.PASSED,
+                "tests/test_http.py::test_host_validate[asyncio]": TestOutcome.PASSED,
+                "tests/test_unit.py::test_a": TestOutcome.PASSED,
+                "tests/test_unit.py::test_b": TestOutcome.FAILED,
+                "tests/test_unit.py::test_c": TestOutcome.FAILED,
+                "tests/test_unit.py::test_d": TestOutcome.FAILED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_http.py", "test_host_validate")]
+        passed, reason = _decide_pass("sec", result, 3, added, adapter, sec_budget=0)
+        assert passed is True
+
+    def test_premature_abort_one_variant_failed_no_budget(self):
+        """Smart maxfail: one variant FAILED, sec_budget=0 -> reject."""
+        result = SessionResult(
+            abort_reason=AbortReason.PREMATURE_ABORT,
+            counts={"FAILED": 4, "PASSED": 2},
+            per_test={
+                "tests/test_http.py::test_host_validate[trio]": TestOutcome.FAILED,
+                "tests/test_http.py::test_host_validate[asyncio]": TestOutcome.PASSED,
+                "tests/test_unit.py::test_a": TestOutcome.PASSED,
+                "tests/test_unit.py::test_b": TestOutcome.FAILED,
+                "tests/test_unit.py::test_c": TestOutcome.FAILED,
+                "tests/test_unit.py::test_d": TestOutcome.FAILED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_http.py", "test_host_validate")]
+        passed, reason = _decide_pass("sec", result, 3, added, adapter, sec_budget=0)
+        assert passed is False
+        assert "session_aborted" in reason
+
+    def test_premature_abort_one_variant_failed_within_budget(self):
+        """Smart maxfail: one variant FAILED, sec_budget=1 -> accept."""
+        result = SessionResult(
+            abort_reason=AbortReason.PREMATURE_ABORT,
+            counts={"FAILED": 4, "PASSED": 2},
+            per_test={
+                "tests/test_http.py::test_host_validate[trio]": TestOutcome.FAILED,
+                "tests/test_http.py::test_host_validate[asyncio]": TestOutcome.PASSED,
+                "tests/test_unit.py::test_a": TestOutcome.PASSED,
+                "tests/test_unit.py::test_b": TestOutcome.FAILED,
+                "tests/test_unit.py::test_c": TestOutcome.FAILED,
+                "tests/test_unit.py::test_d": TestOutcome.FAILED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_http.py", "test_host_validate")]
+        passed, reason = _decide_pass("sec", result, 3, added, adapter, sec_budget=1)
+        assert passed is True
+
+    def test_old_any_behavior_now_fails(self):
+        """Regression: the old any() logic would have accepted this
+        (one variant passed), but the new all() logic correctly rejects it."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 5, "PASSED": 1},
+            per_test={
+                "tests/test_websocket.py::test_send_recv[trio]": TestOutcome.FAILED,
+                "tests/test_websocket.py::test_send_recv[asyncio]": TestOutcome.PASSED,
+                "tests/test_websocket.py::test_send_recv[curio]": TestOutcome.FAILED,
+                "tests/test_websocket.py::test_send_recv[uvloop]": TestOutcome.FAILED,
+                "tests/test_websocket.py::test_send_recv[gevent]": TestOutcome.FAILED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_websocket.py", "test_send_recv")]
+        passed, reason = _decide_pass("sec", result, 0, added, adapter, sec_budget=0)
+        assert passed is False
+        assert "sec_test_variant_failures:4>0" in reason

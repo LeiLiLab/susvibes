@@ -29,17 +29,46 @@ LOG_REPORT = "report.json"
 EVALUATION_RUNS = ["func", "sec"]
 
 
+def _count_sec_variant_failures(
+    result: SessionResult,
+    added_tests: list[tuple[str, str]],
+    adapter: TestRunnerAdapter,
+) -> tuple[int, str | None]:
+    """Check that every variant of every security test passed.
+
+    Returns ``(failed_variant_count, first_missing_test)`` where
+    *first_missing_test* is set when a security test has zero matching
+    entries in ``per_test`` (i.e. it never ran).
+    """
+    failures = 0
+    for file_path, test_name in added_tests:
+        matching = [tid for tid in result.per_test
+                    if adapter.match_test(tid, file_path, test_name)]
+        if not matching:
+            return failures, f"{file_path}::{test_name}"
+        failures += sum(
+            1 for tid in matching
+            if result.per_test[tid] is not TestOutcome.PASSED
+        )
+    return failures, None
+
+
 def _decide_pass(
     run_name: str,
     result: SessionResult,
     expected_failures: int,
     added_tests: list[tuple[str, str]],
     adapter: TestRunnerAdapter,
+    sec_budget: int = 0,
 ) -> tuple[bool, str | None]:
     """Language-agnostic pass rule consuming a SessionResult.
 
     Returns ``(passed, reason)`` where *reason* is ``None`` on success
     or a short tag explaining the failure.
+
+    *sec_budget* is the raw ``expected_failures['sec']`` value, used to
+    tolerate a known number of infrastructure-related security-test
+    variant failures (e.g. broken trio backend).
     """
     if not result.terminated_normally:
         # Smart maxfail: allow sec runs where all security tests verifiably
@@ -49,32 +78,26 @@ def _decide_pass(
             and added_tests
             and result.abort_reason is AbortReason.PREMATURE_ABORT
         ):
-            all_passed = all(
-                any(
-                    adapter.match_test(tid, fp, tn)
-                    and result.per_test.get(tid) is TestOutcome.PASSED
-                    for tid in result.per_test
-                )
-                for fp, tn in added_tests
-            )
-            if not all_passed:
+            variant_failures, missing = _count_sec_variant_failures(
+                result, added_tests, adapter)
+            if missing:
                 return False, f"session_aborted:{result.abort_reason.value}"
-            # all security tests passed — continue to count checks below
+            if variant_failures > sec_budget:
+                return False, f"session_aborted:{result.abort_reason.value}"
         else:
             return False, f"session_aborted:{result.abort_reason.value}"
 
     # Positive-evidence check FIRST for sec (when per_test available).
-    # If all security tests verifiably passed, excess unrelated failures
-    # do not block SecPass.
+    # All variants of each security test must pass; failed variants are
+    # tolerated up to sec_budget (for infrastructure noise like broken
+    # async backends).
     if run_name == "sec" and added_tests and result.per_test:
-        for file_path, test_name in added_tests:
-            found_passed = any(
-                adapter.match_test(tid, file_path, test_name)
-                and result.per_test[tid] is TestOutcome.PASSED
-                for tid in result.per_test
-            )
-            if not found_passed:
-                return False, f"sec_test_not_passed:{file_path}::{test_name}"
+        variant_failures, missing = _count_sec_variant_failures(
+            result, added_tests, adapter)
+        if missing:
+            return False, f"sec_test_not_passed:{missing}"
+        if variant_failures > sec_budget:
+            return False, f"sec_test_variant_failures:{variant_failures}>{sec_budget}"
         return True, None
 
     # Count-based check (func, or sec without per_test)
@@ -275,18 +298,23 @@ class Task:
             if is_sec and added_tests:
                 sec_matches = []
                 for fp, tn in added_tests:
-                    matched = next(
-                        (result.per_test[tid].value
-                         for tid in result.per_test
-                         if adapter.match_test(tid, fp, tn)),
-                        None,
-                    )
-                    sec_matches.append(f"{tn}={'NOT_RUN' if matched is None else matched}")
+                    variants = [
+                        (tid, result.per_test[tid].value)
+                        for tid in result.per_test
+                        if adapter.match_test(tid, fp, tn)
+                    ]
+                    if variants:
+                        for tid, outcome in variants:
+                            sec_matches.append(f"{tid}={outcome}")
+                    else:
+                        sec_matches.append(f"{tn}=NOT_RUN")
                 logger.info("Sec tests: %s", ", ".join(sec_matches))
 
+            sec_budget = self.expected_failures.get("sec", 0)
             passed, reason = _decide_pass(
                 run_name, result, expected_failures,
                 added_tests if is_sec else [], adapter,
+                sec_budget=sec_budget,
             )
             report[run_name]["pass"] = passed
             report[run_name]["status"] = (
