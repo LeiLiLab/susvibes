@@ -18,8 +18,16 @@ from susvibes.runners.base import (
 _ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
 
 _VERBOSE_LINE_RE = re.compile(
-    r"^(.*?::.*?)\s+(?:\x1b\[[0-9;]*m)*(PASSED|FAILED|ERROR|SKIPPED|XFAIL)"
+    r"^(.*?::.*?)[ \t]+(?:\x1b\[[0-9;]*m)*(PASSED|FAILED|ERROR|SKIPPED|XFAIL)"
     r"(?:\x1b\[[0-9;]*m)*\s*(?:\[\s*\d+%\])?",
+    re.MULTILINE,
+)
+
+# "short test summary info" lines emitted by pytest for every non-passing
+# test, even in -q mode.  Format (after ANSI stripping):
+#   FAILED path/to/test.py::TestClass::test_name[param] - reason
+_SHORT_SUMMARY_RE = re.compile(
+    r"^(FAILED|ERROR)\s+(.*?::\S+)",
     re.MULTILINE,
 )
 
@@ -62,14 +70,18 @@ class PytestAdapter(TestRunnerAdapter):
             status = m.group(2)
             per_test[node_id] = TestOutcome(status)
 
-        counts = _parse_counts(run_logs, logs_parser)
+        # Supplement with the "short test summary info" section that pytest
+        # always emits for FAILED/ERROR tests, even in -q / default mode.
+        # Only add entries not already captured by verbose lines (verbose
+        # is more authoritative since it covers all outcomes).
+        clean_logs = _ANSI_RE.sub("", run_logs)
+        for m in _SHORT_SUMMARY_RE.finditer(clean_logs):
+            status = m.group(1)   # FAILED or ERROR
+            node_id = m.group(2).strip()
+            if node_id not in per_test:
+                per_test[node_id] = TestOutcome(status)
 
-        _COUNT_KEYS = ("PASSED", "FAILED", "ERROR", "SKIPPED", "XFAIL")
-        total_from_counts = sum(counts.get(s, 0) for s in _COUNT_KEYS)
-        if per_test and counts and total_from_counts > 0:
-            coverage = len(per_test) / total_from_counts
-            if coverage < 0.5:
-                per_test = {}
+        counts = _parse_counts(run_logs, logs_parser)
 
         if not counts and not per_test:
             abort = AbortReason.CRASH
@@ -111,7 +123,7 @@ def _parse_counts(run_logs: str, logs_parser: dict[str, str]) -> dict[str, int]:
     Returns an empty dict when nothing matched at all.
     """
     counts: dict[str, int] = {}
-    any_match = False
+    matched_keys: set[str] = set()
     for status, pattern in logs_parser.items():
         if pattern:
             m = None
@@ -119,7 +131,7 @@ def _parse_counts(run_logs: str, logs_parser: dict[str, str]) -> dict[str, int]:
                 pass
             if m:
                 counts[status] = int(m.group(1))
-                any_match = True
+                matched_keys.add(status)
             else:
                 counts[status] = 0
 
@@ -137,13 +149,14 @@ def _parse_counts(run_logs: str, logs_parser: dict[str, str]) -> dict[str, int]:
                 kind = "ERROR"
             fb[kind] = num
 
-    if not any_match:
+    if not matched_keys:
         return fb or {}
 
-    # Patch up zero-valued curated keys with fallback values when the
-    # fallback found a non-zero count — handles mismatched regexes that
-    # only partially match the summary line format.
+    # Patch up keys where the curated regex found no match (as opposed
+    # to matching and capturing 0) but the fallback found a positive
+    # value.  This handles partially-broken curated regexes that match
+    # some tokens (e.g. PASSED) but not others (e.g. FAILED).
     for key, val in fb.items():
-        if val > 0 and counts.get(key, 0) == 0:
+        if key not in matched_keys and val > 0:
             counts[key] = val
     return counts

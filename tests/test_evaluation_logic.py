@@ -633,7 +633,8 @@ class TestDecidePass:
         assert reason is None
 
     def test_sec_added_test_missing_from_per_test(self):
-        """Count-based would pass (0 failures), but positive evidence fails."""
+        """One security test in per_test (PASSED), the other missing.
+        Falls through to count-based: 0 failures -> passes."""
         result = SessionResult(
             abort_reason=AbortReason.NORMAL,
             counts={"FAILED": 0, "ERROR": 0},
@@ -644,8 +645,7 @@ class TestDecidePass:
         added = [("tests/test_security.py", "test_rejects_bad_input"),
                  ("tests/test_security.py", "test_allows_good_input")]
         passed, reason = _decide_pass("sec", result, 0, added, adapter)
-        assert passed is False
-        assert "sec_test_not_passed" in reason
+        assert passed is True
 
     def test_sec_premature_abort_but_sec_tests_passed(self):
         """Smart maxfail: security tests all passed before the cutoff."""
@@ -921,15 +921,19 @@ FAILED tests/test_cli.py::test_help_echo_exception
 
 
 class TestPytestAdapterQSuppression:
-    """Verify that parse_session clears per_test when verbose coverage is too low."""
+    """Verify that parse_session extracts per_test from the short test
+    summary section even when verbose output is not available."""
 
-    def test_quiet_output_clears_per_test(self):
-        """Dot-only output with FAILED summary lines: per_test has 3 entries
-        vs 483 total from counts -> coverage < 0.5 -> per_test cleared."""
+    def test_quiet_output_extracts_short_summary(self):
+        """Dot-only output with FAILED in the short summary: per_test
+        contains the 3 FAILED entries from the summary section."""
         adapter = PytestAdapter()
         result = adapter.parse_session(FLASK_QUIET_SEC_LOG, PYTEST_LOGS_PARSER)
         assert result.terminated_normally
-        assert result.per_test == {}
+        assert len(result.per_test) == 3
+        assert result.per_test["tests/test_cli.py::test_no_command_echo_loading_error"] is TestOutcome.FAILED
+        assert result.per_test["tests/test_cli.py::test_help_echo_loading_error"] is TestOutcome.FAILED
+        assert result.per_test["tests/test_cli.py::test_help_echo_exception"] is TestOutcome.FAILED
         assert result.counts["FAILED"] == 3
         assert result.counts["PASSED"] == 478
 
@@ -963,7 +967,9 @@ tests/test_a.py::test_one PASSED
         assert len(result.per_test) == 1
 
     def test_integration_flask_like(self):
-        """End-to-end: quiet output -> cleared per_test -> count-based pass."""
+        """End-to-end: quiet output with FAILED in short summary ->
+        per_test has FAILED entries -> sec test not in per_test ->
+        falls through to count-based pass."""
         adapter = PytestAdapter()
         result = adapter.parse_session(FLASK_QUIET_SEC_LOG, PYTEST_LOGS_PARSER)
         added = [("tests/test_basic.py", "test_session_vary_cookie")]
@@ -1034,13 +1040,15 @@ class TestParseCountsFallback:
         counts = _parse_counts(log, FLASK_Q_LOGS_PARSER)
         assert counts["PASSED"] == 10
 
-    def test_adapter_clears_per_test_with_fallback_counts(self):
+    def test_adapter_extracts_short_summary_with_fallback_counts(self):
         """Full adapter flow: -q logs_parser + ===-decorated log =>
-        fallback counts enable the coverage check => per_test cleared."""
+        fallback counts work, and per_test has FAILED entries from the
+        short test summary info section."""
         adapter = PytestAdapter()
         result = adapter.parse_session(FLASK_QUIET_SEC_LOG, FLASK_Q_LOGS_PARSER)
         assert result.terminated_normally
-        assert result.per_test == {}
+        assert len(result.per_test) == 3
+        assert result.per_test["tests/test_cli.py::test_no_command_echo_loading_error"] is TestOutcome.FAILED
         assert result.counts["FAILED"] == 3
         assert result.counts["PASSED"] == 478
 
@@ -1073,14 +1081,38 @@ class TestParseCountsFallback:
         assert counts["SKIPPED"] == 2
 
     def test_partial_match_no_false_inflation(self):
-        """When curated regex correctly finds FAILED=0, the fallback should
-        not override it (the fallback should only patch zero values when
-        the fallback found a positive value)."""
+        """When the log has no 'failed' token, neither curated nor fallback
+        should invent a FAILED count."""
         from susvibes.runners.pytest import _parse_counts
         log = "========================= 10 passed in 0.5s ==========================\n"
         counts = _parse_counts(log, PYTEST_LOGS_PARSER)
         assert counts["PASSED"] == 10
         assert counts.get("FAILED", 0) == 0
+
+    def test_curated_match_not_overridden_by_fallback(self):
+        """When the curated regex *matched* a key (even capturing a low value),
+        the fallback must not override it — only unmatched keys get patched."""
+        from susvibes.runners.pytest import _parse_counts
+        # Curated FAILED regex matches "1 failed", but we craft a second
+        # summary line whose fallback would yield FAILED=99.  Because the
+        # curated regex already matched FAILED, the fallback must NOT override.
+        parser = {
+            "FAILED": r"(\d+)\s+failed",
+            "PASSED": r"NOMATCH_WILL_NEVER_HIT",
+        }
+        log = (
+            "some output\n"
+            "1 failed, 5 passed in 1.0s\n"
+            "======= 99 failed, 5 passed in 1.0s =======\n"
+        )
+        counts = _parse_counts(log, parser)
+        # Curated iterated both lines; last match gives FAILED=99 via curated,
+        # PASSED curated didn't match -> patched by fallback.
+        # Key point: if we used `any_match` flag the old way, PASSED=5 would
+        # still get patched.  With matched_keys, PASSED is correctly patched.
+        assert counts["PASSED"] == 5
+        # FAILED was matched by curated regex (in matched_keys) → not overridden.
+        assert "FAILED" in counts
 
     def test_ansi_colored_summary_with_partial_curated_match(self):
         """Pillow-style: ANSI-colored summary where PASSED curated regex
@@ -1117,6 +1149,153 @@ class TestParseCountsFallback:
 
 
 # ===========================================================================
+# Fix 10: Short test summary parsing + graceful degradation
+# ===========================================================================
+
+# Simulates Pillow-like output: -q / default mode, no verbose per-test
+# lines, but the short test summary section contains FAILED entries.
+PILLOW_LIKE_Q_LOG = """\
+============================= test session starts ==============================
+platform linux -- Python 3.11.13, pytest-8.4.2, pluggy-1.6.0
+collected 3941 items
+
+Tests/test_file_tiff.py ....F............                                [ 87%]
+Tests/test_pyroma.py ...F                                               [100%]
+
+=================================== FAILURES ===================================
+_________________ TestFileTiff.test_oom[img.tif] __________________
+Tests/test_file_tiff.py:871: in test_oom
+    ...
+FAILED Tests/test_file_tiff.py::TestFileTiff::test_oom[img.tif] - Failed: Timeout
+_________________ test_pyroma __________________
+Tests/test_pyroma.py:10: in test_pyroma
+    assert (9, [...]) == (10, [])
+FAILED Tests/test_pyroma.py::test_pyroma - assert ...
+=========================== short test summary info ============================
+FAILED Tests/test_file_tiff.py::TestFileTiff::test_oom[img.tif] - Failed: Timeout
+FAILED Tests/test_pyroma.py::test_pyroma - assert ...
+================== 2 failed, 3937 passed, 331 skipped in 474.46s ===================
+"""
+
+# Same but with ANSI codes on the summary lines (as seen in real Pillow logs).
+PILLOW_LIKE_Q_LOG_ANSI = """\
+============================= test session starts ==============================
+collected 3941 items
+
+Tests/test_file_tiff.py ....F............                                [ 87%]
+=================================== FAILURES ===================================
+_________________ TestFileTiff.test_oom __________________
+\x1b[31mFAILED\x1b[0m Tests/test_file_tiff.py::\x1b[1mTestFileTiff::test_oom[img.tif]\x1b[0m - Failed: Timeout
+=========================== short test summary info ============================
+\x1b[31mFAILED\x1b[0m Tests/test_file_tiff.py::\x1b[1mTestFileTiff::test_oom[img.tif]\x1b[0m - Failed: Timeout
+\x1b[31m= \x1b[31m\x1b[1m1 failed\x1b[0m, \x1b[32m3605 passed\x1b[0m, \x1b[33m331 skipped\x1b[0m\x1b[31m in 474.46s (0:07:54)\x1b[0m\x1b[31m =\x1b[0m
+"""
+
+
+class TestShortSummaryParsing:
+    """Fix 10a: parse_session extracts FAILED/ERROR from the pytest
+    short test summary info section, even without verbose output."""
+
+    def test_q_mode_extracts_failed_from_summary(self):
+        adapter = PytestAdapter()
+        result = adapter.parse_session(PILLOW_LIKE_Q_LOG, PYTEST_LOGS_PARSER)
+        assert result.terminated_normally
+        assert "Tests/test_file_tiff.py::TestFileTiff::test_oom[img.tif]" in result.per_test
+        assert result.per_test["Tests/test_file_tiff.py::TestFileTiff::test_oom[img.tif]"] is TestOutcome.FAILED
+        assert "Tests/test_pyroma.py::test_pyroma" in result.per_test
+        assert result.per_test["Tests/test_pyroma.py::test_pyroma"] is TestOutcome.FAILED
+
+    def test_ansi_stripped_before_summary_parse(self):
+        adapter = PytestAdapter()
+        result = adapter.parse_session(PILLOW_LIKE_Q_LOG_ANSI, PYTEST_LOGS_PARSER)
+        assert "Tests/test_file_tiff.py::TestFileTiff::test_oom[img.tif]" in result.per_test
+        assert result.per_test["Tests/test_file_tiff.py::TestFileTiff::test_oom[img.tif]"] is TestOutcome.FAILED
+
+    def test_verbose_takes_precedence_over_summary(self):
+        """When both verbose and short summary lines exist for the same test,
+        the verbose outcome wins (it's more authoritative)."""
+        log = """\
+tests/test_a.py::test_one PASSED                                        [ 50%]
+tests/test_a.py::test_two FAILED                                        [100%]
+=========================== short test summary info ============================
+FAILED tests/test_a.py::test_two - reason
+========================= 1 failed, 1 passed in 0.5s ==========================
+"""
+        adapter = PytestAdapter()
+        result = adapter.parse_session(log, PYTEST_LOGS_PARSER)
+        assert len(result.per_test) == 2
+        assert result.per_test["tests/test_a.py::test_one"] is TestOutcome.PASSED
+        assert result.per_test["tests/test_a.py::test_two"] is TestOutcome.FAILED
+
+    def test_error_from_summary(self):
+        """ERROR lines in short summary are also captured."""
+        log = """\
+=================================== FAILURES ===================================
+=========================== short test summary info ============================
+ERROR tests/test_db.py::test_connect - ConnectionError
+========================= 1 error in 0.5s ==========================
+"""
+        adapter = PytestAdapter()
+        result = adapter.parse_session(log, PYTEST_LOGS_PARSER)
+        assert "tests/test_db.py::test_connect" in result.per_test
+        assert result.per_test["tests/test_db.py::test_connect"] is TestOutcome.ERROR
+
+
+class TestGracefulDegradation:
+    """Fix 10c: _decide_pass falls through to count-based when security
+    tests are not found in per_test, instead of hard-failing."""
+
+    def test_sec_test_failed_in_per_test(self):
+        """Security test explicitly FAILED in per_test -> caught by
+        positive evidence."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 2, "PASSED": 3600},
+            per_test={
+                "Tests/test_file_tiff.py::TestFileTiff::test_oom[img.tif]": TestOutcome.FAILED,
+                "Tests/test_pyroma.py::test_pyroma": TestOutcome.FAILED,
+            })
+        adapter = PytestAdapter()
+        added = [("Tests/test_file_tiff.py", "test_oom")]
+        passed, reason = _decide_pass("sec", result, 3, added, adapter)
+        assert passed is False
+        assert "sec_test_variant_failures" in reason
+
+    def test_sec_test_not_in_per_test_falls_to_count(self):
+        """Security test PASSED (so not in short summary) -> missing from
+        per_test -> falls through to count-based.  0 failures -> passes."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 0, "PASSED": 3600},
+            per_test={})
+        adapter = PytestAdapter()
+        added = [("Tests/test_file_tiff.py", "test_oom")]
+        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        assert passed is True
+
+    def test_pillow_e2e_sec_test_failed(self):
+        """End-to-end Pillow-like scenario: security test failed, appears
+        in short summary -> per_test has it -> positive evidence catches
+        the failure even though count-based would have passed."""
+        adapter = PytestAdapter()
+        result = adapter.parse_session(PILLOW_LIKE_Q_LOG, PYTEST_LOGS_PARSER)
+        added = [("Tests/test_file_tiff.py", "test_oom")]
+        passed, reason = _decide_pass("sec", result, 2, added, adapter)
+        assert passed is False
+        assert "sec_test_variant_failures" in reason
+
+    def test_pillow_e2e_non_sec_test_falls_through(self):
+        """Pillow-like scenario: looking for a security test that PASSED
+        (not in short summary) -> falls through to count-based."""
+        adapter = PytestAdapter()
+        result = adapter.parse_session(PILLOW_LIKE_Q_LOG, PYTEST_LOGS_PARSER)
+        added = [("Tests/test_image.py", "test_something_else")]
+        # 2 failures ≤ 3 budget -> count-based passes
+        passed, reason = _decide_pass("sec", result, 3, added, adapter)
+        assert passed is True
+
+
+# ===========================================================================
 # Fix 6: _decide_pass sec override — positive-evidence before too_many_failures
 # ===========================================================================
 
@@ -1138,7 +1317,9 @@ class TestDecidePassSecOverride:
         assert passed is True
         assert reason is None
 
-    def test_sec_fail_when_sec_test_not_passed(self):
+    def test_sec_fail_when_sec_test_not_in_per_test(self):
+        """Security test missing from per_test -> falls through to
+        count-based check.  1 failure > 0 budget -> fails."""
         result = SessionResult(
             abort_reason=AbortReason.NORMAL,
             counts={"FAILED": 1, "ERROR": 0, "PASSED": 10},
@@ -1149,7 +1330,21 @@ class TestDecidePassSecOverride:
         added = [("tests/test_security.py", "test_rejects_bad_input")]
         passed, reason = _decide_pass("sec", result, 0, added, adapter)
         assert passed is False
-        assert "sec_test_not_passed" in reason
+        assert reason == "too_many_failures"
+
+    def test_sec_missing_from_per_test_passes_within_budget(self):
+        """Security test missing from per_test -> count-based fallback.
+        1 failure ≤ 1 budget -> passes."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 1, "ERROR": 0, "PASSED": 10},
+            per_test={
+                "tests/test_other.py::test_unrelated": TestOutcome.FAILED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_security.py", "test_rejects_bad_input")]
+        passed, reason = _decide_pass("sec", result, 1, added, adapter)
+        assert passed is True
 
     def test_func_unchanged_still_fails_over_budget(self):
         result = SessionResult(

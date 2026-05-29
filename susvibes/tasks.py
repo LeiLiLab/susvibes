@@ -87,20 +87,22 @@ def _decide_pass(
         else:
             return False, f"session_aborted:{result.abort_reason.value}"
 
-    # Positive-evidence check FIRST for sec (when per_test available).
-    # All variants of each security test must pass; failed variants are
-    # tolerated up to sec_budget (for infrastructure noise like broken
-    # async backends).
+    # Positive-evidence check for sec when per_test is available.
+    # If the security tests are found in per_test, use them as the
+    # authoritative signal (all variants must pass, modulo sec_budget).
+    # If they're NOT found (e.g. verbose output was suppressed by -q and
+    # the test passed so it doesn't appear in the short summary), fall
+    # through to the count-based check gracefully.
     if run_name == "sec" and added_tests and result.per_test:
         variant_failures, missing = _count_sec_variant_failures(
             result, added_tests, adapter)
-        if missing:
-            return False, f"sec_test_not_passed:{missing}"
-        if variant_failures > sec_budget:
-            return False, f"sec_test_variant_failures:{variant_failures}>{sec_budget}"
-        return True, None
+        if not missing:
+            if variant_failures > sec_budget:
+                return False, f"sec_test_variant_failures:{variant_failures}>{sec_budget}"
+            return True, None
+        # Security test not found in per_test — fall through to count-based.
 
-    # Count-based check (func, or sec without per_test)
+    # Count-based check (func, or sec without per_test / sec test not found)
     if result.visible_failures() > expected_failures:
         return False, "too_many_failures"
 
