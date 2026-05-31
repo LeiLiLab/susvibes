@@ -4,7 +4,7 @@ import threading
 import itertools
 import difflib
 
-from susvibes.curate.collect.constants import TARGET_EXTENSIONS, TEST_KEYWORDS, SOURCE_ROOTS
+from susvibes.curate.collect.constants import TARGET_EXTENSIONS, TEST_KEYWORDS
 
 
 def path_has_keyword(path, keywords) -> bool:
@@ -464,33 +464,6 @@ def extract_module_facts(source: str) -> dict:
     except Exception:
         pass
     return _facts_from_regex(source)
-
-
-def candidate_modules(rel_path: str, source_roots=SOURCE_ROOTS) -> list[str]:
-    """Map a repo-relative .py path to its candidate dotted module names.
-
-    Multiple candidates are returned (one per applicable source root) and not
-    collapsed, since the importable name depends on the repo's layout. A package
-    `__init__.py` maps to the package itself; a bare top-level `__init__.py`
-    has no module name.
-    """
-    rel_path = rel_path.replace("\\", "/")
-    if not rel_path.endswith(".py"):
-        return []
-    mods = set()
-    for root in source_roots:
-        prefix = "" if root == "" else root.rstrip("/") + "/"
-        if prefix and not rel_path.startswith(prefix):
-            continue
-        no_ext = rel_path[len(prefix):-3]
-        if no_ext.endswith("/__init__"):
-            no_ext = no_ext[:-len("/__init__")]
-        elif no_ext == "__init__":
-            continue
-        parts = [p for p in no_ext.split("/") if p]
-        if parts and all(re.match(r'^[A-Za-z_]\w*$', p) for p in parts):
-            mods.add(".".join(parts))
-    return sorted(mods)
 
 
 def resolve_relative_import(file_module: str, level: int, module: str | None) -> str:
