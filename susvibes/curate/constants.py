@@ -29,6 +29,7 @@ def get_path(name: str, run_id: str = "default") -> Path:
     paths = {
         'cve_records': DATASETS_DIR / 'cve_records',
         'processed_dataset': base / 'processed_dataset.jsonl',
+        'coverage_report': base / 'coverage_report.jsonl',
         'task_dataset': base / 'task_dataset.jsonl',
         'stats': base / 'stats.json',
         'dataset': base / 'susvibes_dataset.jsonl',

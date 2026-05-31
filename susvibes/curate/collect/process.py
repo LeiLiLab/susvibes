@@ -23,7 +23,18 @@ from susvibes.curate.utils import (
 from susvibes.curate.collect.utils import (
     mask_test_funcs,
     merge_file_patches,
-    split_to_file_patches
+    split_to_file_patches,
+    is_test_file,
+    path_has_keyword,
+)
+from susvibes.curate.collect.constants import (
+    TARGET_LANG,
+    LANG_EXTENSIONS,
+    INSTALL_TEST_KEYWORDS,
+    RECENT_YR_CUTOFF,
+    PATCH_MAX_LENGTH,
+    PATCH_MAX_FILE_COUNT,
+    REPO_MAX_SIZE_KB,
 )
 
 logger = None
@@ -33,30 +44,6 @@ def init_loggers(log_dir):
     global logger, detail_logger
     logger = setup_logger(log_dir, "process.log", f"{__name__}.summary", add_stdout=True)
     detail_logger = setup_logger(log_dir, "process_details.log", f"{__name__}.detail", add_stdout=False)
-
-TARGET_LANG = "python"
-TEST_LANG = "python"
-LANG_EXTENSIONS = {
-    'python': ['.py'],
-    'java': ['.java'],
-    'javascript': ['.js'],
-    'c': ['.c', '.h'],
-    'cpp': ['.cpp', '.hpp', '.cc', '.h'],
-    'ruby': ['.rb'],
-    'go': ['.go'],
-    'rust': ['.rs'],
-    'php': ['.php'],
-    'typescript': ['.ts', '.tsx'],
-    'swift': ['.swift'],
-    'html': ['.html', '.htm']
-}
-TEST_KEYWORD = "test"
-INSTALL_TEST_KEYWORDS = ["install", "test", "version", "meta", "setup."]
-
-RECENT_YR_CUTOFF = 2014
-PATCH_MAX_LENGTH = 500
-PATCH_MAX_FILE_COUNT = 10
-REPO_MAX_SIZE_KB = 2 * 1024 * 1024  # 2 GB
 
 RAW_CVE_RECORDS_DIR = get_path('cve_records')
 RAW_REPOSVUL_DATASET_PATH = RAW_CVE_RECORDS_DIR / f'ReposVul/ReposVul_{TARGET_LANG}.jsonl'
@@ -135,7 +122,7 @@ class ReposVulHandler():
 class MorefixesHandler():
     dataset_path = RAW_MOREFIXES_DATASET_PATH
     target_lang = TARGET_LANG
-    test_lang = TEST_LANG
+    test_lang = TARGET_LANG
     
     @classmethod
     def get_dataset(cls):
@@ -168,10 +155,9 @@ def code_test_split(data_record, target_lang, test_lang, require_test=True) -> C
     for file_path, file_patch in data_record['patch'].items():
         file_path = Path(file_path)
         if file_path.suffix in sum(LANG_EXTENSIONS.values(), []):
-            if any(keyword in str(file_path).lower() for keyword in INSTALL_TEST_KEYWORDS): #
+            if path_has_keyword(file_path, INSTALL_TEST_KEYWORDS):
                 test_patch[file_path] = file_patch
-                if TEST_KEYWORD in str(file_path).lower() and \
-                    file_path.suffix in LANG_EXTENSIONS.get(test_lang, []): #
+                if is_test_file(file_path, LANG_EXTENSIONS.get(test_lang, [])):
                     test_files.append(str(file_path))
                     with_test = True
                 continue
@@ -302,8 +288,7 @@ def expand_test_mask(processed_dataset, test_lang):
         test_patch = split_to_file_patches(data_record["test_patch"])
         for file_path, file_patch in test_patch.items():
             file_path = Path(file_path)
-            if TEST_KEYWORD in str(file_path).lower() and \
-                file_path.suffix in LANG_EXTENSIONS.get(test_lang, []):   
+            if is_test_file(file_path, LANG_EXTENSIONS.get(test_lang, [])):
                 code_after = load_file(repo_dir / file_path)
                 apply_patch(repo_dir, merge_file_patches({file_path: file_patch}), reverse=True)
                 code_before = load_file(repo_dir / file_path)
@@ -381,14 +366,14 @@ if __name__ == "__main__":
     processed_dataset = process_datasets(
         dataset_handlers=dataset_handlers,
         target_lang=TARGET_LANG,
-        test_lang=TEST_LANG,
+        test_lang=TARGET_LANG,
         require_test=require_test,
         shuffle=args.shuffle,
         max_records=args.max_records
     )
     processed_dataset = download_repos_and_verify_patches(processed_dataset, LOCAL_REPOS_DIR, require_test)
     if require_test:
-        processed_dataset = expand_test_mask(processed_dataset, TEST_LANG)
+        processed_dataset = expand_test_mask(processed_dataset, TARGET_LANG)
     processed_dataset_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(processed_dataset, processed_dataset_path)
     logger.info("Logs saved to %s", collect_log_dir)

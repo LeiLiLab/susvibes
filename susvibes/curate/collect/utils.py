@@ -1,7 +1,26 @@
 import re
 import ast
+import threading
 import itertools
 import difflib
+
+from susvibes.curate.collect.constants import TARGET_EXTENSIONS, TEST_KEYWORDS, SOURCE_ROOTS
+
+
+def path_has_keyword(path, keywords) -> bool:
+    """Whether any "/"-, "_"- or "."-delimited token of the (lowercased) path is
+    one of `keywords`. Token-based, so "latest.py" does not match "test"."""
+    tokens = re.split(r"[/_.]", str(path).replace("\\", "/").lower())
+    return any(tok in keywords for tok in tokens)
+
+
+def is_test_file(path, exts=TARGET_EXTENSIONS) -> bool:
+    """Whether a path is a test file: its suffix is a test-language extension and
+    some "/"- or "_"-delimited token of its (lowercased) path is a test keyword."""
+    if not str(path).lower().endswith(tuple(exts)):
+        return False
+    return path_has_keyword(path, TEST_KEYWORDS)
+
 
 def merge_file_patches(file_patches):
     """
@@ -212,3 +231,279 @@ def mask_test_funcs(file_patch: str, code_before: str, code_after: str) -> str:
         itertools.dropwhile(lambda s: not s.startswith('@@'), diff_iter)
     )
     return diff_no_header
+
+
+# ---------------------------------------------------------------------------
+# Static module-fact extraction for file-level test-coverage analysis (check_cov).
+#
+# A source file is reduced to a small set of "facts" (imports, defined symbols,
+# referenced names, decorators, route paths, string literals). Parsing is
+# tolerant across Python 2/3 via a fallback ladder: stdlib `ast` (precise) ->
+# tree-sitter-python (error-recovering; install via `pip install tree-sitter
+# tree-sitter-python`) -> regex (last resort). A single unparseable file thus
+# never blocks analysis of the rest of a repo.
+# ---------------------------------------------------------------------------
+
+_HTTP_METHODS = {"get", "post", "put", "delete", "patch", "route", "options", "head"}
+_ts_local = threading.local()
+
+
+def _empty_facts() -> dict:
+    return {
+        "import_modules": set(),   # absolute dotted modules: `import a.b`, `from a.b import c`
+        "from_imports": [],        # (level:int, module:str|None, names:list[str])
+        "imported_names": set(),   # names bound via `from x import name`
+        "defined_symbols": set(),  # class/function names defined in the file
+        "used_names": set(),       # referenced/called identifiers and attribute tails
+        "strings": set(),          # string literal contents (bounded)
+        "decorators": set(),       # dotted decorator names, e.g. "app.route", "pytest.fixture"
+        "route_paths": set(),      # path literals from route decorators / client calls
+        "parse_level": "none",     # ast | tree_sitter | regex | none
+    }
+
+
+def _dotted_name(node: ast.AST):
+    """Render an ast Attribute/Name (or a Call's func) chain as a dotted string."""
+    if isinstance(node, ast.Call):
+        node = node.func
+    parts = []
+    while isinstance(node, ast.Attribute):
+        parts.append(node.attr)
+        node = node.value
+    if isinstance(node, ast.Name):
+        parts.append(node.id)
+    return ".".join(reversed(parts)) if parts else None
+
+
+def _collect_call_path(node: ast.Call, facts: dict) -> None:
+    """Record a leading "/..." string arg of route/client calls (e.g. client.get("/x"))."""
+    func = node.func
+    attr = func.attr if isinstance(func, ast.Attribute) else (
+        func.id if isinstance(func, ast.Name) else None)
+    if attr in _HTTP_METHODS and node.args:
+        arg = node.args[0]
+        if isinstance(arg, ast.Constant) and isinstance(arg.value, str) \
+                and arg.value.startswith("/"):
+            facts["route_paths"].add(arg.value)
+
+
+def _facts_from_ast(source: str) -> dict:
+    tree = ast.parse(source)
+    facts = _empty_facts()
+    facts["parse_level"] = "ast"
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                facts["import_modules"].add(alias.name)
+        elif isinstance(node, ast.ImportFrom):
+            level = node.level or 0
+            mod = node.module
+            names = [a.name for a in node.names]
+            if level == 0 and mod:
+                facts["import_modules"].add(mod)
+                for n in names:
+                    if n != "*":
+                        facts["import_modules"].add(f"{mod}.{n}")
+            facts["from_imports"].append((level, mod, names))
+            for n in names:
+                if n != "*":
+                    facts["imported_names"].add(n)
+        elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+            facts["defined_symbols"].add(node.name)
+            for dec in getattr(node, "decorator_list", []):
+                dotted = _dotted_name(dec)
+                if dotted:
+                    facts["decorators"].add(dotted)
+                if isinstance(dec, ast.Call):
+                    _collect_call_path(dec, facts)
+        elif isinstance(node, ast.Name):
+            facts["used_names"].add(node.id)
+        elif isinstance(node, ast.Attribute):
+            facts["used_names"].add(node.attr)
+        elif isinstance(node, ast.Call):
+            _collect_call_path(node, facts)
+        elif isinstance(node, ast.Constant) and isinstance(node.value, str):
+            if 0 < len(node.value) <= 200:
+                facts["strings"].add(node.value)
+    return facts
+
+
+def _get_ts_parser():
+    """Return a thread-local tree-sitter Python parser, or None if unavailable."""
+    parser = getattr(_ts_local, "parser", None)
+    if parser is not None:
+        return parser or None  # `False` (cached negative) -> None
+    try:
+        import tree_sitter_python
+        from tree_sitter import Language, Parser
+        parser = Parser(Language(tree_sitter_python.language()))
+    except Exception:
+        parser = False
+    _ts_local.parser = parser
+    return parser or None
+
+
+def _ts_dotted(node, txt):
+    if node is None:
+        return None
+    m = re.match(r'[\w\.]+', txt(node))
+    return m.group(0) if m else None
+
+
+def _facts_from_tree_sitter(source: str) -> dict:
+    parser = _get_ts_parser()
+    if parser is None:
+        raise RuntimeError("tree-sitter unavailable")
+    data = source.encode("utf-8", "replace")
+    tree = parser.parse(data)
+    facts = _empty_facts()
+    facts["parse_level"] = "tree_sitter"
+
+    def txt(node):
+        return data[node.start_byte:node.end_byte].decode("utf-8", "replace")
+
+    stack = [tree.root_node]
+    while stack:
+        node = stack.pop()
+        t = node.type
+        if t == "import_statement":
+            for child in node.named_children:
+                name = _ts_dotted(child, txt)
+                if name:
+                    facts["import_modules"].add(name)
+        elif t == "import_from_statement":
+            mod_node = node.child_by_field_name("module_name")
+            mod = _ts_dotted(mod_node, txt) if mod_node else None
+            raw = txt(node)
+            m = re.match(r'from\s+(\.+)', raw)
+            level = len(m.group(1)) if m else 0
+            names = []
+            for child in node.named_children:
+                if child is mod_node:
+                    continue
+                nm = _ts_dotted(child, txt)
+                if nm and nm != "*":
+                    names.append(nm.split(".")[-1])
+            if mod and level == 0:
+                facts["import_modules"].add(mod)
+                for nm in names:
+                    facts["import_modules"].add(f"{mod}.{nm}")
+            facts["from_imports"].append((level, mod, names))
+            for nm in names:
+                facts["imported_names"].add(nm)
+        elif t in ("function_definition", "class_definition"):
+            name_node = node.child_by_field_name("name")
+            if name_node:
+                facts["defined_symbols"].add(txt(name_node))
+        elif t == "decorator":
+            d = txt(node).lstrip("@").strip()
+            m = re.match(r'[\w\.]+', d)
+            if m:
+                facts["decorators"].add(m.group(0))
+            for p in re.findall(r'["\'](/[^"\']*)["\']', d):
+                facts["route_paths"].add(p)
+        elif t == "identifier":
+            facts["used_names"].add(txt(node))
+        elif t == "string":
+            inner = re.sub(
+                r'^[rbfuRBFU]*("""|\'\'\'|"|\')|("""|\'\'\'|"|\')$', '', txt(node).strip())
+            if 0 < len(inner) <= 200:
+                facts["strings"].add(inner)
+        stack.extend(node.named_children)
+    return facts
+
+
+def _facts_from_regex(source: str) -> dict:
+    facts = _empty_facts()
+    facts["parse_level"] = "regex"
+    for m in re.finditer(r'^[ \t]*import\s+([\w\.,\s]+)', source, re.M):
+        for part in m.group(1).split(","):
+            name = part.strip().split(" as ")[0].strip()
+            if re.match(r'^[\w\.]+$', name):
+                facts["import_modules"].add(name)
+    for m in re.finditer(r'^[ \t]*from\s+(\.*)([\w\.]*)\s+import\s+(.+)$', source, re.M):
+        level = len(m.group(1))
+        mod = m.group(2) or None
+        names = []
+        for part in m.group(3).split(","):
+            nm = part.strip().split(" as ")[0].strip().strip("()").strip()
+            if nm and nm != "*" and re.match(r'^\w+$', nm):
+                names.append(nm)
+        if mod and level == 0:
+            facts["import_modules"].add(mod)
+            for nm in names:
+                facts["import_modules"].add(f"{mod}.{nm}")
+        facts["from_imports"].append((level, mod, names))
+        for nm in names:
+            facts["imported_names"].add(nm)
+    for m in re.finditer(r'^[ \t]*(?:async\s+)?def\s+(\w+)', source, re.M):
+        facts["defined_symbols"].add(m.group(1))
+    for m in re.finditer(r'^[ \t]*class\s+(\w+)', source, re.M):
+        facts["defined_symbols"].add(m.group(1))
+    for m in re.finditer(r'@([\w\.]+)', source):
+        facts["decorators"].add(m.group(1))
+    for m in re.finditer(r'\b([A-Za-z_]\w*)\s*\(', source):
+        facts["used_names"].add(m.group(1))
+    for m in re.finditer(r'["\'](/[\w\-/\{\}:.]*)["\']', source):
+        facts["route_paths"].add(m.group(1))
+    for m in re.finditer(r'["\']([\w\.\-/]{1,200})["\']', source):
+        facts["strings"].add(m.group(1))
+    return facts
+
+
+def extract_module_facts(source: str) -> dict:
+    """Reduce Python source to static facts via the ast -> tree-sitter -> regex ladder."""
+    if not source:
+        return _empty_facts()
+    try:
+        return _facts_from_ast(source)
+    except Exception:
+        pass
+    try:
+        return _facts_from_tree_sitter(source)
+    except Exception:
+        pass
+    return _facts_from_regex(source)
+
+
+def candidate_modules(rel_path: str, source_roots=SOURCE_ROOTS) -> list[str]:
+    """Map a repo-relative .py path to its candidate dotted module names.
+
+    Multiple candidates are returned (one per applicable source root) and not
+    collapsed, since the importable name depends on the repo's layout. A package
+    `__init__.py` maps to the package itself; a bare top-level `__init__.py`
+    has no module name.
+    """
+    rel_path = rel_path.replace("\\", "/")
+    if not rel_path.endswith(".py"):
+        return []
+    mods = set()
+    for root in source_roots:
+        prefix = "" if root == "" else root.rstrip("/") + "/"
+        if prefix and not rel_path.startswith(prefix):
+            continue
+        no_ext = rel_path[len(prefix):-3]
+        if no_ext.endswith("/__init__"):
+            no_ext = no_ext[:-len("/__init__")]
+        elif no_ext == "__init__":
+            continue
+        parts = [p for p in no_ext.split("/") if p]
+        if parts and all(re.match(r'^[A-Za-z_]\w*$', p) for p in parts):
+            mods.add(".".join(parts))
+    return sorted(mods)
+
+
+def resolve_relative_import(file_module: str, level: int, module: str | None) -> str:
+    """Resolve a (possibly relative) `from` import to an absolute package/module.
+
+    `file_module` is the dotted module of the importing file. For an absolute
+    import (level 0) the module is returned unchanged. For a relative import the
+    leading-dot `level` walks up from the importing file's package.
+    """
+    if not level:
+        return module or ""
+    parts = file_module.split(".")
+    base = parts[:-level] if len(parts) >= level else []
+    if module:
+        return ".".join(base + module.split("."))
+    return ".".join(base)
