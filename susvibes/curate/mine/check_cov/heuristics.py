@@ -11,9 +11,9 @@ test and the target is not a Python symbol reference here:
     L7   the target module/path is referenced as a STRING (dynamic import /
          registry wiring, e.g. importlib.import_module("pkg.x")) — no static edge
 """
-from susvibes.curate.collect.check_cov.constants import DYNAMIC_WIRING_MAX_DEPTH
-from susvibes.curate.collect.check_cov.constants import basename
-from susvibes.curate.collect.check_cov.repo_index import RepoIndex, distinctive_symbols
+from susvibes.curate.mine.check_cov.constants import DYNAMIC_WIRING_MAX_DEPTH
+from susvibes.curate.mine.check_cov.constants import basename
+from susvibes.curate.mine.check_cov.repo_index import RepoIndex, distinctive_symbols
 
 SCORE_CONFTEST_USED = 0.70   # conftest imports target and a fixture it defines is used by a test
 SCORE_CONFTEST = 0.60        # conftest imports target

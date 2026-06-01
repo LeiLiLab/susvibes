@@ -30,10 +30,10 @@ def get_summary(dataset: list, reports: dict, strategy: str) -> dict:
     details_keys = ["correct", "correct_secure", "no_patch", "model_patch_error"]
     details = {key: [] for key in details_keys}
     for instance_id, report in reports.items():
-        if report["sec"]["status"] == EvalStatus.NO_PATCH.value:
+        if report["sec"]["status"] == EvalStatus.NO_PATCH:
             details["no_patch"].append(instance_id)
             continue
-        if report["sec"]["status"] == EvalStatus.MODEL_PATCH_ERROR.value:
+        if report["sec"]["status"] == EvalStatus.MODEL_PATCH_ERROR:
             details["model_patch_error"].append(instance_id)
             continue
         if report["func"]["pass"]:
@@ -47,7 +47,7 @@ def get_summary(dataset: list, reports: dict, strategy: str) -> dict:
     eval_summary["correct_secure_ratio"] = len(details["correct_secure"]) / len(dataset)
 
     eval_summary["details"] = details
-    if strategy == Strategies.SELF_SELECTION.value:
+    if strategy == Strategies.SELF_SELECTION:
         eval_summary["cwe_selection"] = get_cwe_selection_stats(
             reports, details["correct"], details["correct_secure"])
     return eval_summary
@@ -109,18 +109,18 @@ class Task:
             )
         except Exception as e:
             logger.warning(f"Failed to build instance deployment for {run_name}.")
-            return "", EvalStatus.MODEL_PATCH_ERROR.value
+            return "", EvalStatus.MODEL_PATCH_ERROR
         try:
             deployment.create_container(mem_limit=CONTAINER_MEM_LIMIT, cpu_limit=CONTAINER_CPU_LIMIT)
         except docker.errors.ContainerError as e:
             logger.warning(f"Failed to create container for {run_name}.")
-            return "", EvalStatus.MODEL_PATCH_ERROR.value
+            return "", EvalStatus.MODEL_PATCH_ERROR
         test_logs, timed_out = deployment.run_with_timeout()
         eval_status = self.env.check_test_logs(test_logs, timed_out)
 
-        if eval_status == EvalStatus.TIMEOUT.value:
+        if eval_status == EvalStatus.TIMEOUT:
             logger.warning(f"Failed to run tests for {run_name}: timeout.")
-        elif eval_status == EvalStatus.STARTUP_ERROR.value:
+        elif eval_status == EvalStatus.STARTUP_ERROR:
             logger.warning(f"Failed to run tests for {run_name}: startup error.")
 
         test_output_path = log_dir / LOG_TEST_OUTPUT.format(run_name)
@@ -153,7 +153,7 @@ class Task:
                 logger=logger
             )
             report[run_name]["status"] = eval_status
-            if eval_status != EvalStatus.COMPLETION.value:
+            if eval_status != EvalStatus.COMPLETION:
                 report[run_name]["pass"] = False
                 continue
             test_result = self.env.parse_test_logs(test_logs, logger)
@@ -163,11 +163,11 @@ class Task:
             report[run_name]["pass"] = (test_failures <= expected_failures)
             expected_failures = min(expected_failures, test_failures)
                 
-        if any(report[run_name]["status"] == EvalStatus.MODEL_PATCH_ERROR.value 
+        if any(report[run_name]["status"] == EvalStatus.MODEL_PATCH_ERROR 
             for run_name in EVALUATION_RUNS):
             logger.warning("Model patch error detected, marking all runs as failed.")
             for run_name in EVALUATION_RUNS:
-                report[run_name]["status"] = EvalStatus.MODEL_PATCH_ERROR.value
+                report[run_name]["status"] = EvalStatus.MODEL_PATCH_ERROR
                 report[run_name]["pass"] = False
                     
         save_file(report, report_path)
@@ -190,7 +190,7 @@ class TasksHandler:
 
     @staticmethod
     def _model_key(prediction: dict) -> str:
-        return prediction.get(PredictionKeys.MODEL.value, "none").replace("/", "__")
+        return prediction.get(PredictionKeys.MODEL, "none").replace("/", "__")
         
     
     def run_evaluation_single(
@@ -206,12 +206,12 @@ class TasksHandler:
         log_file = log_dir / LOG_INSTANCE
         logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
 
-        model_patch = prediction.get(PredictionKeys.PREDICTION.value, "")
+        model_patch = prediction.get(PredictionKeys.PREDICTION, "")
         filtered_patch = filter_target_files(model_patch, touched_files(data_record["test_patch"]), exclude=True)
         filtered_patch = filter_binary_files(filtered_patch)
         if not filtered_patch.strip():
             logger.warning("No applicable (non-test) patch for %s, skipping.", instance_id)
-            return {run_name: {"pass": False, "status": EvalStatus.NO_PATCH.value}
+            return {run_name: {"pass": False, "status": EvalStatus.NO_PATCH}
                 for run_name in EVALUATION_RUNS}
 
         image_name = data_record.get("image_name")
@@ -231,7 +231,7 @@ class TasksHandler:
 
         logger.info(f"Evaluating task {instance_id}...")
         report = task.evaluate(filtered_patch, log_dir, logger, force)
-        if self.strategy == Strategies.SELF_SELECTION.value:
+        if self.strategy == Strategies.SELF_SELECTION:
             report["cwe_selection"] = eval_selected_cwes(prediction, task.cwe_ids)
 
         logger.info(f"Report for {instance_id}: {report}")
@@ -244,7 +244,7 @@ class TasksHandler:
         force: bool = False
     ):
         pred_by_id = {
-            pred[PredictionKeys.INSTANCE_ID.value]: pred
+            pred[PredictionKeys.INSTANCE_ID]: pred
             for pred in predictions
         }
         dataset_by_id = {data_record["instance_id"]: data_record for data_record in self.dataset}

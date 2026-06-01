@@ -10,7 +10,7 @@ Scores a target with cheap, language-agnostic layers over the shared RepoIndex:
 When jedi can parse the repo, `symbol_trace` replaces L1/L1b/L2/L4 with precise
 symbol references; this engine is used only when jedi cannot (heavy Python 2).
 """
-from susvibes.curate.collect.check_cov.repo_index import RepoIndex, distinctive_symbols
+from susvibes.curate.mine.check_cov.repo_index import RepoIndex, distinctive_symbols
 
 # Approximate evidence (lower than precise symbol-trace hits); strongest wins.
 SCORE_DIRECT_IMPORT = 0.92   # test imports the target module or a symbol from it

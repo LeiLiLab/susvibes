@@ -9,12 +9,12 @@ tracer does not use this — it queries jedi directly.
 from collections import Counter, deque
 from typing import NamedTuple
 
-from susvibes.curate.collect.utils import (
+from susvibes.curate.mine.utils import (
     extract_module_facts,
     resolve_relative_import,
 )
-from susvibes.curate.collect.check_cov.modules import module_names, package_dirs
-from susvibes.curate.collect.check_cov.constants import (
+from susvibes.curate.mine.check_cov.modules import module_names, package_dirs
+from susvibes.curate.mine.check_cov.constants import (
     IMPORT_GRAPH_MAX_DEPTH,
     SYMBOL_MAX_DEFCOUNT,
     SYMBOL_MIN_LEN,

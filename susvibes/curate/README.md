@@ -1,10 +1,10 @@
 # SusVibes Task Curation
 
-This directory contains code for the curation pipeline of SusVibes, including vulnerability collection, adaptive generation of task candidates, building environments, and conducting execution-based task validation. Before proceeding, ensure the repository is correctly installed according to the guidelines in the main [README](../../README.md).
+This directory contains code for the curation pipeline of SusVibes, including vulnerability mining, adaptive generation of task candidates, building environments, and conducting execution-based task validation. Before proceeding, ensure the repository is correctly installed according to the guidelines in the main [README](../../README.md).
 
 The pipeline runs in four sequential stages:
 
-1. [`collect/`](collect/) — collect vulnerability records from existing datasets
+1. [`mine/`](mine/) — mine vulnerability records from existing datasets
 2. [`adaptive_gen/`](adaptive_gen/) — adaptively generate task candidates (masks + problem statements)
 3. [`env_setup/`](env_setup/) — build per-instance Docker environments
 4. [`validate/`](validate/) — validate tasks via execution and finalize the dataset
@@ -14,7 +14,7 @@ The pipeline runs in four sequential stages:
 First, retrieve data on historically observed software vulnerabilities from existing datasets. We provide the vulnerability dataset from ReposVul as an example; download it from [Google Drive](https://drive.google.com/file/d/1vk_WAPW3DvRsRKT7mfb4lpZWtVEGED0M/view?usp=share_link) and place it at `datasets/cve_records/ReposVul/`. Then run:
 
 ```bash
-python -m susvibes.curate.collect.process \
+python -m susvibes.curate.mine.process \
     --max_records 3 \
     --use_handlers '["ReposVulHandler"]' \
     --run_id playground
@@ -31,14 +31,14 @@ From these vulnerability fixing commits, an adaptive pipeline creates a SusVibes
 3. **A verifier agent** checks whether the task description covers all lines in feature implementation with *security fixes*. If verification fails, go back to step 1; otherwise, proceed to step 4.
 4. Return the task description and the mask.
 
-These stages are implemented in [`adaptive_gen/pipeline.py`](adaptive_gen/pipeline.py) and leverage [SWE-agent (sv)](https://github.com/songwen6968/SWE-agent/tree/sv).
+These stages are implemented in [`adaptive_gen/core.py`](adaptive_gen/core.py) and leverage [SWE-agent (sv)](https://github.com/songwen6968/SWE-agent/tree/sv).
 
 Follow the installation [guidelines](https://swe-agent.com/latest/installation/source/) to install SWE-agent from source (a `conda` environment is recommended). Set up SWE-agent with the config file at [`utils/agents/configs/adaptive_gen.yaml`](utils/agents/configs/adaptive_gen.yaml) by placing it under the `config/` directory of SWE-agent. You may configure the SWE-agent setup itself in [`utils/agents/settings.yaml`](utils/agents/settings.yaml); a pre-filled example is provided.
 
 With that, run:
 
 ```bash
-python -m susvibes.curate.adaptive_gen.pipeline \
+python -m susvibes.curate.adaptive_gen.core \
   --max_iters <num_adaptive_iterations> \
   --preview 2 \
   --run_id playground

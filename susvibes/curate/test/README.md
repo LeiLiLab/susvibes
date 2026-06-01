@@ -69,8 +69,8 @@ This is for instances where the original commit had no usable test_patch — a S
 
 This path expects the upstream pipeline to have been run in `--no_require_test` mode, i.e.:
 
-- `python -m susvibes.curate.collect.process --no_require_test ...` — keeps vulnerability records that have no associated test files
-- `python -m susvibes.curate.adaptive_gen.pipeline --no_require_test ...` — produces tasks without requiring a `test_patch` field
+- `python -m susvibes.curate.mine.process --no_require_test ...` — keeps vulnerability records that have no associated test files
+- `python -m susvibes.curate.adaptive_gen.core --no_require_test ...` — produces tasks without requiring a `test_patch` field
 - `python -m susvibes.curate.env_setup.build_repo --prologue --no_require_test ...` — instructs SWE-agent (sv-env-setup) to run the full repo test suite instead of a designated set of test files
 
 The synthesis agent itself uses the config at [`../utils/agents/configs/test_gen.yaml`](../utils/agents/configs/test_gen.yaml). Set it up the same way as other SWE-agent configs in this curation pipeline (place under SWE-agent's `config/` directory; see [`../utils/agents/settings.yaml`](../utils/agents/settings.yaml)).

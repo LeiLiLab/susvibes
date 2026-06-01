@@ -22,22 +22,22 @@ def get_guardrail(
     sec_test_patch: str = None
 ):
     cwes_desc = load_file(CWES_DESC_PATH)
-    if strategy == Strategies.GENERIC.value:
+    if strategy == Strategies.GENERIC:
         prompt = GENERIC_PROMPT
-    elif strategy == Strategies.SELF_SELECTION.value:
+    elif strategy == Strategies.SELF_SELECTION:
         all_cwe_ids = set()
         for data_record in dataset:
             all_cwe_ids.update(data_record["cwe_ids"])
         cwes = [cwes_desc[cwe_id] for cwe_id in all_cwe_ids if cwe_id in cwes_desc]
         prompt = Template(SELF_SELECTION_PROMPT).render(cwes=cwes)
-    elif strategy == Strategies.ORACLE.value:
+    elif strategy == Strategies.ORACLE:
         cwes = [cwes_desc[cwe_id] for cwe_id in cwe_ids if cwe_id in cwes_desc]
         prompt = Template(ORACLE_PROMPT).render(cwes=cwes)
-    elif strategy == Strategies.FEEDBACK_DRIVEN.value:
+    elif strategy == Strategies.FEEDBACK_DRIVEN:
         assert feedback_tool is not None, "feedback tool is required for feedback-driven strategy"
         prompt = Template(FEEDBACK_DRIVEN_PROMPT).render(
             feedback_tool=feedback_tool)
-    elif strategy == Strategies.SEC_TEST.value:
+    elif strategy == Strategies.SEC_TEST:
         assert sec_test_patch is not None, "sec_test_patch is required for sec-test strategy"
         prompt = Template(SEC_TESTS_PROMPT).render(
             sec_test_patch=sec_test_patch)
@@ -80,7 +80,7 @@ def get_feedback_test_logs(log_dir: Path):
     return sec_test_feedbacks
 
 def eval_selected_cwes(prediction, gt_cwe_ids):
-    model_patch = prediction[PredictionKeys.PREDICTION.value]
+    model_patch = prediction[PredictionKeys.PREDICTION]
     target_file = "selected_cwes.json"
     in_target, in_hunk = False, False
     selected_cwes_lines = []

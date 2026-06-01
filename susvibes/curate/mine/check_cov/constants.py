@@ -18,27 +18,22 @@ because ``collect.utils`` — used by both process and check_cov — depends on 
 (File-path-to-module-name mapping is in ``check_cov.modules``, computed from the
 repo's ``__init__.py`` structure the way jedi does — no source-root name list.)
 """
-from enum import Enum
+from enum import StrEnum
 from typing import TypedDict
 
-from susvibes.curate.collect.utils import is_test_file  # re-exported for the package
+from susvibes.curate.mine.utils import is_test_file  # re-exported for the package
 
 
 # === data shape ==============================================================
 
-class CoverageLabel(str, Enum):
-    """Per-file / per-instance coverage label (best -> worst).
-
-    Subclasses ``str`` so members serialize to their value in JSON and compare
-    equal to the plain string; ``__str__`` keeps logs showing the value.
-    """
+class CoverageLabel(StrEnum):
+    """Per-file / per-instance coverage label (best -> worst). A StrEnum, so a
+    member is its own string value — serializes to JSON and compares equal to the
+    plain string, and str() / logging shows the value."""
     LIKELY = "likely_covered"
     MAYBE = "maybe_covered"
     UNLIKELY = "unlikely_covered"
     UNKNOWN = "unknown"
-
-    def __str__(self) -> str:
-        return self.value
 
 
 LABEL_RANK = {

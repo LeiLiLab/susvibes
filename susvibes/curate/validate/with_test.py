@@ -18,7 +18,7 @@ import docker
 import docker.errors
 
 from susvibes.constants import *
-from susvibes.curate.constants import VALIDATE_LOG_DIR, LOGS_PARSER_MODEL, get_path
+from susvibes.curate.constants import get_log_dir, LOGS_PARSER_MODEL, get_path
 from susvibes.env import Deployment, Env
 from susvibes.env_specs import TestStatus
 from susvibes.curate.validate.logs import get_logs_parser, get_logs_checker, get_llm_cost, reset_llm_cost
@@ -87,7 +87,7 @@ def run_test_suite_multi(
         if not force and test_output_path.exists():
             logger.info("Container logs found; reusing.")
             test_logs = load_file(test_output_path)
-            timed_out = cached_statuses.get(run_name) == TestStatus.TIMEOUT.value
+            timed_out = cached_statuses.get(run_name) == TestStatus.TIMEOUT
         else:
             try:
                 deployment: Deployment = env.build_instance_deployment(
@@ -124,12 +124,12 @@ def run_test_suite_multi(
     save_file(test_status_dict, test_statuses_path)
 
     for id, run_name in enumerate(ENV_SETUP_RUNS):
-        if test_status_dict[run_name] == TestStatus.TIMEOUT.value \
+        if test_status_dict[run_name] == TestStatus.TIMEOUT \
             and not allow_timeout(id):
             msg = "Failed to run tests because of critical timeout."
             logger.error(msg)
             raise RuntimeError(msg)
-        if test_status_dict[run_name] == TestStatus.STARTUP_ERROR.value \
+        if test_status_dict[run_name] == TestStatus.STARTUP_ERROR \
             and not allow_startup_error(id):
             msg = "Failed to run tests because of critical startup error."
             logger.error(msg)
@@ -163,7 +163,7 @@ def validate_test_breaks(
         test_failures_list.append(env.get_test_failures(test_result))
 
     base_tf, rollback_tf, base_no_test_tf, rollback_with_test_tf, task_tf = test_failures_list
-    test_completed_list = [ts == TestStatus.COMPLETION.value for ts in test_statuses]
+    test_completed_list = [ts == TestStatus.COMPLETION for ts in test_statuses]
     _, _, _, rollback_with_test_completed, task_completed = test_completed_list
 
     test_symbres_errs_list = []
@@ -421,7 +421,7 @@ if __name__ == "__main__":
     dataset_path = get_path('dataset', args.run_id)
     stats_path = get_path('stats', args.run_id)
     env_specs_path = get_env_spec_path('components', args.run_id)
-    validate_log_dir = VALIDATE_LOG_DIR / args.run_id
+    validate_log_dir = get_log_dir(args.run_id, "validate")
 
     dataset = load_file(dataset_path)
     stats = load_file(stats_path) if stats_path.exists() else {}

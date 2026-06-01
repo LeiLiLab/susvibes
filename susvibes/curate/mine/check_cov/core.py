@@ -17,7 +17,7 @@ The goal is to MINIMIZE false negatives: a file that really is tested must not b
 marked uncovered.
 
 Usage:
-    python -m susvibes.curate.collect.check_cov --run_id <id> [--max_workers N]
+    python -m susvibes.curate.mine.check_cov --run_id <id> [--max_workers N]
 """
 import argparse
 import json
@@ -26,7 +26,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 from pathlib import Path
 
-from susvibes.curate.constants import LOCAL_REPOS_DIR, COLLECT_LOG_DIR, get_path
+from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_path
 from susvibes.utils import load_file, save_file, touched_files, setup_instance_logger
 from susvibes.curate.utils import (
     get_repo_dir,
@@ -34,15 +34,15 @@ from susvibes.curate.utils import (
     reset_to_commit,
     RepoLocks,
 )
-from susvibes.curate.collect.constants import TARGET_EXTENSIONS
-from susvibes.curate.collect.check_cov.constants import (
+from susvibes.curate.mine.constants import TARGET_EXTENSIONS
+from susvibes.curate.mine.check_cov.constants import (
     CoverageLabel, LABEL_RANK, CoverageResult, file_result, is_test_file,
     COV_LIKELY_THRESHOLD,
     COV_MAYBE_THRESHOLD,
     SYMBOL_TRACE_MAX_DEPTH,
     FILE_TRACE_MAX_PARSE_FAIL_RATIO,
 )
-from susvibes.curate.collect.check_cov import repo_index, file_trace, heuristics, symbol_trace
+from susvibes.curate.mine.check_cov import repo_index, file_trace, heuristics, symbol_trace
 
 LOG_INSTANCE = "check_cov.log"
 LOG_SUMMARY = "summary.json"
@@ -285,7 +285,7 @@ def main():
                         help='Max symbol-trace hops for indirect coverage evidence')
     args = parser.parse_args()
 
-    collect_log_dir = COLLECT_LOG_DIR / args.run_id
+    mine_log_dir = get_log_dir(args.run_id, "mine", "check_cov")
     processed_dataset_path = get_path('processed_dataset', args.run_id)
     coverage_report_path = get_path('coverage_report', args.run_id)
     coverage_report_path.parent.mkdir(parents=True, exist_ok=True)
@@ -302,7 +302,7 @@ def main():
         max_workers=args.max_workers,
         coverage_report_path=coverage_report_path,
         processed_dataset_path=processed_dataset_path,
-        log_dir=collect_log_dir,
+        log_dir=mine_log_dir,
         instance_ids=analyze_ids,
         max_depth=args.max_depth,
     )

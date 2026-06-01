@@ -6,7 +6,7 @@ from tqdm import tqdm
 from pathlib import Path
 from typing import TypedDict
 
-from susvibes.curate.constants import LOCAL_REPOS_DIR, COLLECT_LOG_DIR
+from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir
 from susvibes.curate.constants import get_path
 from susvibes.utils import load_file, save_file, get_instance_id, setup_logger
 from susvibes.curate.utils import (
@@ -20,14 +20,14 @@ from susvibes.curate.utils import (
     len_patch
 )
 
-from susvibes.curate.collect.utils import (
+from susvibes.curate.mine.utils import (
     mask_test_funcs,
     merge_file_patches,
     split_to_file_patches,
     is_test_file,
     path_has_keyword,
 )
-from susvibes.curate.collect.constants import (
+from susvibes.curate.mine.constants import (
     TARGET_LANG,
     LANG_EXTENSIONS,
     INSTALL_TEST_KEYWORDS,
@@ -65,7 +65,8 @@ class CVERecord(TypedDict):
 def is_recent(data_record):
     return int(data_record['cve_id'].split('-')[1]) >= RECENT_YR_CUTOFF
 
-LOG_REMOTE_STATUS_CACHE = "remote_status_cache.json"
+# Cache of remote PR-status lookups; lives with the ReposVul dataset it caches.
+LOG_REMOTE_STATUS_CACHE_PATH = RAW_CVE_RECORDS_DIR / "ReposVul" / "remote_status_cache.json"
 
 class ReposVulHandler():
     dataset_path = RAW_REPOSVUL_DATASET_PATH
@@ -75,7 +76,7 @@ class ReposVulHandler():
     def _load_cache(cls):
         if cls.cached_remote_status is not None:
             return
-        cache_file = COLLECT_LOG_DIR / LOG_REMOTE_STATUS_CACHE
+        cache_file = LOG_REMOTE_STATUS_CACHE_PATH
         if cache_file.exists():
             cls.cached_remote_status = json.loads(cache_file.read_text())
         else:
@@ -83,9 +84,8 @@ class ReposVulHandler():
 
     @classmethod
     def _save_cache(cls):
-        COLLECT_LOG_DIR.mkdir(parents=True, exist_ok=True)
-        cache_file = COLLECT_LOG_DIR / LOG_REMOTE_STATUS_CACHE
-        cache_file.write_text(json.dumps(cls.cached_remote_status))
+        LOG_REMOTE_STATUS_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+        LOG_REMOTE_STATUS_CACHE_PATH.write_text(json.dumps(cls.cached_remote_status))
 
     @classmethod
     def remotely_active(cls, data_record, max_retries=3) -> bool:
@@ -348,8 +348,8 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    collect_log_dir = COLLECT_LOG_DIR / args.run_id
-    init_loggers(collect_log_dir)
+    mine_log_dir = get_log_dir(args.run_id, "mine", "process")
+    init_loggers(mine_log_dir)
 
     processed_dataset_path = get_path('processed_dataset', args.run_id)
 
@@ -376,5 +376,5 @@ if __name__ == "__main__":
         processed_dataset = expand_test_mask(processed_dataset, TARGET_LANG)
     processed_dataset_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(processed_dataset, processed_dataset_path)
-    logger.info("Logs saved to %s", collect_log_dir)
+    logger.info("Logs saved to %s", mine_log_dir)
     print(f"Processed dataset saved to {processed_dataset_path}.")

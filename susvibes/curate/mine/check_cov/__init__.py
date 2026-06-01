@@ -1,8 +1,8 @@
 """Static file-level test-coverage analysis (see core.py / check_cov.md)."""
-from susvibes.curate.collect.check_cov.constants import (
+from susvibes.curate.mine.check_cov.constants import (
     CoverageLabel, CoverageResult, LABEL_RANK,
 )
-from susvibes.curate.collect.check_cov.core import (
+from susvibes.curate.mine.check_cov.core import (
     analyze,
     check_cov_single,
     check_cov_threadpool,

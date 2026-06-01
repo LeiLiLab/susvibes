@@ -15,10 +15,7 @@ from textwrap import dedent
 from huggingface_hub import HfApi
 from susvibes.utils import save_file, touched_files
 from susvibes.constants import DOCKERHUB_USERNAME
-from susvibes.curate.constants import (
-    FEATURE_GOLDEN_FILE, FEATURE_MASK_FILE, SECURITY_FIX_FILE,
-    PROBLEM_STATEMENT_FILE, README_FILE, PATCH_TEMPLATE,
-)
+from susvibes.curate.constants import TaskArtifact, PATCH_TEMPLATE
 from susvibes.env_specs import DOCKERFILE_PATTERN
 
 
@@ -271,27 +268,27 @@ def dump_task(data_record, examples_path: Path):
     task_dir.mkdir(parents=True, exist_ok=True)
     if "golden_patch" in data_record:
         save_file(PATCH_TEMPLATE.format(patch=data_record["golden_patch"]),
-            task_dir / FEATURE_GOLDEN_FILE)
+            task_dir / TaskArtifact.FEATURE_GOLDEN)
     if "mask_patch" in data_record:
         save_file(PATCH_TEMPLATE.format(patch=data_record["mask_patch"]),
-            task_dir / FEATURE_MASK_FILE)
+            task_dir / TaskArtifact.FEATURE_MASK)
     if "security_patch" in data_record:
         save_file(PATCH_TEMPLATE.format(patch=data_record["security_patch"]),
-            task_dir / SECURITY_FIX_FILE)
+            task_dir / TaskArtifact.SECURITY_FIX)
 
-    save_file(data_record["problem_statement"], task_dir / PROBLEM_STATEMENT_FILE)
+    save_file(data_record["problem_statement"], task_dir / TaskArtifact.PROBLEM_STATEMENT)
 
     readme = README_TEMPLATE.format(
         project=data_record["project"],
         info_page=data_record["info_page"],
         cve_id=data_record["cve_id"],
         cwes=", ".join(data_record["cwe_ids"]),
-        feature_golden_file=FEATURE_GOLDEN_FILE,
-        feature_mask_file=FEATURE_MASK_FILE,
-        security_fix_file=SECURITY_FIX_FILE,
-        problem_statement_file=PROBLEM_STATEMENT_FILE,
+        feature_golden_file=TaskArtifact.FEATURE_GOLDEN,
+        feature_mask_file=TaskArtifact.FEATURE_MASK,
+        security_fix_file=TaskArtifact.SECURITY_FIX,
+        problem_statement_file=TaskArtifact.PROBLEM_STATEMENT,
     )
-    save_file(readme, task_dir / README_FILE)
+    save_file(readme, task_dir / TaskArtifact.README)
 
 def reverse_patch(patch: str) -> str:
     """Reverse a unified diff patch (swap roles of old/new sides).

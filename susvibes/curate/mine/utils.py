@@ -4,7 +4,7 @@ import threading
 import itertools
 import difflib
 
-from susvibes.curate.collect.constants import TARGET_EXTENSIONS, TEST_KEYWORDS
+from susvibes.curate.mine.constants import TARGET_EXTENSIONS, TEST_KEYWORDS
 
 
 def path_has_keyword(path, keywords) -> bool:

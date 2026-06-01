@@ -43,11 +43,11 @@ from pathlib import Path
 import jedi
 import parso
 
-from susvibes.curate.collect.check_cov.constants import (
+from susvibes.curate.mine.check_cov.constants import (
     JEDI_PARSE_FAIL_RATIO, JEDI_PARSE_SAMPLE,
     GET_REFERENCES_RETRIES, SYMBOL_TRACE_MAX_FAILURES,
 )
-from susvibes.curate.collect.check_cov.constants import is_test_file
+from susvibes.curate.mine.check_cov.constants import is_test_file
 
 # Evidence scores for symbol-trace hits (precise → high); the shortest chain wins.
 SCORE_DIRECT = 0.95         # a test references a target-defined symbol directly (1 hop)

@@ -27,3 +27,4 @@ logs/
 tmp*
 try*
 results/
+.claude/

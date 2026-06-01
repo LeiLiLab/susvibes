@@ -26,7 +26,7 @@ import docker
 import docker.errors
 
 from susvibes.constants import *
-from susvibes.curate.constants import LOCAL_REPOS_DIR, ENV_SETUP_LOG_DIR, get_path
+from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_path
 from susvibes.env import Deployment
 from susvibes.env_specs import dockerfiles, DOCKERFILE_PATTERN, GIT_AUTHOR_CONFIGS, WORKSPACE_DIR_NAME
 from susvibes.curate.env_setup.prompts import INSTALL_TEST_PROMPT_TEMPLATE
@@ -455,7 +455,7 @@ if __name__ == "__main__":
     elif args.epilogue:
         dataset_path = get_path('dataset', args.run_id)
         env_specs_path = get_env_spec_path('components', args.run_id)
-        env_setup_log_dir = ENV_SETUP_LOG_DIR / args.run_id
+        env_setup_log_dir = get_log_dir(args.run_id, "env_setup")
         agent_output_dir = None if args.from_existing_specs else args.agent_output_dir
         epilogue(
             task_dataset_path, dataset_path, env_specs_path, env_setup_log_dir,

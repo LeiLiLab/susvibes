@@ -11,7 +11,7 @@ import re
 from pathlib import Path
 
 from susvibes.constants import *
-from susvibes.curate.constants import LOCAL_REPOS_DIR, ENV_SETUP_LOG_DIR, get_path
+from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_path
 from susvibes.env_specs import DEV_TOOL_VERSIONS
 from susvibes.curate.env_setup.prompts import DEV_TOOLS_PROMPT_TEMPLATE
 from susvibes.curate.utils.agents.ports import SWEAgentPort
@@ -135,7 +135,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    env_setup_log_dir = ENV_SETUP_LOG_DIR / args.run_id
+    env_setup_log_dir = get_log_dir(args.run_id, "env_setup")
     init_loggers(env_setup_log_dir)
 
     task_dataset_path = get_path('task_dataset', args.run_id)
