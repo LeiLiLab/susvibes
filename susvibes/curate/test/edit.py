@@ -22,15 +22,10 @@ from tqdm import tqdm
 
 from susvibes.constants import get_env_spec_path
 from susvibes.curate.constants import (
-    TEST_LOG_DIR,
-    FEATURE_VULN_FILE,
-    PATCH_TEMPLATE,
-    PROBLEM_STATEMENT_FILE,
-    README_FILE,
-    SECURITY_FIX_FILE,
-    TEST_PATCH_BACKUPS_DIR_NAME,
-    TEST_PATCH_FILE,
+    get_log_dir,
     get_path,
+    TaskArtifact,
+    PATCH_TEMPLATE,
 )
 from susvibes.curate.utils import extract_repo_test_cmd, reverse_patch
 from susvibes.env import Env
@@ -104,15 +99,15 @@ def dump_test(data_record, env_spec, edits_dir: Path):
     task_dir = edits_dir / data_record["instance_id"]
     task_dir.mkdir(parents=True, exist_ok=True)
     save_file(PATCH_TEMPLATE.format(patch=data_record["test_patch"]),
-        task_dir / TEST_PATCH_FILE)
+        task_dir / TaskArtifact.TEST_PATCH)
     if "problem_statement" in data_record:
-        save_file(data_record["problem_statement"], task_dir / PROBLEM_STATEMENT_FILE)
+        save_file(data_record["problem_statement"], task_dir / TaskArtifact.PROBLEM_STATEMENT)
     if "security_patch" in data_record:
         save_file(PATCH_TEMPLATE.format(patch=data_record["security_patch"]),
-            task_dir / SECURITY_FIX_FILE)
+            task_dir / TaskArtifact.SECURITY_FIX)
     if "mask_patch" in data_record:
         save_file(PATCH_TEMPLATE.format(patch=reverse_patch(data_record["mask_patch"])),
-            task_dir / FEATURE_VULN_FILE)
+            task_dir / TaskArtifact.FEATURE_VULN)
 
     readme = README_TEMPLATE.format(
         project=data_record["project"],
@@ -120,13 +115,13 @@ def dump_test(data_record, env_spec, edits_dir: Path):
         cwes=", ".join(data_record["cwe_ids"]),
         base_no_test_image_name=data_record["base_no_test_image_name"],
         repo_test_cmd=extract_repo_test_cmd(env_spec["dockerfile"]),
-        test_patch_file=TEST_PATCH_FILE,
-        feature_vuln_file=FEATURE_VULN_FILE,
-        security_fix_file=SECURITY_FIX_FILE,
-        problem_statement_file=PROBLEM_STATEMENT_FILE,
-        test_patch_backups_dir=TEST_PATCH_BACKUPS_DIR_NAME,
+        test_patch_file=TaskArtifact.TEST_PATCH,
+        feature_vuln_file=TaskArtifact.FEATURE_VULN,
+        security_fix_file=TaskArtifact.SECURITY_FIX,
+        problem_statement_file=TaskArtifact.PROBLEM_STATEMENT,
+        test_patch_backups_dir=TaskArtifact.TEST_PATCH_BACKUPS,
     )
-    save_file(readme, task_dir / README_FILE)
+    save_file(readme, task_dir / TaskArtifact.README)
 
 
 def dump_single(record, env_spec, edits_dir: Path, log_dir: Path, no_require_test: bool = False):
@@ -202,7 +197,7 @@ def sync_test(data_record, edits_dir: Path) -> bool:
     Returns True if updated.
     Raises RuntimeError if the edit file exists but contains invalid diff content."""
     instance_dir = edits_dir / data_record["instance_id"]
-    patch_path = instance_dir / TEST_PATCH_FILE
+    patch_path = instance_dir / TaskArtifact.TEST_PATCH
     if not patch_path.exists():
         return False
     new_patch = parse_patch_md(patch_path)
@@ -213,7 +208,7 @@ def sync_test(data_record, edits_dir: Path) -> bool:
     if old_patch == new_patch:
         return False
 
-    backups_dir = instance_dir / TEST_PATCH_BACKUPS_DIR_NAME
+    backups_dir = instance_dir / TaskArtifact.TEST_PATCH_BACKUPS
     backups_dir.mkdir(parents=True, exist_ok=True)
     existing = [int(p.stem) for p in backups_dir.glob("*.md") if p.stem.isdigit()]
     n = (max(existing) if existing else 0) + 1
@@ -267,7 +262,7 @@ if __name__ == "__main__":
 
     if args.mode == "dump":
         env_specs = load_file(get_env_spec_path("components", args.run_id))
-        log_dir = TEST_LOG_DIR / args.run_id
+        log_dir = get_log_dir(args.run_id, "test")
         edits_dir.mkdir(parents=True, exist_ok=True)
         dumped, failed = dump_threadpool(
             dataset, env_specs, edits_dir, log_dir, args.max_workers,

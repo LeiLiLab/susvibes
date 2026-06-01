@@ -2,10 +2,10 @@ import random
 import argparse
 from pathlib import Path
 
-from susvibes.curate.constants import get_path, ADAPTIVE_GEN_LOG_DIR
+from susvibes.curate.constants import get_path, get_log_dir
 from susvibes.curate.adaptive_gen import mask, problem_gen, verifier
-from susvibes.curate.adaptive_gen import utils as ag_utils
-from susvibes.curate.adaptive_gen.utils import set_log_dir, setup_logger
+from susvibes.curate.adaptive_gen import utils as module_utils
+from susvibes.curate.adaptive_gen.utils import set_log_dir, module_setup_logger
 from susvibes.utils import load_file, save_file, confirm_overwrite_logs
 from susvibes.curate.utils import len_patch, dump_task
 
@@ -18,7 +18,7 @@ logger = None
 def init_loggers(log_dir):
     global logger
     set_log_dir(log_dir)
-    logger = setup_logger("pipeline.log", __name__)
+    logger = module_setup_logger("pipeline.log", __name__)
     mask.init_logger()
     problem_gen.init_logger()
     verifier.init_logger()
@@ -37,7 +37,7 @@ def adaptive_task_gen(
     total_verified = 0
     total_cost = 0
 
-    if not confirm_overwrite_logs(ag_utils._log_dir):
+    if not confirm_overwrite_logs(module_utils._log_dir):
         logger.info("Aborted by user.")
         return
 
@@ -176,7 +176,7 @@ def adaptive_task_gen(
     save_file(task_dataset, task_dataset_path)
     logger.info("=== Final: %d / %d tasks successfully created  |  total cost=$%.2f ===",
                 len(task_dataset), total_instances, total_cost)
-    logger.info("Logs saved to %s", ag_utils._log_dir)
+    logger.info("Logs saved to %s", module_utils._log_dir)
     print(f"Task dataset saved to {task_dataset_path}.")
     
 def get_task_stats(task_dataset_path: Path, stats_path: Path):
@@ -230,7 +230,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    adaptive_gen_log_dir = ADAPTIVE_GEN_LOG_DIR / args.run_id
+    adaptive_gen_log_dir = get_log_dir(args.run_id, "adaptive_gen")
     init_loggers(adaptive_gen_log_dir)
 
     processed_dataset_path = get_path('processed_dataset', args.run_id)

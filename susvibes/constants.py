@@ -1,5 +1,5 @@
 import os
-from enum import Enum
+from enum import Enum, StrEnum
 from pathlib import Path
 
 root_dir = Path(__file__).parent.parent
@@ -28,19 +28,19 @@ HF_DATASET_REPO = "songwen6968/SusVibes"
 HF_DATASET_FILENAME = "susvibes_dataset.jsonl"
 ARCH = os.uname().machine
 
-class Strategies(Enum):
+class Strategies(StrEnum):
     GENERIC = "generic"
     SELF_SELECTION = "self-selection"
     ORACLE = "oracle"
     FEEDBACK_DRIVEN = "feedback-driven"
     SEC_TEST = "sec-test"
 
-class PredictionKeys(Enum):
+class PredictionKeys(StrEnum):
     INSTANCE_ID = "instance_id"
     PREDICTION = "model_patch"
     MODEL = "model_name_or_path"
 
-class EvalStatus(Enum):
+class EvalStatus(StrEnum):
     NO_PATCH = "no_patch"
     MODEL_PATCH_ERROR = "model_patch_error"
     STARTUP_ERROR = "startup_error"

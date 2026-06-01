@@ -378,10 +378,10 @@ class Env:
     def check_test_logs(self, run_logs: str, timed_out: bool = False) -> str:
         """Get the test status from the run logs, using this instance's logs_checker."""
         if timed_out:
-            return TestStatus.TIMEOUT.value
+            return TestStatus.TIMEOUT
         if self.logs_checker and re.search(self.logs_checker, run_logs, re.MULTILINE):
-            return TestStatus.STARTUP_ERROR.value
-        return TestStatus.COMPLETION.value
+            return TestStatus.STARTUP_ERROR
+        return TestStatus.COMPLETION
     
     @staticmethod
     def get_symbol_resolution_errors(run_logs: str) -> bool:

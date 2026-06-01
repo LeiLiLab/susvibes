@@ -96,6 +96,8 @@ dependencies = [
     "tornado==6.5.1",
     "tqdm==4.67.1",
     "traitlets==5.14.3",
+    "tree-sitter==0.25.2",
+    "tree-sitter-python==0.25.0",
     "typing_extensions==4.14.1",
     "typing-inspection==0.4.1",
     "urllib3==2.5.0",

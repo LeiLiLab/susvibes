@@ -165,7 +165,7 @@ def get_logs_parser(
             if require_failures:
                 logger.warning(f"Invalid test failures detected. logs_parser-{logs_parser}")
                 continue
-            if any(ts != TestStatus.COMPLETION.value for ts in test_statuses):
+            if any(ts != TestStatus.COMPLETION for ts in test_statuses):
                 # A run did not complete (e.g. the masked task crashes): zero countable
                 # failures is the expected structural break. Accept; the functional-break
                 # verdict is made from run statuses downstream.
@@ -175,7 +175,7 @@ def get_logs_parser(
             # covered by the suite, or the model missed real failures. Retry.
             logger.warning(f"Invalid test failures detected. logs_parser-{logs_parser}")
             continue
-        test_completed_list = [ts == TestStatus.COMPLETION.value for ts in test_statuses]
+        test_completed_list = [ts == TestStatus.COMPLETION for ts in test_statuses]
         ordering_failed = any(
             test_completed_list[a] and test_failures_list[a] < test_failures_list[b]
             for a, b in ordering_checks

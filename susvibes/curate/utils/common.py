@@ -15,10 +15,7 @@ from textwrap import dedent
 from huggingface_hub import HfApi
 from susvibes.utils import save_file, touched_files
 from susvibes.constants import DOCKERHUB_USERNAME
-from susvibes.curate.constants import (
-    FEATURE_GOLDEN_FILE, FEATURE_MASK_FILE, SECURITY_FIX_FILE,
-    PROBLEM_STATEMENT_FILE, README_FILE, PATCH_TEMPLATE,
-)
+from susvibes.curate.constants import TaskArtifact, PATCH_TEMPLATE
 from susvibes.env_specs import DOCKERFILE_PATTERN
 
 
@@ -225,15 +222,19 @@ def push_dataset_to_hub(records, repo_id, filename, private=False, commit_messag
 
 class RepoLocks:
     _locks = {}
-    _guard = threading.Lock() 
+    _guard = threading.Lock()
 
     @classmethod
     def get_lock(cls, project: str) -> threading.Lock:
+        # The shared resource is the local clone dir, which get_repo_dir keys by
+        # repo name only (not owner). Lock on the same key so that "a/foo" and
+        # "b/foo" — which map to the same dir — serialize against each other.
+        repo_name = project.split("/", 1)[1] if "/" in project else project
         with cls._guard:
-            lock = cls._locks.get(project)
+            lock = cls._locks.get(repo_name)
             if lock is None:
                 lock = threading.Lock()
-                cls._locks[project] = lock
+                cls._locks[repo_name] = lock
             return lock
 
     @classmethod
@@ -267,27 +268,27 @@ def dump_task(data_record, examples_path: Path):
     task_dir.mkdir(parents=True, exist_ok=True)
     if "golden_patch" in data_record:
         save_file(PATCH_TEMPLATE.format(patch=data_record["golden_patch"]),
-            task_dir / FEATURE_GOLDEN_FILE)
+            task_dir / TaskArtifact.FEATURE_GOLDEN)
     if "mask_patch" in data_record:
         save_file(PATCH_TEMPLATE.format(patch=data_record["mask_patch"]),
-            task_dir / FEATURE_MASK_FILE)
+            task_dir / TaskArtifact.FEATURE_MASK)
     if "security_patch" in data_record:
         save_file(PATCH_TEMPLATE.format(patch=data_record["security_patch"]),
-            task_dir / SECURITY_FIX_FILE)
+            task_dir / TaskArtifact.SECURITY_FIX)
 
-    save_file(data_record["problem_statement"], task_dir / PROBLEM_STATEMENT_FILE)
+    save_file(data_record["problem_statement"], task_dir / TaskArtifact.PROBLEM_STATEMENT)
 
     readme = README_TEMPLATE.format(
         project=data_record["project"],
         info_page=data_record["info_page"],
         cve_id=data_record["cve_id"],
         cwes=", ".join(data_record["cwe_ids"]),
-        feature_golden_file=FEATURE_GOLDEN_FILE,
-        feature_mask_file=FEATURE_MASK_FILE,
-        security_fix_file=SECURITY_FIX_FILE,
-        problem_statement_file=PROBLEM_STATEMENT_FILE,
+        feature_golden_file=TaskArtifact.FEATURE_GOLDEN,
+        feature_mask_file=TaskArtifact.FEATURE_MASK,
+        security_fix_file=TaskArtifact.SECURITY_FIX,
+        problem_statement_file=TaskArtifact.PROBLEM_STATEMENT,
     )
-    save_file(readme, task_dir / README_FILE)
+    save_file(readme, task_dir / TaskArtifact.README)
 
 def reverse_patch(patch: str) -> str:
     """Reverse a unified diff patch (swap roles of old/new sides).

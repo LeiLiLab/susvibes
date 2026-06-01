@@ -6,7 +6,7 @@ from jinja2 import Template
 from susvibes.curate.constants import LOCAL_REPOS_DIR
 from susvibes.curate.adaptive_gen.prompts import VERIFIER_PROMPT_TEMPLATE
 from susvibes.curate.utils.agents.ports import SWEAgentPort
-from susvibes.curate.adaptive_gen.utils import setup_logger
+from susvibes.curate.adaptive_gen.utils import module_setup_logger
 from susvibes.utils import load_file, save_file
 from susvibes.curate.utils import (
     get_repo_dir,
@@ -22,7 +22,7 @@ logger = None
 
 def init_logger():
     global logger
-    logger = setup_logger("verifier.log", __name__, add_stdout=False)
+    logger = module_setup_logger("verifier.log", __name__, add_stdout=False)
 
 def prologue(task_dataset_path: Path, instance_ids: list = None, no_require_test: bool = False):
     port = SWEAgentPort(run_name=__spec__.name)

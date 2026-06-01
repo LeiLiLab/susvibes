@@ -1,13 +1,13 @@
-from enum import Enum
+from enum import StrEnum
 
-class TestItemStatus(Enum):
+class TestItemStatus(StrEnum):
     FAILED = "FAILED"
     PASSED = "PASSED"
     SKIPPED = "SKIPPED"
     ERROR = "ERROR"
     XFAIL = "XFAIL"
     
-class TestStatus(Enum):
+class TestStatus(StrEnum):
     STARTUP_ERROR = "startup_error"
     TIMEOUT = "timeout"
     COMPLETION = "completion"
