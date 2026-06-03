@@ -14,11 +14,7 @@ from susvibes.curate.mine.utils import (
     resolve_relative_import,
 )
 from susvibes.curate.mine.check_cov.modules import module_names, package_dirs
-from susvibes.curate.mine.check_cov.constants import (
-    IMPORT_GRAPH_MAX_DEPTH,
-    SYMBOL_MAX_DEFCOUNT,
-    SYMBOL_MIN_LEN,
-)
+from susvibes.curate.mine.check_cov.constants import Index
 
 
 class RepoIndex(NamedTuple):
@@ -79,7 +75,7 @@ def _bfs_depths(test_set, file_imports, module_files, max_depth) -> dict:
     return depth
 
 
-def build(sources: dict, test_set: set, max_depth=IMPORT_GRAPH_MAX_DEPTH) -> RepoIndex:
+def build(sources: dict, test_set: set, max_depth=Index.IMPORT_GRAPH_MAX_DEPTH) -> RepoIndex:
     facts = {rel: extract_module_facts(src) for rel, src in sources.items()}
 
     pkg_dirs = package_dirs(sources)
@@ -122,5 +118,5 @@ def distinctive_symbols(target, index: RepoIndex) -> set:
     referencing one implies it exercises the target (filters ubiquitous names)."""
     return {
         s for s in index.facts[target]["defined_symbols"]
-        if len(s) >= SYMBOL_MIN_LEN and index.defcount[s] <= SYMBOL_MAX_DEFCOUNT
+        if len(s) >= Index.SYMBOL_MIN_LEN and index.defcount[s] <= Index.SYMBOL_MAX_DEFCOUNT
     }

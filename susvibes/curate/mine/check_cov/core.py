@@ -5,12 +5,13 @@ at ``base_commit`` and by static analysis only (no execution), whether the repo'
 own test suite covers the files touched by the ``security_patch`` — at the FILE
 level: does any test in the repo reach any one of them.
 
-Engines (see check_cov.md):
-  - symbol_trace (jedi): precise backward symbol-reference trace; used when jedi
-    can parse the repo (Python 3). Its hits carry the highest weight.
-  - file_trace: ast->tree-sitter->regex approximation (L1/L1b/L2/L4); fallback
-    when jedi cannot parse the repo (Python 2).
-  - heuristics: L5-L7 (conftest, framework routes/CLI, dynamic-import strings);
+Engines (see check_cov.md); each scoring rule has an ID — S* (symbol_trace),
+F* (file_trace), H* (heuristics) — emitted in the evidence message:
+  - symbol_trace (jedi): precise backward symbol-reference trace (S1-S4); used when
+    jedi can parse the repo (Python 3). Its hits carry the highest weight.
+  - file_trace: ast->tree-sitter->regex approximation (F1-F6); fallback when jedi
+    cannot parse the repo (Python 2).
+  - heuristics: H1-H5 (conftest, framework routes/CLI, dynamic-import strings);
     always run, because these edges are not symbol references.
 
 The goal is to MINIMIZE false negatives: a file that really is tested must not be
@@ -22,7 +23,10 @@ Usage:
 import argparse
 import json
 from collections import Counter
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import fcntl
+import tempfile
+from concurrent.futures import ProcessPoolExecutor, as_completed
+from contextlib import contextmanager
 from tqdm import tqdm
 from pathlib import Path
 
@@ -32,20 +36,39 @@ from susvibes.curate.utils import (
     get_repo_dir,
     clone_github_repo,
     reset_to_commit,
-    RepoLocks,
 )
 from susvibes.curate.mine.constants import TARGET_EXTENSIONS
 from susvibes.curate.mine.check_cov.constants import (
     CoverageLabel, LABEL_RANK, CoverageResult, file_result, is_test_file,
-    COV_LIKELY_THRESHOLD,
-    COV_MAYBE_THRESHOLD,
-    SYMBOL_TRACE_MAX_DEPTH,
-    FILE_TRACE_MAX_PARSE_FAIL_RATIO,
+    Classifier, SymbolTrace, FileTrace,
 )
 from susvibes.curate.mine.check_cov import repo_index, file_trace, heuristics, symbol_trace
 
 LOG_INSTANCE = "check_cov.log"
 LOG_SUMMARY = "summary.json"
+
+
+# --- cross-process per-repo lock -------------------------------------------
+# Each instance runs in its own fresh process (see check_cov_processpool) so jedi
+# state never degrades across instances. That makes the in-process RepoLocks
+# useless for serializing concurrent resets of a shared clone, so two instances of
+# the SAME repo (e.g. web2py x2) could `reset_to_commit` it at once. A file lock
+# keyed by repo name (matching get_repo_dir) serializes them; distinct repos never
+# contend, so cross-repo parallelism is unaffected.
+_REPO_LOCK_DIR = Path(tempfile.gettempdir()) / "check_cov_repo_locks"
+
+
+@contextmanager
+def _repo_lock(project):
+    name = project.split("/", 1)[1] if "/" in project else project
+    _REPO_LOCK_DIR.mkdir(parents=True, exist_ok=True)
+    lockfile = _REPO_LOCK_DIR / f"{name.replace('/', '_')}.lock"
+    with open(lockfile, "w") as fh:
+        fcntl.flock(fh, fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(fh, fcntl.LOCK_UN)
 
 
 # --- repo snapshot ---------------------------------------------------------
@@ -75,39 +98,36 @@ def _snapshot_sources(repo_dir: Path) -> dict:
 # --- scoring / classification ----------------------------------------------
 
 def _classify(score: float):
-    if score >= COV_LIKELY_THRESHOLD:
-        return CoverageLabel.LIKELY, "high"
-    if score >= COV_MAYBE_THRESHOLD:
-        return CoverageLabel.MAYBE, "medium"
+    if score >= Classifier.LIKELY_THRESHOLD:
+        return CoverageLabel.LIKELY
     if score > 0:
-        return CoverageLabel.MAYBE, "low"
-    return CoverageLabel.UNLIKELY, "medium"
+        return CoverageLabel.MAYBE
+    return CoverageLabel.UNLIKELY
 
 
 def _result_from_evidence(evidence):
     """evidence: list of (score, message). Strongest score wins."""
     if not evidence:
-        return file_result(CoverageLabel.UNLIKELY, "medium", "no evidence found")
+        return file_result(CoverageLabel.UNLIKELY, "no evidence found")
     evidence = sorted(evidence, key=lambda e: -e[0])
     score = evidence[0][0]
-    label, confidence = _classify(score)
+    label = _classify(score)
     msgs = [m for _, m in evidence][:6]
-    return file_result(label, confidence, msgs[0], score=round(score, 3), evidence=msgs)
+    return file_result(label, msgs[0], score=round(score, 3), evidence=msgs)
 
 
 def _aggregate(data_record, per_file, engine, n_targets, reason=None) -> CoverageResult:
     files = list(per_file.values())
     if files:
         best = max(files, key=lambda v: (LABEL_RANK[v["label"]], v["score"]))
-        label, confidence, score = best["label"], best["confidence"], best["score"]
+        label, score = best["label"], best["score"]
     else:
-        best, label, confidence, score = None, CoverageLabel.UNKNOWN, "low", 0.0
+        best, label, score = None, CoverageLabel.UNKNOWN, 0.0
     return {
         "instance_id": data_record["instance_id"],
         "project": data_record["project"],
         "base_commit": data_record["base_commit"],
         "label": label,
-        "confidence": confidence,
         "score": score,
         "per_file": per_file,
         "reason": reason or (best["reason"] if best else "no target-language files in patch"),
@@ -116,7 +136,7 @@ def _aggregate(data_record, per_file, engine, n_targets, reason=None) -> Coverag
     }
 
 
-def analyze(data_record, repo_dir, sources, max_depth=SYMBOL_TRACE_MAX_DEPTH) -> CoverageResult:
+def analyze(data_record, repo_dir, sources, max_depth=SymbolTrace.MAX_DEPTH) -> CoverageResult:
     """Classify coverage of an instance's security-patch files against the snapshot."""
     # process.py guarantees the security_patch is non-empty and all target-language
     # (.py): non-code and non-target-language files are split into the test_patch,
@@ -131,7 +151,7 @@ def analyze(data_record, repo_dir, sources, max_depth=SYMBOL_TRACE_MAX_DEPTH) ->
     test_set = {rel for rel in sources if is_test_file(rel)}
     if not test_set:
         for t in targets:
-            per_file[t] = file_result(CoverageLabel.UNLIKELY, "high", "no test suite detected")
+            per_file[t] = file_result(CoverageLabel.UNLIKELY, "no test suite detected")
         return _aggregate(data_record, per_file, "none", len(targets), reason="no test suite detected")
 
     # The index (parse + maps) is always needed: heuristics consume it, and it is
@@ -144,15 +164,15 @@ def analyze(data_record, repo_dir, sources, max_depth=SYMBOL_TRACE_MAX_DEPTH) ->
     for t in targets:
         evidence, reliable = [], True
         if jedi_ok:
-            sym_evidence, reliable = symbol_trace.score(t, jctx, index, max_depth)  # precise
+            sym_evidence, reliable = symbol_trace.score(t, jctx, index, max_depth)  # S1-S4 precise
             evidence += sym_evidence
         else:
-            evidence += file_trace.score(t, index)               # L1/L1b/L2/L4 approximation
-        evidence += heuristics.score(t, index)                   # L5-L7 always
+            evidence += file_trace.score(t, index)               # F1-F6 approximation
+        evidence += heuristics.score(t, index)                   # H1-H5 always
         if not evidence and not reliable:
             # Symbol trace could not complete (jedi unreliable, or target unparseable)
             # and nothing else scored: we cannot tell — unknown, not (false) unlikely.
-            per_file[t] = file_result(CoverageLabel.UNKNOWN, "low",
+            per_file[t] = file_result(CoverageLabel.UNKNOWN,
                                       "symbol trace incomplete (jedi unreliable or target unparseable)")
         else:
             per_file[t] = _result_from_evidence(evidence)
@@ -163,7 +183,7 @@ def analyze(data_record, repo_dir, sources, max_depth=SYMBOL_TRACE_MAX_DEPTH) ->
     if not jedi_ok and _mostly_unparseable(targets, index) \
             and all(per_file[t]["score"] == 0.0 for t in targets):
         for t in targets:
-            per_file[t] = file_result(CoverageLabel.UNKNOWN, "low", "target files unparseable")
+            per_file[t] = file_result(CoverageLabel.UNKNOWN, "target files unparseable")
         return _aggregate(data_record, per_file, engine, len(targets),
                           reason="target files unparseable")
 
@@ -173,12 +193,12 @@ def analyze(data_record, repo_dir, sources, max_depth=SYMBOL_TRACE_MAX_DEPTH) ->
 def _mostly_unparseable(targets, index) -> bool:
     fails = sum(1 for t in targets
                 if index.facts.get(t, {}).get("parse_level") in ("regex", "none"))
-    return fails > len(targets) * FILE_TRACE_MAX_PARSE_FAIL_RATIO
+    return fails > len(targets) * FileTrace.MAX_PARSE_FAIL_RATIO
 
 
 # --- orchestration ---------------------------------------------------------
 
-def check_cov_single(data_record, log_dir, max_depth=SYMBOL_TRACE_MAX_DEPTH) -> CoverageResult:
+def check_cov_single(data_record, log_dir, max_depth=SymbolTrace.MAX_DEPTH) -> CoverageResult:
     """Analyze one instance's file-level test coverage at base_commit."""
     instance_id = data_record["instance_id"]
     project = data_record["project"]
@@ -189,8 +209,8 @@ def check_cov_single(data_record, log_dir, max_depth=SYMBOL_TRACE_MAX_DEPTH) -> 
     logger.info(f"Checking test coverage for {instance_id}...")
 
     repo_dir = get_repo_dir(project, LOCAL_REPOS_DIR)
-    clone_github_repo(project, LOCAL_REPOS_DIR, force=False)
-    with RepoLocks.locked(project):
+    with _repo_lock(project):
+        clone_github_repo(project, LOCAL_REPOS_DIR, force=False)
         reset_to_commit(repo_dir, base_commit, new_branch=False)
         sources = _snapshot_sources(repo_dir)
         result = analyze(data_record, repo_dir, sources, max_depth)
@@ -200,22 +220,30 @@ def check_cov_single(data_record, log_dir, max_depth=SYMBOL_TRACE_MAX_DEPTH) -> 
     return result
 
 
-def check_cov_threadpool(processed_dataset, max_workers, coverage_report_path,
-                         processed_dataset_path, log_dir, instance_ids=None,
-                         max_depth=SYMBOL_TRACE_MAX_DEPTH):
+def check_cov_processpool(processed_dataset, max_workers, coverage_report_path,
+                          processed_dataset_path, log_dir, instance_ids=None,
+                          max_depth=SymbolTrace.MAX_DEPTH):
     """Analyze each instance, write the full coverage report, write a per-instance
-    ``coverage`` summary back into processed_dataset.jsonl, and save a run summary."""
+    ``coverage`` summary back into processed_dataset.jsonl, and save a run summary.
+
+    Each instance runs in its OWN fresh worker process (``max_tasks_per_child=1``):
+    jedi's inference state degrades across instances within a long-lived process
+    (its compiled subprocess gets poisoned), silently making later instances'
+    ``get_references`` fail or return empty — a reused worker would then mislabel
+    them unknown/uncovered. A fresh process per instance keeps jedi pristine;
+    processes also don't share jedi's non-thread-safe state, so ``max_workers`` > 1
+    is safe (and parallel)."""
     records = processed_dataset
     if instance_ids is not None:
         wanted = set(instance_ids)
         records = [r for r in records if r["instance_id"] in wanted]
 
     results, result_by_id, label_counts = [], {}, Counter()
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    with ProcessPoolExecutor(max_workers=max_workers, max_tasks_per_child=1) as executor:
         futures = {executor.submit(check_cov_single, r, log_dir, max_depth): r["instance_id"]
                    for r in records}
         with tqdm(total=len(futures), dynamic_ncols=True,
-                  desc=f"Checking coverage [{max_workers} threads]") as pbar:
+                  desc=f"Checking coverage [{max_workers} procs]") as pbar:
             for future in as_completed(futures):
                 instance_id = futures[future]
                 try:
@@ -233,7 +261,7 @@ def check_cov_threadpool(processed_dataset, max_workers, coverage_report_path,
         res = result_by_id.get(record["instance_id"])
         if res is not None:
             record["coverage"] = {"label": res["label"], "score": res["score"],
-                                  "confidence": res["confidence"], "engine": res["engine"]}
+                                  "engine": res["engine"]}
     save_file(processed_dataset, processed_dataset_path)
 
     summary = get_cov_summary(results)
@@ -276,12 +304,13 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--run_id', type=str, default='default',
                         help='Run ID locating datasets/<run_id>/processed_dataset.jsonl')
-    parser.add_argument('--max_workers', type=int, default=5, help='Number of worker threads')
+    parser.add_argument('--max_workers', type=int, default=5,
+                        help='Number of worker processes (each instance runs in a fresh process)')
     parser.add_argument('--max_records', type=int, default=None,
                         help='Maximum number of instances to analyze')
     parser.add_argument('--instance_ids', type=json.loads, default=None,
                         help='JSON list of instance_ids to analyze (subset)')
-    parser.add_argument('--max_depth', type=int, default=SYMBOL_TRACE_MAX_DEPTH,
+    parser.add_argument('--max_depth', type=int, default=SymbolTrace.MAX_DEPTH,
                         help='Max symbol-trace hops for indirect coverage evidence')
     args = parser.parse_args()
 
@@ -297,7 +326,7 @@ def main():
         analyze_ids = head_ids if analyze_ids is None else \
             [i for i in head_ids if i in set(analyze_ids)]
 
-    check_cov_threadpool(
+    check_cov_processpool(
         processed_dataset,
         max_workers=args.max_workers,
         coverage_report_path=coverage_report_path,

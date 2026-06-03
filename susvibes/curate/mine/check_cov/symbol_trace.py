@@ -41,18 +41,23 @@ from collections import deque
 from pathlib import Path
 
 import jedi
+import jedi.inference.references as _jedi_references
 import parso
 
-from susvibes.curate.mine.check_cov.constants import (
-    JEDI_PARSE_FAIL_RATIO, JEDI_PARSE_SAMPLE,
-    GET_REFERENCES_RETRIES, SYMBOL_TRACE_MAX_FAILURES,
-)
+from susvibes.curate.mine.check_cov.constants import SymbolTrace
 from susvibes.curate.mine.check_cov.constants import is_test_file
 
+# jedi's project-wide get_references silently caps how many files it opens/parses
+# via hardcoded module globals, dropping test references on large repos (see the
+# constants). Raise them. Module-level so it runs once per worker process on import;
+# search_in_file_ios reads these globals at call time, so patching here takes effect.
+_jedi_references._OPENED_FILE_LIMIT = SymbolTrace.JEDI_OPENED_FILE_LIMIT
+_jedi_references._PARSED_FILE_LIMIT = SymbolTrace.JEDI_PARSED_FILE_LIMIT
+
 # Evidence scores for symbol-trace hits (precise → high); the shortest chain wins.
-SCORE_DIRECT = 0.95         # a test references a target-defined symbol directly (1 hop)
-SCORE_CHAIN_NEAR = 0.80     # reached through 2-3 wrapping/global hops
-SCORE_CHAIN_FAR = 0.65      # reached through more hops (still a real reference chain)
+SCORE_DIRECT = 0.95         # S1: a test references a target-defined symbol directly (hop<=1)
+SCORE_CHAIN_NEAR = 0.80     # S2: reached through 2-3 wrapping/global hops
+SCORE_CHAIN_FAR = 0.65      # S3: reached through >3 hops (still a real reference chain)
 
 # Decorators that make a method implicitly invoked (via attribute access, not an
 # explicit ``obj.method()`` call) — like dunder methods, these have no by-name call
@@ -61,13 +66,13 @@ _PROPERTY_DECORATORS = {"property", "cached_property", "setter", "getter", "dele
 # A target symbol is used by a bare top-level statement in a non-test file that a
 # test imports: the file runs the statement on import, but no method body need run
 # (often only construction/registration) — weaker, like a file-level reach.
-SCORE_TOPLEVEL_REACH = 0.55
+SCORE_TOPLEVEL_REACH = 0.55   # S4: target symbol used at module top level of a test-imported file (backstop)
 
 
 def usable(repo_dir, sources) -> bool:
     """Sample-parse repo files with jedi; return False (→ file-level fallback) when
     too many fail, which in practice means a Python 2 repo jedi cannot parse."""
-    rels = list(sources)[:JEDI_PARSE_SAMPLE]
+    rels = list(sources)[:SymbolTrace.JEDI_PARSE_SAMPLE]
     if not rels:
         return False
     fails = 0
@@ -76,7 +81,7 @@ def usable(repo_dir, sources) -> bool:
             jedi.Script(code=sources[rel], path=str(Path(repo_dir) / rel)).get_names()
         except Exception:
             fails += 1
-    return fails / len(rels) <= JEDI_PARSE_FAIL_RATIO
+    return fails / len(rels) <= SymbolTrace.JEDI_PARSE_FAIL_RATIO
 
 
 class JediContext:
@@ -214,6 +219,51 @@ def _enclosing_class(funcnode):
     return None
 
 
+def _child_between(children, node, start_op, end_ops):
+    """True if the direct child ``node`` sits after the first ``start_op`` operator
+    and before any ``end_ops`` operator among ``children`` — used to locate an
+    annotation region (after ``:`` / ``->``, before a ``=`` default or the suite ``:``)."""
+    try:
+        idx = children.index(node)
+    except ValueError:
+        return False
+    start = next((i for i, c in enumerate(children)
+                  if c.type == "operator" and c.value == start_op), None)
+    if start is None or idx <= start:
+        return False
+    return not any(c.type == "operator" and c.value in end_ops
+                   for c in children[start + 1:idx])
+
+
+def _is_annotation_ref(ctx, ref) -> bool:
+    """Whether a reference sits in a TYPE-ANNOTATION position: a parameter annotation
+    ``def f(x: T)``, a variable annotation ``x: T`` (not its ``= value`` part), or a
+    return annotation ``-> T``. Such a name is only looked up as a type object — it
+    never executes the referenced symbol — so it is not a coverage edge and must not
+    propagate the backward trace (e.g. ``mw: AnkiQt`` does not run AnkiQt)."""
+    tree = ctx.parso_tree(Path(ref.module_path))
+    if tree is None:
+        return False
+    try:
+        leaf = tree.get_leaf_for_position((ref.line, ref.column))
+    except Exception:
+        leaf = None
+    if leaf is None:
+        return False
+    node, parent = leaf, leaf.parent
+    while parent is not None and parent.type != "module":
+        # parameter annotation `x: T` is wrapped in a `tfpdef` node (the `param`
+        # only holds the tfpdef + an optional `= default`); variable annotation
+        # `x: T` is an `annassign`. In both, the type is after `:` and before `=`.
+        if parent.type in ("tfpdef", "param", "annassign") \
+                and _child_between(parent.children, node, ":", ("=",)):
+            return True
+        if parent.type == "funcdef" and _child_between(parent.children, node, "->", (":",)):
+            return True
+        node, parent = parent, parent.parent
+    return False
+
+
 def _successors(ctx, ref):
     """What to trace next from a non-test reference site, as
     ``(successor_positions, module_level)``:
@@ -265,10 +315,10 @@ def _successors(ctx, ref):
 
 def _score_for_hop(hop):
     if hop <= 1:
-        return SCORE_DIRECT
+        return SCORE_DIRECT, "S1"
     if hop <= 3:
-        return SCORE_CHAIN_NEAR
-    return SCORE_CHAIN_FAR
+        return SCORE_CHAIN_NEAR, "S2"
+    return SCORE_CHAIN_FAR, "S3"
 
 
 def _get_references(ctx, path, line, col):
@@ -276,7 +326,7 @@ def _get_references(ctx, path, line, col):
     (rebuilding the Script in case its inference state was corrupted, e.g. a
     poisoned compiled-subprocess pipe under load). Returns the reference list, or
     None if every attempt failed."""
-    for _ in range(GET_REFERENCES_RETRIES + 1):
+    for _ in range(SymbolTrace.GET_REFERENCES_RETRIES + 1):
         try:
             return ctx.script(path).get_references(line, col, scope="project")
         except Exception:
@@ -325,22 +375,28 @@ def score(target, ctx, index, max_depth):
             rel = ctx.rel(ref.module_path)
             if rel is None:
                 continue
+            if _is_annotation_ref(ctx, ref):
+                continue  # a type-annotation use (x: T, -> T) never executes the symbol
             if is_test_file(rel):
                 hop = depth + 1
-                return [(_score_for_hop(hop),
-                         f"test {rel}:{ref.line} reaches target symbol (symbol hop {hop})")], True
+                hop_score, sid = _score_for_hop(hop)
+                return [(hop_score,
+                         f"[{sid}] test {rel}:{ref.line} reaches target symbol (symbol hop {hop})")], True
             successors, module_level = _successors(ctx, ref)
             for s in successors:
                 frontier.append((*s, depth + 1))
-            # Bare top-level use in a non-test file the tests can import: the file
-            # runs it on import, so the target is reached (weakly) at file load.
+            # Bare top-level use in a non-test file a test DIRECTLY imports (import
+            # depth 1): the file runs it on import, so the target is reached (weakly)
+            # at file load. A deeper transitive import is too incidental to count
+            # (see SymbolTrace.TOPLEVEL_REACH_MAX_DEPTH).
+            file_depth = index.bfs_depth.get(rel, 0)
             if module_level and not successors and backstop is None \
-                    and rel in index.bfs_depth:
+                    and 1 <= file_depth <= SymbolTrace.TOPLEVEL_REACH_MAX_DEPTH:
                 backstop = (SCORE_TOPLEVEL_REACH,
-                            f"target symbol used at top level of test-reachable {rel}")
+                            f"[S4] target symbol used at top level of test-reachable {rel}")
 
     if backstop:
         return [backstop], True
     # No hit: trust the negative only if the walk was mostly complete. Too many
     # failed reference searches mean we cannot rule coverage out → unknown.
-    return [], failures <= SYMBOL_TRACE_MAX_FAILURES
+    return [], failures <= SymbolTrace.MAX_FAILURES
