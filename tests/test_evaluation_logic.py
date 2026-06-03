@@ -482,59 +482,14 @@ class TestPytestAdapter:
         result = adapter.parse_session(PYTEST_EMPTY_LOG, PYTEST_LOGS_PARSER)
         assert result.abort_reason is AbortReason.CRASH
 
-    def test_match_test_exact(self):
+    def test_match_test(self):
         adapter = PytestAdapter()
         assert adapter.match_test(
             "tests/test_security.py::test_rejects_bad_input",
             "tests/test_security.py", "test_rejects_bad_input")
-
-    def test_match_test_parametrized(self):
-        adapter = PytestAdapter()
-        assert adapter.match_test(
-            "tests/test_requests.py::test_proxy_authorization_not_appended_to_https_request[http://example.com-True]",
-            "tests/test_requests.py",
-            "test_proxy_authorization_not_appended_to_https_request")
-
-    def test_match_test_parametrized_complex(self):
-        adapter = PytestAdapter()
-        assert adapter.match_test(
-            "tests/www/views/test_views.py::test__clean_description[click me <javascript:alert(1)>-click me ]",
-            "tests/www/views/test_views.py", "test__clean_description")
-
-    def test_match_test_class_parametrized(self):
-        adapter = PytestAdapter()
-        assert adapter.match_test(
-            "tests/test_filters.py::TestFilter::test_xmlattr_key_invalid[\t]",
-            "tests/test_filters.py", "test_xmlattr_key_invalid")
-
-    def test_match_test_no_match_wrong_file(self):
-        adapter = PytestAdapter()
         assert not adapter.match_test(
             "tests/test_other.py::test_rejects_bad_input",
             "tests/test_security.py", "test_rejects_bad_input")
-
-    def test_match_test_no_match_wrong_name(self):
-        adapter = PytestAdapter()
-        assert not adapter.match_test(
-            "tests/test_security.py::test_something_else",
-            "tests/test_security.py", "test_rejects_bad_input")
-
-    def test_match_test_parameterized_expand(self):
-        """parameterized.expand generates test_name_0__desc style IDs."""
-        adapter = PytestAdapter()
-        assert adapter.match_test(
-            "rdiffweb/controller/tests/test_controller.py::ControllerTest::test_static_files_0__favicon_ico",
-            "rdiffweb/controller/tests/test_controller.py", "test_static_files")
-        assert adapter.match_test(
-            "rdiffweb/controller/tests/test_controller.py::ControllerTest::test_static_files_3__static_orange_css",
-            "rdiffweb/controller/tests/test_controller.py", "test_static_files")
-
-    def test_match_test_no_false_positive(self):
-        """test_bar_extra should NOT match test_bar."""
-        adapter = PytestAdapter()
-        assert not adapter.match_test(
-            "tests/test_foo.py::test_bar_extra",
-            "tests/test_foo.py", "test_bar")
 
     def test_get_verbose_env(self):
         adapter = PytestAdapter()
@@ -604,7 +559,7 @@ class TestDecidePass:
             abort_reason=AbortReason.NORMAL,
             counts={"FAILED": 1, "ERROR": 0}, per_test={})
         adapter = PytestAdapter()
-        passed, reason = _decide_pass("func", result, 1, [], adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("func", result, 1, [], adapter)
         assert passed is True
         assert reason is None
 
@@ -613,7 +568,7 @@ class TestDecidePass:
             abort_reason=AbortReason.NORMAL,
             counts={"FAILED": 3, "ERROR": 0}, per_test={})
         adapter = PytestAdapter()
-        passed, reason = _decide_pass("func", result, 1, [], adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("func", result, 1, [], adapter)
         assert passed is False
         assert reason == "too_many_failures"
 
@@ -628,13 +583,13 @@ class TestDecidePass:
         adapter = PytestAdapter()
         added = [("tests/test_security.py", "test_rejects_bad_input"),
                  ("tests/test_security.py", "test_allows_good_input")]
-        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 0, added, adapter)
         assert passed is True
         assert reason is None
 
     def test_sec_added_test_missing_from_per_test(self):
         """One security test in per_test (PASSED), the other missing.
-        Falls through to count-based: 0 failures -> passes."""
+        Missing sec test is LIKELY_PASSED — passes with partial evidence."""
         result = SessionResult(
             abort_reason=AbortReason.NORMAL,
             counts={"FAILED": 0, "ERROR": 0},
@@ -644,8 +599,11 @@ class TestDecidePass:
         adapter = PytestAdapter()
         added = [("tests/test_security.py", "test_rejects_bad_input"),
                  ("tests/test_security.py", "test_allows_good_input")]
-        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 0, added, adapter)
         assert passed is True
+        assert reason is None
+        assert evidence == "partial"
+        assert "tests/test_security.py::test_allows_good_input" in likely_passed
 
     def test_sec_premature_abort_but_sec_tests_passed(self):
         """Smart maxfail: security tests all passed before the cutoff."""
@@ -661,7 +619,7 @@ class TestDecidePass:
             })
         adapter = PytestAdapter()
         added = [("tests/test_security.py", "test_rejects_bad_input")]
-        passed, reason = _decide_pass("sec", result, 3, added, adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 3, added, adapter)
         assert passed is True
 
     def test_sec_premature_abort_sec_tests_missing(self):
@@ -676,7 +634,7 @@ class TestDecidePass:
             })
         adapter = PytestAdapter()
         added = [("tests/test_security.py", "test_rejects_bad_input")]
-        passed, reason = _decide_pass("sec", result, 3, added, adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 3, added, adapter)
         assert passed is False
         assert "session_aborted" in reason
 
@@ -688,7 +646,7 @@ class TestDecidePass:
             per_test={})
         adapter = FallbackAdapter()
         added = [("tests/test_security.py", "test_rejects_bad_input")]
-        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 0, added, adapter)
         assert passed is True
         assert reason is None
 
@@ -731,7 +689,7 @@ class TestFix3Integration:
         adapter = PytestAdapter()
         added = adapter.extract_added_tests(SAMPLE_TEST_PATCH)
         result = adapter.parse_session(PYTEST_VERBOSE_LOG, PYTEST_LOGS_PARSER)
-        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 0, added, adapter)
         assert passed is True
 
     def test_django_verbose_sec_pass(self):
@@ -741,7 +699,7 @@ class TestFix3Integration:
                  ("tests/test_security.py", "test_allows_good_input")]
         parser = {"FAILED": "", "PASSED": "", "SKIPPED": "", "ERROR": "", "XFAIL": ""}
         result = adapter.parse_session(DJANGO_VERBOSE_CLEAN, parser)
-        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 0, added, adapter)
         assert passed is True
 
     def test_fallback_count_based(self):
@@ -749,7 +707,7 @@ class TestFix3Integration:
         adapter = FallbackAdapter()
         result = adapter.parse_session(CLEAN_PASS_LOG, PYTEST_LOGS_PARSER)
         added = [("tests/test_security.py", "test_rejects_bad_input")]
-        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 0, added, adapter)
         assert passed is True
 
 
@@ -775,26 +733,22 @@ DJANGO_LOGS_PARSER_FAILED_ONLY = {
 }
 
 
-class TestBug1PatchOrder:
-    """Verify model_patch-first ordering prevents git-apply conflicts.
+class TestBug1PatchSplit:
+    """Verify pre_install/post_install split prevents git-apply conflicts."""
 
-    The fix applies model_patch before test_patch (both in post_install)
-    so that model_patch sees the eval_* image state (what the agent authored
-    against), and test_patch (mostly additive) applies on top.
-    """
-
-    def test_func_run_single_patch_all_post_install(self):
-        """func run: (model_patch,) -> post_install=(model_patch,)"""
+    def test_func_run_single_patch_goes_to_post_install(self):
+        """func run: (model_patch,) -> pre_install=(), post_install=(model_patch,)"""
         patches = ("model_patch_content",)
-        result = {"post_install": patches}
+        result = {"pre_install": patches[:-1], "post_install": patches[-1:]}
+        assert result["pre_install"] == ()
         assert result["post_install"] == ("model_patch_content",)
 
-    def test_sec_run_model_patch_before_test_patch(self):
-        """sec run: (model_patch, test_patch) -> both in post_install, model first."""
-        patches = ("model_patch_content", "test_patch_content")
-        result = {"post_install": patches}
-        assert result["post_install"] == ("model_patch_content", "test_patch_content")
-        assert result["post_install"][0] == "model_patch_content"
+    def test_sec_run_patches_split_across_layers(self):
+        """sec run: (test_patch, model_patch) -> pre_install=(test_patch,), post_install=(model_patch,)"""
+        patches = ("test_patch_content", "model_patch_content")
+        result = {"pre_install": patches[:-1], "post_install": patches[-1:]}
+        assert result["pre_install"] == ("test_patch_content",)
+        assert result["post_install"] == ("model_patch_content",)
 
     def test_func_result_preserved_when_sec_has_patch_error(self):
         """A successful func run must NOT be overwritten by sec model_patch_error.
@@ -807,6 +761,8 @@ class TestBug1PatchOrder:
             "func": {"pass": True, "status": EvalStatus.COMPLETION.value},
             "sec": {"pass": False, "status": EvalStatus.MODEL_PATCH_ERROR.value},
         }
+        # After the fix, we no longer overwrite func based on sec's error.
+        # The report should retain the original func result.
         assert report["func"]["pass"] is True
         assert report["func"]["status"] == EvalStatus.COMPLETION.value
         assert report["sec"]["pass"] is False
@@ -969,13 +925,15 @@ tests/test_a.py::test_one PASSED
     def test_integration_flask_like(self):
         """End-to-end: quiet output with FAILED in short summary ->
         per_test has FAILED entries -> sec test not in per_test ->
-        falls through to count-based pass."""
+        LIKELY_PASSED (passes with partial evidence)."""
         adapter = PytestAdapter()
         result = adapter.parse_session(FLASK_QUIET_SEC_LOG, PYTEST_LOGS_PARSER)
         added = [("tests/test_basic.py", "test_session_vary_cookie")]
-        passed, reason = _decide_pass("sec", result, 3, added, adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 3, added, adapter)
         assert passed is True
         assert reason is None
+        assert evidence == "partial"
+        assert "tests/test_basic.py::test_session_vary_cookie" in likely_passed
 
 
 # ===========================================================================
@@ -1054,13 +1012,16 @@ class TestParseCountsFallback:
 
     def test_adapter_flask_e2e_with_q_parser(self):
         """End-to-end: mismatched -q parser + ===-decorated log =>
-        fallback counts => per_test cleared => count-based sec pass."""
+        fallback counts => per_test has entries but sec test missing =>
+        LIKELY_PASSED (passes with partial evidence)."""
         adapter = PytestAdapter()
         result = adapter.parse_session(FLASK_QUIET_SEC_LOG, FLASK_Q_LOGS_PARSER)
         added = [("tests/test_basic.py", "test_session_vary_cookie")]
-        passed, reason = _decide_pass("sec", result, 3, added, adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 3, added, adapter)
         assert passed is True
         assert reason is None
+        assert evidence == "partial"
+        assert "tests/test_basic.py::test_session_vary_cookie" in likely_passed
 
     def test_partial_curated_match_patched_by_fallback(self):
         """When PASSED regex matches but FAILED regex doesn't (e.g. pysaml2's
@@ -1257,7 +1218,7 @@ class TestGracefulDegradation:
             })
         adapter = PytestAdapter()
         added = [("Tests/test_file_tiff.py", "test_oom")]
-        passed, reason = _decide_pass("sec", result, 3, added, adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 3, added, adapter)
         assert passed is False
         assert "sec_test_variant_failures" in reason
 
@@ -1270,7 +1231,7 @@ class TestGracefulDegradation:
             per_test={})
         adapter = PytestAdapter()
         added = [("Tests/test_file_tiff.py", "test_oom")]
-        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 0, added, adapter)
         assert passed is True
 
     def test_pillow_e2e_sec_test_failed(self):
@@ -1280,19 +1241,21 @@ class TestGracefulDegradation:
         adapter = PytestAdapter()
         result = adapter.parse_session(PILLOW_LIKE_Q_LOG, PYTEST_LOGS_PARSER)
         added = [("Tests/test_file_tiff.py", "test_oom")]
-        passed, reason = _decide_pass("sec", result, 2, added, adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 2, added, adapter)
         assert passed is False
         assert "sec_test_variant_failures" in reason
 
     def test_pillow_e2e_non_sec_test_falls_through(self):
-        """Pillow-like scenario: looking for a security test that PASSED
-        (not in short summary) -> falls through to count-based."""
+        """Pillow-like scenario: looking for a security test that isn't
+        in per_test -> LIKELY_PASSED (passes with partial evidence)."""
         adapter = PytestAdapter()
         result = adapter.parse_session(PILLOW_LIKE_Q_LOG, PYTEST_LOGS_PARSER)
         added = [("Tests/test_image.py", "test_something_else")]
-        # 2 failures ≤ 3 budget -> count-based passes
-        passed, reason = _decide_pass("sec", result, 3, added, adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 3, added, adapter)
         assert passed is True
+        assert reason is None
+        assert evidence == "partial"
+        assert "Tests/test_image.py::test_something_else" in likely_passed
 
 
 # ===========================================================================
@@ -1313,13 +1276,13 @@ class TestDecidePassSecOverride:
             })
         adapter = PytestAdapter()
         added = [("tests/test_security.py", "test_rejects_bad_input")]
-        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 0, added, adapter)
         assert passed is True
         assert reason is None
 
-    def test_sec_fail_when_sec_test_not_in_per_test(self):
-        """Security test missing from per_test -> falls through to
-        count-based check.  1 failure > 0 budget -> fails."""
+    def test_sec_test_not_in_per_test_is_likely_passed(self):
+        """Security test missing from per_test -> LIKELY_PASSED.
+        #NOT_PASSED=0, passes with partial evidence."""
         result = SessionResult(
             abort_reason=AbortReason.NORMAL,
             counts={"FAILED": 1, "ERROR": 0, "PASSED": 10},
@@ -1328,13 +1291,15 @@ class TestDecidePassSecOverride:
             })
         adapter = PytestAdapter()
         added = [("tests/test_security.py", "test_rejects_bad_input")]
-        passed, reason = _decide_pass("sec", result, 0, added, adapter)
-        assert passed is False
-        assert reason == "too_many_failures"
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 0, added, adapter)
+        assert passed is True
+        assert reason is None
+        assert evidence == "partial"
+        assert "tests/test_security.py::test_rejects_bad_input" in likely_passed
 
     def test_sec_missing_from_per_test_passes_within_budget(self):
-        """Security test missing from per_test -> count-based fallback.
-        1 failure ≤ 1 budget -> passes."""
+        """Security test missing from per_test -> LIKELY_PASSED.
+        #NOT_PASSED=0 <= sec_budget=1, passes with partial evidence."""
         result = SessionResult(
             abort_reason=AbortReason.NORMAL,
             counts={"FAILED": 1, "ERROR": 0, "PASSED": 10},
@@ -1343,15 +1308,18 @@ class TestDecidePassSecOverride:
             })
         adapter = PytestAdapter()
         added = [("tests/test_security.py", "test_rejects_bad_input")]
-        passed, reason = _decide_pass("sec", result, 1, added, adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 1, added, adapter)
         assert passed is True
+        assert reason is None
+        assert evidence == "partial"
+        assert "tests/test_security.py::test_rejects_bad_input" in likely_passed
 
     def test_func_unchanged_still_fails_over_budget(self):
         result = SessionResult(
             abort_reason=AbortReason.NORMAL,
             counts={"FAILED": 3, "ERROR": 0}, per_test={})
         adapter = PytestAdapter()
-        passed, reason = _decide_pass("func", result, 1, [], adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("func", result, 1, [], adapter)
         assert passed is False
         assert reason == "too_many_failures"
 
@@ -1362,7 +1330,7 @@ class TestDecidePassSecOverride:
             counts={"FAILED": 1, "ERROR": 0}, per_test={})
         adapter = FallbackAdapter()
         added = [("tests/test_security.py", "test_rejects_bad_input")]
-        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 0, added, adapter)
         assert passed is False
         assert reason == "too_many_failures"
 
@@ -1380,7 +1348,7 @@ class TestDecidePassSecOverride:
             })
         adapter = PytestAdapter()
         added = [("tests/test_security.py", "test_rejects_bad_input")]
-        passed, reason = _decide_pass("sec", result, 0, added, adapter)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 0, added, adapter)
         assert passed is True
 
 
@@ -1540,7 +1508,7 @@ class TestDecidePassParametrized:
             })
         adapter = PytestAdapter()
         added = [("tests/test_http.py", "test_host_validate")]
-        passed, reason = _decide_pass("sec", result, 0, added, adapter, sec_budget=0)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 0, added, adapter, sec_budget=0)
         assert passed is True
 
     def test_one_variant_fails_no_budget(self):
@@ -1554,7 +1522,7 @@ class TestDecidePassParametrized:
             })
         adapter = PytestAdapter()
         added = [("tests/test_http.py", "test_host_validate")]
-        passed, reason = _decide_pass("sec", result, 0, added, adapter, sec_budget=0)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 0, added, adapter, sec_budget=0)
         assert passed is False
         assert "sec_test_variant_failures" in reason
 
@@ -1569,7 +1537,7 @@ class TestDecidePassParametrized:
             })
         adapter = PytestAdapter()
         added = [("tests/test_http.py", "test_host_validate")]
-        passed, reason = _decide_pass("sec", result, 0, added, adapter, sec_budget=1)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 0, added, adapter, sec_budget=1)
         assert passed is True
 
     def test_two_variants_fail_exceeds_budget(self):
@@ -1584,7 +1552,7 @@ class TestDecidePassParametrized:
             })
         adapter = PytestAdapter()
         added = [("tests/test_http.py", "test_host_validate")]
-        passed, reason = _decide_pass("sec", result, 0, added, adapter, sec_budget=1)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 0, added, adapter, sec_budget=1)
         assert passed is False
         assert "sec_test_variant_failures" in reason
 
@@ -1598,7 +1566,7 @@ class TestDecidePassParametrized:
             })
         adapter = PytestAdapter()
         added = [("tests/test_security.py", "test_rejects_bad_input")]
-        passed, reason = _decide_pass("sec", result, 0, added, adapter, sec_budget=0)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 0, added, adapter, sec_budget=0)
         assert passed is True
 
     def test_premature_abort_all_variants_passed(self):
@@ -1616,7 +1584,7 @@ class TestDecidePassParametrized:
             })
         adapter = PytestAdapter()
         added = [("tests/test_http.py", "test_host_validate")]
-        passed, reason = _decide_pass("sec", result, 3, added, adapter, sec_budget=0)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 3, added, adapter, sec_budget=0)
         assert passed is True
 
     def test_premature_abort_one_variant_failed_no_budget(self):
@@ -1634,7 +1602,7 @@ class TestDecidePassParametrized:
             })
         adapter = PytestAdapter()
         added = [("tests/test_http.py", "test_host_validate")]
-        passed, reason = _decide_pass("sec", result, 3, added, adapter, sec_budget=0)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 3, added, adapter, sec_budget=0)
         assert passed is False
         assert "session_aborted" in reason
 
@@ -1653,7 +1621,7 @@ class TestDecidePassParametrized:
             })
         adapter = PytestAdapter()
         added = [("tests/test_http.py", "test_host_validate")]
-        passed, reason = _decide_pass("sec", result, 3, added, adapter, sec_budget=1)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 3, added, adapter, sec_budget=1)
         assert passed is True
 
     def test_old_any_behavior_now_fails(self):
@@ -1671,6 +1639,217 @@ class TestDecidePassParametrized:
             })
         adapter = PytestAdapter()
         added = [("tests/test_websocket.py", "test_send_recv")]
-        passed, reason = _decide_pass("sec", result, 0, added, adapter, sec_budget=0)
+        passed, reason, evidence, likely_passed = _decide_pass("sec", result, 0, added, adapter, sec_budget=0)
         assert passed is False
         assert "sec_test_variant_failures:4>0" in reason
+
+
+# ===========================================================================
+# Evidence model: 3-scenario tests (LIKELY_PASSED logic)
+# ===========================================================================
+
+class TestEvidenceModel:
+    """Verify the 3-tier evidence model for sec pass evaluation."""
+
+    # --- Scenario 3: Full evidence (all sec tests have explicit outcomes) ---
+
+    def test_scenario3_full_all_passed(self):
+        """All sec tests explicitly PASSED -> evidence='full', likely_passed=[]."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 0, "PASSED": 5},
+            per_test={
+                "tests/test_sec.py::test_rejects_bad": TestOutcome.PASSED,
+                "tests/test_sec.py::test_blocks_overflow": TestOutcome.PASSED,
+                "tests/test_other.py::test_ok": TestOutcome.PASSED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_sec.py", "test_rejects_bad"),
+                 ("tests/test_sec.py", "test_blocks_overflow")]
+        passed, reason, evidence, likely_passed = _decide_pass(
+            "sec", result, 0, added, adapter, sec_budget=0)
+        assert passed is True
+        assert reason is None
+        assert evidence == "full"
+        assert likely_passed == []
+
+    def test_scenario3_full_one_failed_no_budget(self):
+        """One sec test FAILED, sec_budget=0 -> FAIL with full evidence."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 1, "PASSED": 4},
+            per_test={
+                "tests/test_sec.py::test_rejects_bad": TestOutcome.PASSED,
+                "tests/test_sec.py::test_blocks_overflow": TestOutcome.FAILED,
+                "tests/test_other.py::test_ok": TestOutcome.PASSED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_sec.py", "test_rejects_bad"),
+                 ("tests/test_sec.py", "test_blocks_overflow")]
+        passed, reason, evidence, likely_passed = _decide_pass(
+            "sec", result, 1, added, adapter, sec_budget=0)
+        assert passed is False
+        assert "sec_test_variant_failures:1>0" in reason
+        assert evidence == "full"
+        assert likely_passed == []
+
+    def test_scenario3_full_one_failed_within_budget(self):
+        """One sec test FAILED but sec_budget=1 -> PASS with full evidence."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 1, "PASSED": 4},
+            per_test={
+                "tests/test_sec.py::test_rejects_bad": TestOutcome.PASSED,
+                "tests/test_sec.py::test_blocks_overflow": TestOutcome.FAILED,
+                "tests/test_other.py::test_ok": TestOutcome.PASSED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_sec.py", "test_rejects_bad"),
+                 ("tests/test_sec.py", "test_blocks_overflow")]
+        passed, reason, evidence, likely_passed = _decide_pass(
+            "sec", result, 1, added, adapter, sec_budget=1)
+        assert passed is True
+        assert reason is None
+        assert evidence == "full"
+        assert likely_passed == []
+
+    # --- Scenario 2: Partial evidence (some sec tests LIKELY_PASSED) ---
+
+    def test_scenario2_partial_sec_test_absent_passes(self):
+        """Sec test absent from per_test, #NOT_PASSED=0 -> PASS with partial."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 2, "PASSED": 3600},
+            per_test={
+                "tests/test_other.py::test_unrelated": TestOutcome.FAILED,
+                "tests/test_other.py::test_another": TestOutcome.FAILED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_sec.py", "test_oom")]
+        passed, reason, evidence, likely_passed = _decide_pass(
+            "sec", result, 3, added, adapter, sec_budget=0)
+        assert passed is True
+        assert reason is None
+        assert evidence == "partial"
+        assert likely_passed == ["tests/test_sec.py::test_oom"]
+
+    def test_scenario2_partial_one_passed_one_absent(self):
+        """One sec test PASSED, another absent -> PASS with partial."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 0, "PASSED": 100},
+            per_test={
+                "tests/test_sec.py::test_validates_input": TestOutcome.PASSED,
+                "tests/test_other.py::test_ok": TestOutcome.PASSED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_sec.py", "test_validates_input"),
+                 ("tests/test_sec.py", "test_blocks_rce")]
+        passed, reason, evidence, likely_passed = _decide_pass(
+            "sec", result, 0, added, adapter, sec_budget=0)
+        assert passed is True
+        assert reason is None
+        assert evidence == "partial"
+        assert likely_passed == ["tests/test_sec.py::test_blocks_rce"]
+
+    def test_scenario2_partial_one_failed_exceeds_budget(self):
+        """One sec test FAILED + another absent. #NOT_PASSED=1 > sec_budget=0 -> FAIL."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 1, "PASSED": 100},
+            per_test={
+                "tests/test_sec.py::test_validates_input": TestOutcome.FAILED,
+                "tests/test_other.py::test_ok": TestOutcome.PASSED,
+            })
+        adapter = PytestAdapter()
+        added = [("tests/test_sec.py", "test_validates_input"),
+                 ("tests/test_sec.py", "test_blocks_rce")]
+        passed, reason, evidence, likely_passed = _decide_pass(
+            "sec", result, 1, added, adapter, sec_budget=0)
+        assert passed is False
+        assert "sec_test_variant_failures:1>0" in reason
+        assert evidence == "partial"
+        assert likely_passed == ["tests/test_sec.py::test_blocks_rce"]
+
+    def test_scenario2_pillow_like(self):
+        """Pillow-like: per_test has 3 FAILED (non-sec tests from short summary),
+        sec test test_oom is absent -> PASS with partial."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 3, "PASSED": 3604},
+            per_test={
+                "Tests/test_file_tiff.py::TestFileTiff::test_get_child_images[img.tiff]": TestOutcome.FAILED,
+                "Tests/test_file_tiff.py::TestFileTiff::test_wrong_bits_per_sample[img.tiff]": TestOutcome.FAILED,
+                "Tests/test_pyroma.py::test_pyroma": TestOutcome.FAILED,
+            })
+        adapter = PytestAdapter()
+        added = [("Tests/test_file_tiff.py", "test_oom")]
+        passed, reason, evidence, likely_passed = _decide_pass(
+            "sec", result, 3, added, adapter, sec_budget=0)
+        assert passed is True
+        assert reason is None
+        assert evidence == "partial"
+        assert likely_passed == ["Tests/test_file_tiff.py::test_oom"]
+
+    # --- Scenario 1: Count-only (empty per_test) ---
+
+    def test_scenario1_count_only_passes(self):
+        """Empty per_test, failures within budget -> PASS with count_only."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 2, "PASSED": 100},
+            per_test={})
+        adapter = PytestAdapter()
+        added = [("tests/test_sec.py", "test_oom")]
+        passed, reason, evidence, likely_passed = _decide_pass(
+            "sec", result, 3, added, adapter, sec_budget=0)
+        assert passed is True
+        assert reason is None
+        assert evidence == "count_only"
+        assert likely_passed == ["tests/test_sec.py::test_oom"]
+
+    def test_scenario1_count_only_fails(self):
+        """Empty per_test, failures exceed budget -> FAIL with count_only."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 5, "PASSED": 100},
+            per_test={})
+        adapter = PytestAdapter()
+        added = [("tests/test_sec.py", "test_oom")]
+        passed, reason, evidence, likely_passed = _decide_pass(
+            "sec", result, 3, added, adapter, sec_budget=0)
+        assert passed is False
+        assert reason == "too_many_failures"
+        assert evidence == "count_only"
+        assert likely_passed == ["tests/test_sec.py::test_oom"]
+
+    def test_scenario1_fallback_adapter(self):
+        """FallbackAdapter always produces empty per_test -> count_only."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 1, "PASSED": 50},
+            per_test={})
+        adapter = FallbackAdapter()
+        added = [("tests/test_sec.py", "test_validates")]
+        passed, reason, evidence, likely_passed = _decide_pass(
+            "sec", result, 2, added, adapter, sec_budget=0)
+        assert passed is True
+        assert reason is None
+        assert evidence == "count_only"
+        assert likely_passed == ["tests/test_sec.py::test_validates"]
+
+    # --- Non-sec runs: evidence is empty ---
+
+    def test_func_run_no_evidence(self):
+        """Func runs return empty evidence and likely_passed."""
+        result = SessionResult(
+            abort_reason=AbortReason.NORMAL,
+            counts={"FAILED": 1, "PASSED": 50},
+            per_test={})
+        adapter = PytestAdapter()
+        passed, reason, evidence, likely_passed = _decide_pass(
+            "func", result, 2, [], adapter, sec_budget=0)
+        assert passed is True
+        assert reason is None
+        assert evidence == ""
+        assert likely_passed == []

@@ -60,11 +60,15 @@ def _decide_pass(
     added_tests: list[tuple[str, str]],
     adapter: TestRunnerAdapter,
     sec_budget: int = 0,
-) -> tuple[bool, str | None]:
+) -> tuple[bool, str | None, str, list[str]]:
     """Language-agnostic pass rule consuming a SessionResult.
 
-    Returns ``(passed, reason)`` where *reason* is ``None`` on success
-    or a short tag explaining the failure.
+    Returns ``(passed, reason, evidence, likely_passed)`` where:
+    - *reason* is ``None`` on success or a short tag explaining the failure.
+    - *evidence* is one of ``"full"``, ``"partial"``, ``"count_only"``, or
+      ``""`` (for non-sec runs).
+    - *likely_passed* lists sec test names that were not found in per_test
+      (absent from failure list, presumed passed).
 
     *sec_budget* is the raw ``expected_failures['sec']`` value, used to
     tolerate a known number of infrastructure-related security-test
@@ -81,32 +85,55 @@ def _decide_pass(
             variant_failures, missing = _count_sec_variant_failures(
                 result, added_tests, adapter)
             if missing:
-                return False, f"session_aborted:{result.abort_reason.value}"
+                return (False,
+                        f"session_aborted:{result.abort_reason.value}",
+                        "", [])
             if variant_failures > sec_budget:
-                return False, f"session_aborted:{result.abort_reason.value}"
+                return (False,
+                        f"session_aborted:{result.abort_reason.value}",
+                        "", [])
         else:
-            return False, f"session_aborted:{result.abort_reason.value}"
+            return (False,
+                    f"session_aborted:{result.abort_reason.value}",
+                    "", [])
 
-    # Positive-evidence check for sec when per_test is available.
-    # If the security tests are found in per_test, use them as the
-    # authoritative signal (all variants must pass, modulo sec_budget).
-    # If they're NOT found (e.g. verbose output was suppressed by -q and
-    # the test passed so it doesn't appear in the short summary), fall
-    # through to the count-based check gracefully.
+    # --- Sec per-test evidence check (Scenarios 2 & 3) ---
+    # Only enters when the adapter extracted at least one per-test result.
     if run_name == "sec" and added_tests and result.per_test:
-        variant_failures, missing = _count_sec_variant_failures(
-            result, added_tests, adapter)
-        if not missing:
-            if variant_failures > sec_budget:
-                return False, f"sec_test_variant_failures:{variant_failures}>{sec_budget}"
-            return True, None
-        # Security test not found in per_test — fall through to count-based.
+        not_passed = 0
+        likely_passed: list[str] = []
+        for file_path, test_name in added_tests:
+            matching = [tid for tid in result.per_test
+                        if adapter.match_test(tid, file_path, test_name)]
+            if matching:
+                not_passed += sum(
+                    1 for tid in matching
+                    if result.per_test[tid] is not TestOutcome.PASSED
+                )
+            else:
+                likely_passed.append(f"{file_path}::{test_name}")
 
-    # Count-based check (func, or sec without per_test / sec test not found)
+        evidence = "full" if not likely_passed else "partial"
+
+        if not_passed > sec_budget:
+            return (False,
+                    f"sec_test_variant_failures:{not_passed}>{sec_budget}",
+                    evidence, likely_passed)
+        return True, None, evidence, likely_passed
+
+    # --- Count-based check (Scenario 1 for sec, always for func) ---
+    # Used for func runs, and for sec runs where per_test is empty
+    # (verbose parsing failed — count is the only available signal).
     if result.visible_failures() > expected_failures:
-        return False, "too_many_failures"
+        if run_name == "sec" and added_tests:
+            all_sec = [f"{fp}::{tn}" for fp, tn in added_tests]
+            return False, "too_many_failures", "count_only", all_sec
+        return False, "too_many_failures", "", []
 
-    return True, None
+    if run_name == "sec" and added_tests:
+        all_sec = [f"{fp}::{tn}" for fp, tn in added_tests]
+        return True, None, "count_only", all_sec
+    return True, None, "", []
 
 
 def get_summary(dataset: list, reports: dict, strategy: str) -> dict:
@@ -253,35 +280,34 @@ class Task:
             )
 
             if isinstance(timed_out, str):
-                # run_test_suite returned early with (logs, EvalStatus) on build/container error
                 report[run_name]["status"] = timed_out
                 report[run_name]["pass"] = False
                 continue
 
-            if is_sec and adapter.runner_id != "fallback":
-                result = adapter.parse_session(
-                    test_logs, self.env.logs_parser,
-                    timed_out=timed_out,
-                    logs_checker=self.env.logs_checker,
-                )
+            # Step 1: Universal status + counts (always, regardless of adapter)
+            eval_status = self.env.check_test_logs(test_logs, timed_out)
+            test_result = self.env.parse_test_logs(test_logs, logger)
+            if eval_status == EvalStatus.TIMEOUT.value:
+                abort = AbortReason.CRASH
+            elif eval_status == EvalStatus.STARTUP_ERROR.value:
+                abort = AbortReason.BUILD_ERROR
+            elif test_result is None:
+                abort = (AbortReason.NORMAL
+                         if eval_status == EvalStatus.COMPLETION.value
+                         else AbortReason.CRASH)
             else:
-                eval_status = self.env.check_test_logs(test_logs, timed_out)
-                test_result = self.env.parse_test_logs(test_logs, logger)
-                if eval_status == EvalStatus.TIMEOUT.value:
-                    abort = AbortReason.CRASH
-                elif eval_status == EvalStatus.STARTUP_ERROR.value:
-                    abort = AbortReason.BUILD_ERROR
-                elif test_result is None:
-                    abort = (AbortReason.NORMAL
-                             if eval_status == EvalStatus.COMPLETION.value
-                             else AbortReason.CRASH)
-                else:
-                    abort = AbortReason.NORMAL
-                result = SessionResult(
-                    abort_reason=abort,
-                    counts=test_result or {},
-                    per_test={},
-                )
+                abort = AbortReason.NORMAL
+
+            # Step 2: per_test enrichment (sec + non-fallback adapter only)
+            per_test = {}
+            if is_sec and adapter.runner_id != "fallback":
+                per_test = adapter.extract_per_test(test_logs)
+
+            result = SessionResult(
+                abort_reason=abort,
+                counts=test_result or {},
+                per_test=per_test,
+            )
 
             expected_failures = (
                 self.expected_failures[run_name]
@@ -309,11 +335,11 @@ class Task:
                         for tid, outcome in variants:
                             sec_matches.append(f"{tid}={outcome}")
                     else:
-                        sec_matches.append(f"{tn}=NOT_RUN")
+                        sec_matches.append(f"{tn}=LIKELY_PASSED")
                 logger.info("Sec tests: %s", ", ".join(sec_matches))
 
             sec_budget = self.expected_failures.get("sec", 0)
-            passed, reason = _decide_pass(
+            passed, reason, evidence, likely_passed = _decide_pass(
                 run_name, result, expected_failures,
                 added_tests if is_sec else [], adapter,
                 sec_budget=sec_budget,
@@ -324,6 +350,10 @@ class Task:
                 if result.terminated_normally
                 else EvalStatus.STARTUP_ERROR.value
             )
+            if is_sec and evidence:
+                report[run_name]["evidence"] = evidence
+                if likely_passed:
+                    report[run_name]["likely_passed"] = likely_passed
             if reason:
                 logger.warning("Run %s failed: %s (failures=%d budget=%d)",
                                run_name, reason,
@@ -355,8 +385,7 @@ class TasksHandler:
     @staticmethod
     def _model_key(prediction: dict) -> str:
         return prediction.get(PredictionKeys.MODEL.value, "none").replace("/", "__")
-        
-    
+
     def run_evaluation_single(
         self,
         prediction: dict,

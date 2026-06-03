@@ -54,7 +54,7 @@ class SessionResult:
 class TestRunnerAdapter:
     """Base class for test-runner adapters.
 
-    Subclass and override parse_session() for each runner family.
+    Subclass and override extract_per_test() for each runner family.
     extract_added_tests() is shared by all Python-based adapters;
     a future JUnit adapter would override it to parse @Test annotations.
     """
@@ -72,6 +72,15 @@ class TestRunnerAdapter:
         """
         return None
 
+    def extract_per_test(self, run_logs: str) -> dict[str, TestOutcome]:
+        """Extract per-test results from verbose runner output.
+
+        Returns a dict mapping test node IDs to their outcomes.
+        Empty dict means verbose parsing produced no results (e.g. the
+        runner didn't emit verbose output despite the injection).
+        """
+        return {}
+
     def parse_session(
         self,
         run_logs: str,
@@ -79,7 +88,12 @@ class TestRunnerAdapter:
         timed_out: bool = False,
         logs_checker: str | None = None,
     ) -> SessionResult:
-        """Parse runner stdout/stderr into a SessionResult."""
+        """Parse runner stdout/stderr into a SessionResult.
+
+        DEPRECATED: kept for backward compatibility. New code should use
+        extract_per_test() instead; status and counts are now determined
+        by the universal check_test_logs + parse_test_logs path in tasks.py.
+        """
         raise NotImplementedError
 
     def match_test(

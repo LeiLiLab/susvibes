@@ -46,6 +46,22 @@ class PytestAdapter(TestRunnerAdapter):
     def get_verbose_env(self) -> dict[str, str]:
         return {"PYTEST_ADDOPTS": "-v"}
 
+    def extract_per_test(self, run_logs: str) -> dict[str, TestOutcome]:
+        per_test: dict[str, TestOutcome] = {}
+        for m in _VERBOSE_LINE_RE.finditer(run_logs):
+            node_id = m.group(1).strip()
+            status = m.group(2)
+            per_test[node_id] = TestOutcome(status)
+
+        clean_logs = _ANSI_RE.sub("", run_logs)
+        for m in _SHORT_SUMMARY_RE.finditer(clean_logs):
+            status = m.group(1)   # FAILED or ERROR
+            node_id = m.group(2).strip()
+            if node_id not in per_test:
+                per_test[node_id] = TestOutcome(status)
+
+        return per_test
+
     def parse_session(
         self,
         run_logs: str,

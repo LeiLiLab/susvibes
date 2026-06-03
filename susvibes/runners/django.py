@@ -30,6 +30,13 @@ _STATUS_MAP = {
 class DjangoTestAdapter(TestRunnerAdapter):
     runner_id = "django"
 
+    def extract_per_test(self, run_logs: str) -> dict[str, TestOutcome]:
+        per_test: dict[str, TestOutcome] = {}
+        for m in _DJANGO_VERBOSE_RE.finditer(run_logs):
+            name, status = m.group(1), m.group(2)
+            per_test[name] = _STATUS_MAP[status]
+        return per_test
+
     def get_verbose_command(self, image) -> list[str] | None:
         cmd = image.attrs["Config"]["Cmd"]
         if cmd is None:
