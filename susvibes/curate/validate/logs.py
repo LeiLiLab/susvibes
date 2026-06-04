@@ -13,7 +13,7 @@ from susvibes.curate.validate.prompts import (
     LOGS_PARSER_PROMPT_TEMPLATE,
     LOGS_CHECKER_PROMPT_TEMPLATE,
 )
-from susvibes.env_specs import (
+from susvibes.constants import (
     FAILURE_STATUSES,
     TestItemStatus,
     TestStatus,
@@ -31,7 +31,7 @@ _llm_cost_lock = threading.Lock()
 _llm_cost_total = 0.0
 
 
-def _record_llm_cost(response) -> None:
+def record_llm_cost(response) -> None:
     """Add this LLM response's USD cost to the run total."""
     cost = (getattr(response, "_hidden_params", None) or {}).get("response_cost")
     if cost is None:
@@ -133,7 +133,7 @@ def get_logs_parser(
         except Exception as e:
             logger.warning(f"Failed to get model response: {e}")
             continue
-        _record_llm_cost(response)
+        record_llm_cost(response)
         message = response.choices[0].message
         try:
             logs_parser = json.loads(message.content.split("```")[1].strip()) \
@@ -278,7 +278,7 @@ def get_logs_checker(
         except Exception as e:
             logger.warning(f"Failed to get model response: {e}")
             continue
-        _record_llm_cost(response)
+        record_llm_cost(response)
         message = response.choices[0].message
         try:
             response = json.loads(message.content.split("```")[1].strip()) \

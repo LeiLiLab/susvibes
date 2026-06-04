@@ -14,7 +14,6 @@ from contextlib import contextmanager
 from textwrap import dedent
 from huggingface_hub import HfApi
 from susvibes.utils import save_file, touched_files
-from susvibes.constants import DOCKERHUB_USERNAME
 from susvibes.curate.constants import TaskArtifact, PATCH_TEMPLATE
 from susvibes.env_specs import DOCKERFILE_PATTERN
 

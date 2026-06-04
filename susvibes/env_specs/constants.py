@@ -1,22 +1,6 @@
-from enum import StrEnum
-
-class TestItemStatus(StrEnum):
-    FAILED = "FAILED"
-    PASSED = "PASSED"
-    SKIPPED = "SKIPPED"
-    ERROR = "ERROR"
-    XFAIL = "XFAIL"
-    
-class TestStatus(StrEnum):
-    STARTUP_ERROR = "startup_error"
-    TIMEOUT = "timeout"
-    COMPLETION = "completion"
-    
-FAILURE_STATUSES = {TestItemStatus.FAILED, TestItemStatus.ERROR}
-
 TEST_SYMBOL_RESOLUTION_ERROR_PATTERNS = [
     r"ImportError: cannot import",
-    r"AttributeError:.*?attribute", 
+    r"AttributeError:.*?attribute",
     r"NameError: name",
     r"UnboundLocalError:",
     r"TypeError:",

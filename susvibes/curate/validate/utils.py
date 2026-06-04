@@ -25,9 +25,9 @@ def compose_clean_dockerfile_for_eval(
 
 
 def build_clean_eval_deployment(
-    logger: logging.Logger,
     source_image_name: str,
     target_image_name: str,
+    logger: logging.Logger,
 ) -> Deployment:
     """Build the evaluation image from source_image_name with git history wiped."""
     clean_dockerfile = compose_clean_dockerfile_for_eval(source_image_name)

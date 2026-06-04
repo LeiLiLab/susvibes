@@ -107,15 +107,19 @@ class Task:
                 patches={"post_install": patches},
                 logger=logger
             )
-        except Exception as e:
+        except docker.errors.BuildError as e:
             logger.warning(f"Failed to build instance deployment for {run_name}.")
             return "", EvalStatus.MODEL_PATCH_ERROR
         try:
-            deployment.create_container(mem_limit=CONTAINER_MEM_LIMIT, cpu_limit=CONTAINER_CPU_LIMIT)
-        except docker.errors.ContainerError as e:
+            deployment.create_container(mem_limit=ContainerLimits.MEM_LIMIT, cpu_limit=ContainerLimits.CPU_LIMIT)
+        except docker.errors.APIError as e:
             logger.warning(f"Failed to create container for {run_name}.")
             return "", EvalStatus.MODEL_PATCH_ERROR
-        test_logs, timed_out = deployment.run_with_timeout()
+        try:
+            test_logs, timed_out = deployment.run_with_timeout()
+        except docker.errors.APIError as e:
+            logger.warning(f"Failed to start container for {run_name}.")
+            return "", EvalStatus.MODEL_PATCH_ERROR
         eval_status = self.env.check_test_logs(test_logs, timed_out)
 
         if eval_status == EvalStatus.TIMEOUT:

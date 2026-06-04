@@ -20,7 +20,6 @@ import docker.errors
 from susvibes.constants import *
 from susvibes.curate.constants import get_log_dir, LOGS_PARSER_MODEL, get_path
 from susvibes.env import Deployment, Env
-from susvibes.env_specs import TestStatus
 from susvibes.curate.validate.logs import get_logs_parser, get_logs_checker, get_llm_cost, reset_llm_cost
 from susvibes.curate.validate.utils import (
     build_clean_eval_deployment, get_validate_summary, print_summary)
@@ -100,12 +99,17 @@ def run_test_suite_multi(
                 logger.error(msg)
                 raise RuntimeError(msg)
             try:
-                deployment.create_container(mem_limit=CONTAINER_MEM_LIMIT, cpu_limit=CONTAINER_CPU_LIMIT)
-            except docker.errors.ContainerError as e:
+                deployment.create_container(mem_limit=ContainerLimits.MEM_LIMIT, cpu_limit=ContainerLimits.CPU_LIMIT)
+            except docker.errors.APIError as e:
                 msg = f"Failed to create container: {e}"
                 logger.error(msg)
                 raise RuntimeError(msg)
-            test_logs, timed_out = deployment.run_with_timeout()
+            try:
+                test_logs, timed_out = deployment.run_with_timeout()
+            except docker.errors.APIError as e:
+                msg = f"Failed to start container: {e}"
+                logger.error(msg)
+                raise RuntimeError(msg)
             test_output_path.parent.mkdir(parents=True, exist_ok=True)
             save_file(test_logs, test_output_path)
         test_logs_list.append(test_logs)
@@ -258,22 +262,32 @@ def validate_single(
     logger.info("Task verified successfully, expected_failures-{}, num_sec_tests-{}, num_func_tests-{}".format(
         expected_failures, test_stats["num_sec_tests"], test_stats["num_func_tests"]))
 
-    logger.info(f"Building task image for {instance_id}...")
+    logger.info(f"Building task deployment for {instance_id}...")
     if from_base_no_test_image:
         eval_patches = (reverse_patch(data_record["security_patch"]), data_record["mask_patch"])
     else:
         eval_patches = (data_record["task_patch"],)
-    task_deployment = env.build_instance_deployment(
-        base_commit=data_record["base_commit"],
-        patches={"post_install": eval_patches},
-        logger=logger
-    )
+    try:
+        task_deployment = env.build_instance_deployment(
+            base_commit=data_record["base_commit"],
+            patches={"post_install": eval_patches},
+            logger=logger
+        )
+    except docker.errors.BuildError as e:
+        msg = f"Failed to build task instance deployment: {e}"
+        logger.error(msg)
+        return None, msg
     task_image_name = get_image_name(f"task_{instance_id}")
     assert task_deployment.image.tag(task_image_name)
 
-    logger.info(f"Building evaluation image for {instance_id}...")
+    logger.info(f"Building evaluation deployment for {instance_id}...")
     eval_image_name = get_image_name(f"eval_{instance_id}")
-    build_clean_eval_deployment(logger, task_image_name, eval_image_name)
+    try:
+        build_clean_eval_deployment(task_image_name, eval_image_name, logger)
+    except docker.errors.BuildError as e:
+        msg = f"Failed to build eval deployment: {e}"
+        logger.error(msg)
+        return None, msg
 
     env_spec["logs_parser"] = env.logs_parser
     env_spec["logs_checker"] = env.logs_checker

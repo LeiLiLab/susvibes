@@ -28,7 +28,7 @@ from susvibes.curate.constants import (
     PATCH_TEMPLATE,
 )
 from susvibes.curate.utils import extract_repo_test_cmd, reverse_patch
-from susvibes.env import Env
+from susvibes.env import Env, Deployment
 from susvibes.utils import (
     get_image_name, load_file, parse_instance_id, save_file, setup_instance_logger,
 )
@@ -62,12 +62,13 @@ Command to run the repo test suite: `{repo_test_cmd}`
 """)
 
 
-def build_base_no_test_image(data_record, env_spec, log_dir: Path) -> str | None:
+def build_base_no_test_deployment(
+    data_record, env_spec, target_image_name: str, log_dir: Path) -> Deployment | None:
     """Build the per-instance "base_no_test" image: env image with the original
-    test_patch reversed, so /project sits at the secure baseline without tests."""
+    test_patch reversed, so /project sits at the secure baseline without tests,
+    tagged target_image_name. Returns the Deployment (or None on failure)."""
     instance_id = data_record["instance_id"]
     project, _ = parse_instance_id(instance_id)
-    image_name = get_image_name(f"base_no_test_{instance_id}")
 
     log_file = log_dir / instance_id / LOG_BUILD
     logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
@@ -79,19 +80,23 @@ def build_base_no_test_image(data_record, env_spec, log_dir: Path) -> str | None
             image_name=data_record["env_image_name"],
             dockerfile=env_spec["dockerfile"],
         )
+    except (docker.errors.ImageNotFound, docker.errors.NotFound):
+        logger.error(f"Image not found: {data_record['env_image_name']}")
+        return None
+    try:
         deployment = env.build_instance_deployment(
             base_commit=data_record["base_commit"],
             patches={"post_install": (data_record["test_patch"], "-R")},
             logger=logger,
             remove_image=False,
         )
-    except (docker.errors.BuildError, docker.errors.ImageNotFound) as e:
-        logger.error(f"Failed to build base_no_test image for {instance_id}: {e}")
+    except docker.errors.BuildError as e:
+        logger.error(f"Failed to build base_no_test deployment for {instance_id}: {e}")
         return None
 
-    assert deployment.image.tag(image_name)
-    logger.info(f"base_no_test image built: {image_name}")
-    return image_name
+    assert deployment.image.tag(target_image_name)
+    logger.info(f"base_no_test deployment built: {target_image_name}")
+    return deployment
 
 
 def dump_test(data_record, env_spec, edits_dir: Path):
@@ -128,8 +133,10 @@ def dump_single(record, env_spec, edits_dir: Path, log_dir: Path, no_require_tes
     if no_require_test:
         dump_test(record, env_spec, edits_dir)
         return True
-    base_no_test_image_name = build_base_no_test_image(record, env_spec, log_dir)
-    if not base_no_test_image_name:
+    base_no_test_image_name = get_image_name(f"base_no_test_{record['instance_id']}")
+    deployment = build_base_no_test_deployment(
+        record, env_spec, base_no_test_image_name, log_dir)
+    if not deployment:
         return None
     record["base_no_test_image_name"] = base_no_test_image_name
     dump_test(record, env_spec, edits_dir)

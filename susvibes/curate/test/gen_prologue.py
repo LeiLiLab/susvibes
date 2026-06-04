@@ -27,7 +27,7 @@ from susvibes.curate.test.prompts import (
 )
 from susvibes.curate.utils import extract_repo_test_cmd, reverse_patch
 from susvibes.curate.utils.agents.ports import SWEAgentPort
-from susvibes.env import Env
+from susvibes.env import Env, Deployment
 from susvibes.env_specs import BUILD_DATA_DIR_NAME, PATCHES_DIR_NAME, WORKSPACE_DIR_NAME
 from susvibes.utils import load_file, get_image_name, parse_instance_id, setup_instance_logger
 
@@ -48,13 +48,13 @@ HINT_STRATEGY_TEMPLATES = {
 }
 
 
-def build_rollback_image(data_record, env_spec, log_dir):
+def build_rollback_deployment(data_record, env_spec, target_image_name, log_dir) -> Deployment | None:
     """Build a rollback variant of the env image with security_patch reversed
     (so /project sits in the vulnerable state) and the patch persisted at
-    .susvibes.security_patch.diff. Returns the image name (or None on failure)."""
+    .susvibes.security_patch.diff, tagged target_image_name. Returns the
+    Deployment (or None on failure)."""
     instance_id = data_record["instance_id"]
     project, _ = parse_instance_id(instance_id)
-    rollback_image_name = get_image_name(f"rollback_{instance_id}")
 
     log_file = log_dir / instance_id / LOG_INSTANCE
     logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
@@ -66,6 +66,10 @@ def build_rollback_image(data_record, env_spec, log_dir):
             image_name=data_record["env_image_name"],
             dockerfile=env_spec["dockerfile"],
         )
+    except (docker.errors.ImageNotFound, docker.errors.NotFound):
+        logger.error(f"Image not found: {data_record['env_image_name']}")
+        return None
+    try:
         deployment = env.build_instance_deployment(
             base_commit=data_record["base_commit"],
             patches={"post_install": (data_record["security_patch"], "-R")},
@@ -76,13 +80,13 @@ def build_rollback_image(data_record, env_spec, log_dir):
                 SECURITY_PATCH_FILE,
             )],
         )
-    except (docker.errors.BuildError, docker.errors.ImageNotFound) as e:
-        logger.error(f"Failed to build rollback image for {instance_id}: {e}")
+    except docker.errors.BuildError as e:
+        logger.error(f"Failed to build rollback deployment for {instance_id}: {e}")
         return None
 
-    assert deployment.image.tag(rollback_image_name)
-    logger.info(f"Rollback image built: {rollback_image_name}")
-    return rollback_image_name
+    assert deployment.image.tag(target_image_name)
+    logger.info(f"Rollback deployment built: {target_image_name}")
+    return deployment
 
 
 def build_rollback_threadpool(records, env_specs, log_dir, max_workers, force=False):
@@ -90,25 +94,27 @@ def build_rollback_threadpool(records, env_specs, log_dir, max_workers, force=Fa
     Returns (image_by_id, failed) — a dict of successful builds and a list of failures."""
     image_by_id, failed = {}, []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {
-            executor.submit(
-                build_rollback_image,
+        futures = {}
+        for record in records:
+            instance_id = record["instance_id"]
+            rollback_image_name = get_image_name(f"rollback_{instance_id}")
+            futures[executor.submit(
+                build_rollback_deployment,
                 record,
-                env_specs[record["instance_id"]],
+                env_specs[instance_id],
+                rollback_image_name,
                 log_dir,
-            ): record["instance_id"]
-            for record in records
-        }
+            )] = (instance_id, rollback_image_name)
         with tqdm(total=len(futures), dynamic_ncols=True,
             desc=f"Building rollback images [{max_workers} threads]") as pbar:
             for future in as_completed(futures):
-                instance_id = futures[future]
+                instance_id, rollback_image_name = futures[future]
                 try:
-                    result = future.result()
+                    deployment = future.result()
                 except Exception as e:
                     raise RuntimeError(f"Internal error for {instance_id}: {e}")
-                if result:
-                    image_by_id[instance_id] = result
+                if deployment:
+                    image_by_id[instance_id] = rollback_image_name
                 else:
                     failed.append(instance_id)
                 pbar.update(1)

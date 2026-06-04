@@ -146,7 +146,7 @@ def pull_short_tag(short_name: str, version: str) -> str:
     return short
 
 
-def build_env_deployment(instance_id, dockerfile, logger):
+def build_env_deployment(instance_id, dockerfile, logger) -> Deployment | None:
     """Build a environment Docker image."""
     project, base_commit = parse_instance_id(instance_id)
     repo_dir = get_repo_dir(project, root_dir=LOCAL_REPOS_DIR)
@@ -165,9 +165,10 @@ def build_env_deployment(instance_id, dockerfile, logger):
             image_name=env_image_name,
         )
     except docker.errors.BuildError as e:
-        msg = "Failed to get environment deployment."
-        logger.error(msg)
-        raise RuntimeError(msg)
+        logger.error(f"Failed to build environment deployment: {e}")
+        return None
+    except RuntimeError:
+        return None  # validate_* already logged
     return env_deployment
 
 
@@ -277,7 +278,7 @@ def build_repo_single(
             msg = "No environment prediction or specification provided."
             logger.error(msg)
             raise RuntimeError(msg)
-    except RuntimeError as e:
+    except RuntimeError:
         return None
 
     if env_spec is None:
@@ -299,10 +300,9 @@ def build_repo_single(
         except docker.errors.ImageNotFound:
             pass
 
-    try:
-        with RepoLocks.locked(project):
-            env_deployment = build_env_deployment(instance_id, dockerfile, logger)
-    except RuntimeError as e:
+    with RepoLocks.locked(project):
+        env_deployment = build_env_deployment(instance_id, dockerfile, logger)
+    if env_deployment is None:
         return None
 
     env_spec["dockerfile"] = dockerfile

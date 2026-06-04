@@ -12,7 +12,7 @@ import docker.errors
 from docker.models.containers import Container
 from docker.models.images import Image
 
-from susvibes.constants import CONTAINER_RUN_TIMEOUT
+from susvibes.constants import ContainerLimits, TestStatus, FAILURE_STATUSES
 from susvibes.env_specs import *
 from susvibes.utils import get_image_name, get_instance_id, save_file
 
@@ -40,7 +40,7 @@ class Deployment():
 
     @staticmethod
     def get_default_image_name() -> str:
-        return "agentsec_auto_{}".format(uuid.uuid4())
+        return get_image_name("auto_{}".format(uuid.uuid4()))
 
     @classmethod
     def from_build(cls, 
@@ -78,11 +78,11 @@ class Deployment():
             logger.info(f"Image {image_name} built successfully.")
             return cls(docker_client.images.get(image_name), logger, remove_image, remove_container)
         except docker.errors.BuildError as e:
-            logger.warning(f"docker.errors.BuildError when building {image_name}: {e}")
+            logger.warning(f"Error building {image_name}: {e}")
             logger.warning(f"Build log: {e.build_log}")
             raise
         except docker.errors.APIError as e:
-            logger.warning(f"docker.errors.APIError when building {image_name}: {e}")
+            logger.warning(f"Error building {image_name}: {e}")
             raise docker.errors.BuildError(f"API error: {e}", "")
 
     @classmethod
@@ -103,8 +103,8 @@ class Deployment():
                         raise
             logger.info(f"Image {image_name} pulled successfully.")
             return cls(image, logger, remove_image, remove_container)
-        except docker.errors.NotFound:
-            logger.warning(f"docker.errors.NotFound when pulling {image_name}.")
+        except docker.errors.APIError as e:
+            logger.warning(f"Error pulling {image_name}: {e}")
             raise
 
     @classmethod
@@ -129,11 +129,11 @@ class Deployment():
             logger.info(f"Image {image_name or image_id} found locally.")
             if not image.tags:
                 default_image_name = cls.get_default_image_name()
-                logger.warning(f"Warning: image has no names, tagging a default name {default_image_name}.")
+                logger.warning(f"Image has no names, tagging a default name {default_image_name}.")
                 assert image.tag(default_image_name)
             return cls(image, logger, remove_image, remove_container)
-        except docker.errors.ImageNotFound:
-            logger.warning(f"docker.errors.ImageNotFound when getting {image_name or image_id}.")
+        except docker.errors.APIError as e:
+            logger.warning(f"Error getting {image_name or image_id}: {e}")
             raise
     
     def create_container(
@@ -153,14 +153,19 @@ class Deployment():
             )
             self.logger.info(f"Container for {self.image.id} created: {container.name}")
             self.container = container
-        except docker.errors.ContainerError as e:
+        except docker.errors.APIError as e:
             self.logger.warning(f"Error creating container for {self.image.id}: {e}")
+            self.stop()
             raise
     
     def start(self) -> None | str:
         """Start the container and if wait is True return running logs."""
-        self.container.start()
-        self.logger.info(f"Container {self.container.name} started.")
+        try:
+            self.container.start()
+            self.logger.info(f"Container {self.container.name} started.")
+        except docker.errors.APIError as e:
+            self.logger.warning(f"Failed to start container {self.container.name}: {e}")
+            raise
 
     def _remove_container(self) -> None:
         """Remove the container if it exists."""
@@ -171,7 +176,7 @@ class Deployment():
         except docker.errors.NotFound as e:
             self.logger.info(f"Container {self.container.name} not found.")
         except Exception as e:
-            self.logger.error(f"Failed to remove container {self.container.name}: {e}", exc_info=True)
+            self.logger.warning(f"Failed to remove container {self.container.name}: {e}")
 
     def _remove_image(self) -> None:
         self._remove_container()
@@ -181,7 +186,7 @@ class Deployment():
         except docker.errors.ImageNotFound as e:
             self.logger.info(f"Image {self.image.id} not found.")
         except Exception as e:
-            self.logger.error(f"Failed to remove image {self.image.id}: {e}", exc_info=True)
+            self.logger.warning(f"Failed to remove image {self.image.id}: {e}")
 
     def stop(self) -> None:
         """Stop the container and deal with the removal logic."""
@@ -201,16 +206,20 @@ class Deployment():
                         os.kill(pid, signal.SIGKILL)
                         self.logger.info(f"Forcefully killed container {self.container.name} with PID {pid}.")
                     else:
-                        self.logger.error(f"PID for container {self.container.name}: {pid} - not killing.")
+                        self.logger.warning(f"PID for container {self.container.name}: {pid} - not killing.")
                 except Exception as e:
-                    self.logger.error(f"Failed to forcefully kill container {self.container.name}: {e}", exc_info=True)
+                    self.logger.warning(f"Failed to forcefully kill container {self.container.name}: {e}", exc_info=True)
         if self.remove_image:
             self._remove_image()
         elif self.remove_container:
             self._remove_container()
 
-    def run_with_timeout(self, timeout: int = CONTAINER_RUN_TIMEOUT, stop_timeout: int = 60) -> tuple[str, bool]:
-        self.start()
+    def run_with_timeout(self, timeout: int = ContainerLimits.RUN_TIMEOUT, stop_timeout: int = 60) -> tuple[str, bool]:
+        try:
+            self.start()
+        except docker.errors.APIError:
+            self.stop()
+            raise
         run_logs, timed_out = b"", False
         def run():
             nonlocal run_logs

@@ -18,10 +18,12 @@ def get_env_spec_path(name: str, run_id: str = "default") -> Path:
 EVALUATION_LOG_DIR = root_dir / "logs/run_evaluation"
 LOG_SUMMARY = "summary.json"
 
-CONTAINER_RUN_TIMEOUT = 1800
-CONTAINER_MEM_LIMIT = "{}g".format(
-    min(int(os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES') / (1024 ** 3) * 0.75), 16))
-CONTAINER_CPU_LIMIT = min(int(os.cpu_count() * 0.75), 16)
+class ContainerLimits:
+    """Resource limits and run timeout for analysis / test containers."""
+    RUN_TIMEOUT = 1800  # seconds
+    MEM_LIMIT = "{}g".format(
+        min(int(os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES') / (1024 ** 3) * 0.75), 16))
+    CPU_LIMIT = min(16, max(1, int(os.cpu_count() * 0.75)))
 
 DOCKERHUB_USERNAME = "songwen6968"
 HF_DATASET_REPO = "songwen6968/SusVibes"
@@ -46,3 +48,17 @@ class EvalStatus(StrEnum):
     STARTUP_ERROR = "startup_error"
     TIMEOUT = "timeout"
     COMPLETION = "completion"
+
+class TestItemStatus(StrEnum):
+    FAILED = "FAILED"
+    PASSED = "PASSED"
+    SKIPPED = "SKIPPED"
+    ERROR = "ERROR"
+    XFAIL = "XFAIL"
+
+class TestStatus(StrEnum):
+    STARTUP_ERROR = "startup_error"
+    TIMEOUT = "timeout"
+    COMPLETION = "completion"
+
+FAILURE_STATUSES = {TestItemStatus.FAILED, TestItemStatus.ERROR}
