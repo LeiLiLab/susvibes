@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Precise backward symbol trace via jedi.
 
 Subsumes the file-level approximations (direct import, re-export, import-graph
@@ -34,27 +35,38 @@ Scope discovery uses parso (the syntax tree), NOT jedi name inference:
 imports, which is not thread-safe and corrupts its pipe under the thread pool.
 Only ``get_references`` (a pure reference search) uses jedi.
 
-jedi (current releases) parses Python 3 only. For Python 2 repos parsing fails;
-``usable()`` samples the repo so the caller can fall back to the file-level engine.
+Runs inside a version-matched cov_py container, so the jedi/parso here are the
+ones pinned for the target's Python version (jedi 0.19/parso 0.8 on py3.6+, jedi
+0.17/parso 0.7 on py2.7/3.5). ``usable()`` still samples the repo and falls back
+to the file-level engine if parsing largely fails.
 """
+from __future__ import print_function, division, absolute_import, unicode_literals
+
 from collections import deque
-from pathlib import Path
+
+try:
+    from pathlib import Path           # py3 (and py2 if pathlib backport present)
+except ImportError:                    # py2.7 stdlib has no pathlib
+    from pathlib2 import Path
 
 import jedi
-import jedi.inference.references as _jedi_references
+import jedi.inference.references as jedi_references
 import parso
 
-from susvibes.curate.mine.check_cov.constants import SymbolTrace
-from susvibes.curate.mine.check_cov.constants import is_test_file
+from .constants import SymbolTrace
+from .constants import is_test_file
 
 # jedi's project-wide get_references silently caps how many files it opens/parses
 # via hardcoded module globals, dropping test references on large repos (see the
 # constants). Raise them. Module-level so it runs once per worker process on import;
 # search_in_file_ios reads these globals at call time, so patching here takes effect.
-_jedi_references._OPENED_FILE_LIMIT = SymbolTrace.JEDI_OPENED_FILE_LIMIT
-_jedi_references._PARSED_FILE_LIMIT = SymbolTrace.JEDI_PARSED_FILE_LIMIT
+# Guarded by hasattr so a jedi version without these globals does not break import.
+if hasattr(jedi_references, "_OPENED_FILE_LIMIT"):
+    jedi_references._OPENED_FILE_LIMIT = SymbolTrace.JEDI_OPENED_FILE_LIMIT
+if hasattr(jedi_references, "_PARSED_FILE_LIMIT"):
+    jedi_references._PARSED_FILE_LIMIT = SymbolTrace.JEDI_PARSED_FILE_LIMIT
 
-# Evidence scores for symbol-trace hits (precise → high); the shortest chain wins.
+# Evidence scores for symbol-trace hits (precise -> high); the shortest chain wins.
 SCORE_DIRECT = 0.95         # S1: a test references a target-defined symbol directly (hop<=1)
 SCORE_CHAIN_NEAR = 0.80     # S2: reached through 2-3 wrapping/global hops
 SCORE_CHAIN_FAR = 0.65      # S3: reached through >3 hops (still a real reference chain)
@@ -62,15 +74,15 @@ SCORE_CHAIN_FAR = 0.65      # S3: reached through >3 hops (still a real referenc
 # Decorators that make a method implicitly invoked (via attribute access, not an
 # explicit ``obj.method()`` call) — like dunder methods, these have no by-name call
 # site for get_references to find, so the trace must continue through the class.
-_PROPERTY_DECORATORS = {"property", "cached_property", "setter", "getter", "deleter"}
+PROPERTY_DECORATORS = {"property", "cached_property", "setter", "getter", "deleter"}
 # A target symbol is used by a bare top-level statement in a non-test file that a
 # test imports: the file runs the statement on import, but no method body need run
 # (often only construction/registration) — weaker, like a file-level reach.
 SCORE_TOPLEVEL_REACH = 0.55   # S4: target symbol used at module top level of a test-imported file (backstop)
 
 
-def usable(repo_dir, sources) -> bool:
-    """Sample-parse repo files with jedi; return False (→ file-level fallback) when
+def usable(repo_dir, sources):
+    """Sample-parse repo files with jedi; return False (-> file-level fallback) when
     too many fail, which in practice means a Python 2 repo jedi cannot parse."""
     rels = list(sources)[:SymbolTrace.JEDI_PARSE_SAMPLE]
     if not rels:
@@ -84,7 +96,7 @@ def usable(repo_dir, sources) -> bool:
     return fails / len(rels) <= SymbolTrace.JEDI_PARSE_FAIL_RATIO
 
 
-class JediContext:
+class JediContext(object):
     """Per-instance jedi/parso state. Not reusable across instances: each instance
     is a different commit, so the working tree (and parse results) differ."""
 
@@ -95,7 +107,7 @@ class JediContext:
         self._scripts = {}
         self._trees = {}
 
-    def script(self, abs_path) -> jedi.Script:
+    def script(self, abs_path):
         key = str(abs_path)
         sc = self._scripts.get(key)
         if sc is None:
@@ -130,11 +142,11 @@ class JediContext:
             return None
 
 
-def build(repo_dir, sources, test_set) -> JediContext:
+def build(repo_dir, sources, test_set):
     return JediContext(repo_dir, test_set)
 
 
-def _assignment_lhs_names(expr_stmt):
+def assignment_lhs_names(expr_stmt):
     """(line, col) of each name assigned to on the LHS of an ``expr_stmt``.
 
     A name is an assignment target when at least one ``=`` operator follows it
@@ -148,7 +160,7 @@ def _assignment_lhs_names(expr_stmt):
     return [c.start_pos for c in children[:eq[-1]] if c.type == "name"]
 
 
-def _defined_name_positions(tree):
+def defined_name_positions(tree):
     """(line, col) of every traceable symbol DEFINED in a file: function/class
     names, and the target names of module-level assignments (globals)."""
     if tree is None:
@@ -168,17 +180,17 @@ def _defined_name_positions(tree):
             continue
         for child in stmt.children:
             if child.type == "expr_stmt":
-                out.extend(_assignment_lhs_names(child))
+                out.extend(assignment_lhs_names(child))
     return out
 
 
-def _seed_positions(ctx, target):
+def seed_positions(ctx, target):
     """(abs_path, [(line, col), ...]) of symbols defined in the target file."""
     abs_path = ctx.repo_dir / target
-    return abs_path, _defined_name_positions(ctx.parso_tree(abs_path))
+    return abs_path, defined_name_positions(ctx.parso_tree(abs_path))
 
 
-def _decorator_tails(funcnode):
+def decorator_tails(funcnode):
     """Last dotted segment of each decorator on a funcdef (``@x.setter`` -> setter,
     ``@property`` -> property); empty if the funcdef carries no decorators."""
     decorated = funcnode.parent
@@ -197,16 +209,16 @@ def _decorator_tails(funcnode):
     return tails
 
 
-def _is_implicit_method(funcnode) -> bool:
+def is_implicit_method(funcnode):
     """Whether a method is invoked implicitly (no ``obj.method()`` call site for
     get_references to find): a dunder, or a property/descriptor accessor."""
     name = funcnode.name.value
     if name.startswith("__") and name.endswith("__"):
         return True
-    return any(t in _PROPERTY_DECORATORS for t in _decorator_tails(funcnode))
+    return any(t in PROPERTY_DECORATORS for t in decorator_tails(funcnode))
 
 
-def _enclosing_class(funcnode):
+def enclosing_class(funcnode):
     """The classdef a funcnode is a direct method of, or None if it is a top-level
     or nested-in-function definition."""
     node = funcnode.parent
@@ -214,12 +226,12 @@ def _enclosing_class(funcnode):
         if node.type == "classdef":
             return node
         if node.type == "funcdef":
-            return None  # nested inside a function → not a direct method
+            return None  # nested inside a function -> not a direct method
         node = node.parent
     return None
 
 
-def _child_between(children, node, start_op, end_ops):
+def child_between(children, node, start_op, end_ops):
     """True if the direct child ``node`` sits after the first ``start_op`` operator
     and before any ``end_ops`` operator among ``children`` — used to locate an
     annotation region (after ``:`` / ``->``, before a ``=`` default or the suite ``:``)."""
@@ -235,7 +247,7 @@ def _child_between(children, node, start_op, end_ops):
                    for c in children[start + 1:idx])
 
 
-def _is_annotation_ref(ctx, ref) -> bool:
+def is_annotation_ref(ctx, ref):
     """Whether a reference sits in a TYPE-ANNOTATION position: a parameter annotation
     ``def f(x: T)``, a variable annotation ``x: T`` (not its ``= value`` part), or a
     return annotation ``-> T``. Such a name is only looked up as a type object — it
@@ -256,26 +268,26 @@ def _is_annotation_ref(ctx, ref) -> bool:
         # only holds the tfpdef + an optional `= default`); variable annotation
         # `x: T` is an `annassign`. In both, the type is after `:` and before `=`.
         if parent.type in ("tfpdef", "param", "annassign") \
-                and _child_between(parent.children, node, ":", ("=",)):
+                and child_between(parent.children, node, ":", ("=",)):
             return True
-        if parent.type == "funcdef" and _child_between(parent.children, node, "->", (":",)):
+        if parent.type == "funcdef" and child_between(parent.children, node, "->", (":",)):
             return True
         node, parent = parent, parent.parent
     return False
 
 
-def _successors(ctx, ref):
+def successors(ctx, ref):
     """What to trace next from a non-test reference site, as
     ``(successor_positions, module_level)``:
 
-      - inside a function/class body → [(abs_path, line, col)] of the innermost
+      - inside a function/class body -> [(abs_path, line, col)] of the innermost
         enclosing def's name (taint the wrapper), module_level=False. When that
         innermost def is an implicitly-invoked method (a dunder or property — it
         has no by-name call site), the trace continues through its CLASS instead,
         since the method runs when the class is instantiated / its attribute read;
-      - at module top level inside an assignment → the LHS global name
+      - at module top level inside an assignment -> the LHS global name
         position(s) to trace who uses that global, module_level=True;
-      - at module top level with nothing to continue → [], module_level=True
+      - at module top level with nothing to continue -> [], module_level=True
         (the caller may apply the import-reachability backstop)."""
     abs_path = Path(ref.module_path)
     tree = ctx.parso_tree(abs_path)
@@ -292,28 +304,28 @@ def _successors(ctx, ref):
     node = leaf.parent
     while node is not None and node.type != "module":
         if node.type == "classdef":
-            return [(abs_path, *node.name.start_pos)], False
+            return [(abs_path,) + node.name.start_pos], False
         if node.type == "funcdef":
-            if _is_implicit_method(node):
-                cls = _enclosing_class(node)
+            if is_implicit_method(node):
+                cls = enclosing_class(node)
                 if cls is not None:
-                    return [(abs_path, *cls.name.start_pos)], False
-            return [(abs_path, *node.name.start_pos)], False
+                    return [(abs_path,) + cls.name.start_pos], False
+            return [(abs_path,) + node.name.start_pos], False
         node = node.parent
 
     # Module top level: trace the assignment global(s) this reference feeds, if any.
     node = leaf.parent
     while node is not None and node.type != "module":
         if node.type == "expr_stmt":
-            names = _assignment_lhs_names(node)
+            names = assignment_lhs_names(node)
             if names:
-                return [(abs_path, *p) for p in names], True
+                return [(abs_path,) + p for p in names], True
             break
         node = node.parent
     return [], True
 
 
-def _score_for_hop(hop):
+def score_for_hop(hop):
     if hop <= 1:
         return SCORE_DIRECT, "S1"
     if hop <= 3:
@@ -321,7 +333,7 @@ def _score_for_hop(hop):
     return SCORE_CHAIN_FAR, "S3"
 
 
-def _get_references(ctx, path, line, col):
+def get_references(ctx, path, line, col):
     """Project-wide references for a symbol, retrying a transient jedi failure
     (rebuilding the Script in case its inference state was corrupted, e.g. a
     poisoned compiled-subprocess pipe under load). Returns the reference list, or
@@ -338,7 +350,7 @@ def score(target, ctx, index, max_depth):
     """Backward BFS from the target's symbols. Returns ``(evidence, reliable)``.
 
     ``evidence`` is a list with the single strongest (score, message), or [] if no
-    test reaches the target. FIFO frontier ⇒ hop distance is monotonic ⇒ the first
+    test reaches the target. FIFO frontier => hop distance is monotonic => the first
     test reference found is the shortest chain, so the search returns on the first
     hit. Reaching a target symbol only through a bare top-level statement in a
     test-importable file is a weaker backstop, returned only if no chain is found.
@@ -349,9 +361,9 @@ def score(target, ctx, index, max_depth):
     ``unlikely_covered`` (confidently uncovered). A found hit is always reliable: a
     real chain is definitive regardless of failures elsewhere in the walk."""
     if ctx.parso_tree(ctx.repo_dir / target) is None:
-        return [], False  # target unparseable → cannot seed the trace → unknown
+        return [], False  # target unparseable -> cannot seed the trace -> unknown
 
-    abs_path, seeds = _seed_positions(ctx, target)
+    abs_path, seeds = seed_positions(ctx, target)
     frontier = deque((abs_path, line, col, 0) for line, col in seeds)
     seen = set()
     backstop = None  # (score, message) — weakest-evidence fallback
@@ -364,7 +376,7 @@ def score(target, ctx, index, max_depth):
             continue
         seen.add(key)
 
-        refs = _get_references(ctx, path, line, col)
+        refs = get_references(ctx, path, line, col)
         if refs is None:
             failures += 1   # lost this hop; keep walking other branches
             continue
@@ -375,28 +387,29 @@ def score(target, ctx, index, max_depth):
             rel = ctx.rel(ref.module_path)
             if rel is None:
                 continue
-            if _is_annotation_ref(ctx, ref):
+            if is_annotation_ref(ctx, ref):
                 continue  # a type-annotation use (x: T, -> T) never executes the symbol
             if is_test_file(rel):
                 hop = depth + 1
-                hop_score, sid = _score_for_hop(hop)
+                hop_score, sid = score_for_hop(hop)
                 return [(hop_score,
-                         f"[{sid}] test {rel}:{ref.line} reaches target symbol (symbol hop {hop})")], True
-            successors, module_level = _successors(ctx, ref)
-            for s in successors:
-                frontier.append((*s, depth + 1))
+                         "[{0}] test {1}:{2} reaches target symbol (symbol hop {3})".format(
+                             sid, rel, ref.line, hop))], True
+            succs, module_level = successors(ctx, ref)
+            for s in succs:
+                frontier.append(s + (depth + 1,))
             # Bare top-level use in a non-test file a test DIRECTLY imports (import
             # depth 1): the file runs it on import, so the target is reached (weakly)
             # at file load. A deeper transitive import is too incidental to count
             # (see SymbolTrace.TOPLEVEL_REACH_MAX_DEPTH).
             file_depth = index.bfs_depth.get(rel, 0)
-            if module_level and not successors and backstop is None \
+            if module_level and not succs and backstop is None \
                     and 1 <= file_depth <= SymbolTrace.TOPLEVEL_REACH_MAX_DEPTH:
                 backstop = (SCORE_TOPLEVEL_REACH,
-                            f"[S4] target symbol used at top level of test-reachable {rel}")
+                            "[S4] target symbol used at top level of test-reachable {0}".format(rel))
 
     if backstop:
         return [backstop], True
     # No hit: trust the negative only if the walk was mostly complete. Too many
-    # failed reference searches mean we cannot rule coverage out → unknown.
+    # failed reference searches mean we cannot rule coverage out -> unknown.
     return [], failures <= SymbolTrace.MAX_FAILURES

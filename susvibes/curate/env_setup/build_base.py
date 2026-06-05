@@ -1,181 +1,249 @@
 """
-Build and/or push the canonical base_py + dind_py images for selected Python minors.
+Build / push / pull the base_py + dind_py + cov_py images for selected Python versions.
 
-`--mode` picks the phase(s) to run:
-  build  -> build base_py + dind_py for `--versions`
-  push   -> push base_py + dind_py for `--versions`
-  all    -> run both (default)
+  --mode         (required): build | push | pull
+  --image_names  (default all three): JSON list of "base_py", "dind_py", "cov_py"
+  --versions     (required): JSON list of Python versions
 
-Be conservative with rebuilds: base_py:{3.7..3.12} already exist locally + on
-Docker Hub from a prior build; rebuilding could pick up patch-version drift in
-the python:X.Y-bookworm base image and break already-validated downstream env
-images. Pass only the minors you actually need.
+dind_py and cov_py are built FROM base_py. cov_py adds the version-matched jedi/parso stack
+check_cov needs (these may fail to install on old interpreters, failing that version's build).
+Rebuilds can drift the upstream python base, so pass only the versions you need.
 
-  python -m susvibes.curate.env_setup.build_base --versions '["2.7","3.5","3.6"]'
   python -m susvibes.curate.env_setup.build_base --mode build --versions '["3.6"]'
-  python -m susvibes.curate.env_setup.build_base --mode push --versions '["3.10"]'
+  python -m susvibes.curate.env_setup.build_base --mode build --image_names '["cov_py"]' --versions '["3.10"]'
+  python -m susvibes.curate.env_setup.build_base --mode pull --versions '["3.10"]'
 """
 
 import argparse
 import json
+import logging
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
-import docker
 import docker.errors
 from tqdm import tqdm
 
-from susvibes.curate.utils import push_image_to_hub
+from susvibes.env import Deployment
+from susvibes.constants import ImageLoc
+from susvibes.curate.constants import get_log_dir
 from susvibes.env_specs import DEV_TOOL_VERSIONS
-from susvibes.env_specs.dockerfiles import DOCKERFILE_BASE_PY, DOCKERFILE_DIND_PY
-from susvibes.utils import get_image_name
+from susvibes.env_specs.dockerfiles import DOCKERFILE_BASE_PY, DOCKERFILE_DIND_PY, DOCKERFILE_COV_PY
+from susvibes.utils import get_image_name, setup_logger
 
 DEV_TOOL_NAME = "python"
-
-docker_client = docker.from_env()
-
-
-def _build_single(short_name: str, short_minor: str, dockerfile_content: str):
-    """Build <short_name>:<short_minor>; also tag with hub prefix. Returns (local_tag, hub_tag)."""
-    local_tag = f"{short_name}:{short_minor}"
-    hub_tag = f"{get_image_name(short_name)}:{short_minor}"
-    with tempfile.TemporaryDirectory() as tmp:
-        (Path(tmp) / "Dockerfile").write_text(dockerfile_content)
-        resp = docker_client.api.build(
-            path=tmp,
-            tag=local_tag,
-            rm=True,
-            forcerm=True,
-            decode=True,
-        )
-        buildlog = ""
-        for chunk in resp:
-            if "stream" in chunk:
-                buildlog += chunk["stream"]
-            elif "errorDetail" in chunk:
-                raise docker.errors.BuildError(
-                    chunk["errorDetail"]["message"], buildlog)
-    docker_client.images.get(local_tag).tag(hub_tag)
-    return local_tag, hub_tag
+IMAGE_NAMES = ("base_py", "dind_py", "cov_py")
 
 
-def build_base_py_single(short_minor: str, base_tag: str):
-    """Build base_py:<short_minor> from python:<base_tag>."""
-    return _build_single("base_py", short_minor,
-        DOCKERFILE_BASE_PY.format(version=base_tag))
-
-
-def build_dind_py_single(short_minor: str):
-    """Build dind_py:<short_minor> from local base_py:<short_minor>."""
-    return _build_single("dind_py", short_minor,
-        DOCKERFILE_DIND_PY.format(version=short_minor))
-
-
-def push_single(short_name, version, max_retries=3):
-    image = f"{get_image_name(short_name)}:{version}"
+def _build_single(image_name: str, version: str, dockerfile_content: str,
+                  logger: logging.Logger) -> tuple[str | None, str | None]:
+    """Build the get_image_name(image_name):version image. Returns (image_tag, None)
+    on success, (None, reason) on build failure."""
+    image_tag = f"{get_image_name(image_name)}:{version}"
     try:
-        docker_client.images.get(image)
-    except docker.errors.ImageNotFound:
-        return image, "Image not found locally."
-    try:
-        push_image_to_hub(image, max_retries=max_retries)
-        return image, None
-    except Exception as e:
-        return image, str(e)
+        with tempfile.TemporaryDirectory() as tmp:
+            Deployment.from_build(logger, context_path=Path(tmp),
+                dockerfile=dockerfile_content, image_name=image_tag)
+    except docker.errors.BuildError as e:
+        return None, str(e)
+    return image_tag, None
 
 
-def build_threadpool(short_name: str, minors: list, build_fn, max_workers: int):
-    """Build `short_name` images for each minor via build_fn(minor) in parallel.
+def build_base_py_single(version: str, upstream_image_name: str, logger: logging.Logger) -> tuple[str | None, str | None]:
+    """Build the base_py image for this version from upstream <upstream_image_name>."""
+    return _build_single("base_py", version,
+        DOCKERFILE_BASE_PY.format(upstream_image_name=upstream_image_name), logger)
 
-    Returns the list of (minor, (local_tag, hub_tag)) pairs that succeeded.
+
+def build_dind_py_single(version: str, logger: logging.Logger) -> tuple[str | None, str | None]:
+    """Build the dind_py image for this version from the base_py image."""
+    base_py_image = f'{get_image_name("base_py")}:{version}'
+    return _build_single("dind_py", version,
+        DOCKERFILE_DIND_PY.format(base_image=base_py_image), logger)
+
+
+def build_cov_single(version: str, logger: logging.Logger) -> tuple[str | None, str | None]:
+    """Build the cov_py image for this version from the base_py image with matched jedi/parso."""
+    base_py_image = f'{get_image_name("base_py")}:{version}'
+    cov_deps = DEV_TOOL_VERSIONS[DEV_TOOL_NAME]["versions"][version]["cov_deps"]
+    return _build_single("cov_py", version,
+        DOCKERFILE_COV_PY.format(base_image=base_py_image, jedi_parso=cov_deps), logger)
+
+
+def build_threadpool(image_name: str, versions: list, build_fn, max_workers: int) -> list:
+    """Build `image_name` images for each version via build_fn(version) in parallel.
+
+    Returns the list of (version, image_tag) pairs that succeeded.
     """
-    print(f"\nBuilding {len(minors)} {short_name} images: {minors}")
+    print(f"\nBuilding {len(versions)} {image_name} images: {versions}")
     built, failed = [], {}
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        futs = {ex.submit(build_fn, m): m for m in minors}
+        futs = {ex.submit(build_fn, version): version for version in versions}
         with tqdm(total=len(futs), dynamic_ncols=True,
             desc=f"Building [{max_workers} threads]") as pbar:
             for f in as_completed(futs):
-                m = futs[f]
+                version = futs[f]
                 try:
-                    built.append((m, f.result()))
+                    image_tag, reason = f.result()
                 except Exception as e:
-                    failed[m] = str(e)
+                    raise RuntimeError(f"Internal error for {version}: {e}")
+                if image_tag:
+                    built.append((version, image_tag))
+                else:
+                    failed[version] = reason
                 pbar.update(1)
                 pbar.set_description(
                     f"{len(built)} built, {len(failed)} failed")
     if built:
         print(f"Built ({len(built)}):")
-        for m, (local_tag, hub_tag) in built:
-            print(f"  python {m}: {local_tag} + {hub_tag}")
+        for version, image_tag in built:
+            print(f"  python {version}: {image_tag}")
     if failed:
         print(f"Build failed ({len(failed)}):")
-        for m, err in failed.items():
-            print(f"  python {m}: {err}")
+        for version, err in failed.items():
+            print(f"  python {version}: {err}")
     return built
 
 
-def push_threadpool(push_targets: list, max_workers: int):
-    """Push (short_name, version) pairs in parallel; missing locals are skipped."""
+def push_threadpool(push_targets: list, max_workers: int) -> None:
+    """Push (image_name, version) pairs in parallel; missing locals are skipped."""
+    def _push(image_name, version):
+        image_tag = f"{get_image_name(image_name)}:{version}"
+        try:
+            Deployment.collect_image(image_name=image_tag)
+        except docker.errors.ImageNotFound:
+            return image_tag, f"Image not found locally: {image_tag}"
+        try:
+            Deployment.push_image(image_tag)
+            return image_tag, None
+        except Exception as e:
+            return image_tag, str(e)
+
     print(f"\nPushing {len(push_targets)} images...")
     succeeded, failed = [], {}
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
-        futs = {ex.submit(push_single, s, v): (s, v) for s, v in push_targets}
+        futs = [ex.submit(_push, image_name, version) for image_name, version in push_targets]
         with tqdm(total=len(futs), dynamic_ncols=True,
             desc=f"Pushing [{max_workers} threads]") as pbar:
             for f in as_completed(futs):
-                image, err = f.result()
+                image_tag, err = f.result()
                 if err is None:
-                    succeeded.append(image)
+                    succeeded.append(image_tag)
                 else:
-                    failed[image] = err
+                    failed[image_tag] = err
                 pbar.update(1)
                 pbar.set_description(
                     f"{len(succeeded)} pushed, {len(failed)} failed")
     if succeeded:
         print(f"Pushed ({len(succeeded)}):")
-        for img in succeeded:
-            print(f"  {img}")
+        for image_tag in succeeded:
+            print(f"  {image_tag}")
     if failed:
         print(f"Failed ({len(failed)}):")
-        for img, err in failed.items():
-            print(f"  {img}: {err}")
+        for image_tag, err in failed.items():
+            print(f"  {image_tag}: {err}")
+
+
+def pull_threadpool(pull_targets: list, max_workers: int) -> None:
+    """Pull (image_name, version) pairs from the Hub."""
+    def _pull(image_name, version):
+        image_tag = f"{get_image_name(image_name)}:{version}"
+        try:
+            Deployment.collect_image(image_name=image_tag, image_loc=ImageLoc.REMOTE)
+            return image_tag, None
+        except Exception as e:
+            return image_tag, str(e)
+
+    print(f"\nPulling {len(pull_targets)} images...")
+    succeeded, failed = [], {}
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futs = [ex.submit(_pull, image_name, version) for image_name, version in pull_targets]
+        with tqdm(total=len(futs), dynamic_ncols=True,
+            desc=f"Pulling [{max_workers} threads]") as pbar:
+            for f in as_completed(futs):
+                image_tag, err = f.result()
+                if err is None:
+                    succeeded.append(image_tag)
+                else:
+                    failed[image_tag] = err
+                pbar.update(1)
+                pbar.set_description(
+                    f"{len(succeeded)} pulled, {len(failed)} failed")
+    if succeeded:
+        print(f"Pulled ({len(succeeded)}):")
+        for image_tag in succeeded:
+            print(f"  {image_tag}")
+    if failed:
+        print(f"Failed ({len(failed)}):")
+        for image_tag, err in failed.items():
+            print(f"  {image_tag}: {err}")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--max_workers", type=int, default=4)
     parser.add_argument(
-        "--mode", choices=["build", "push", "all"], default="all",
-        help="Which phase(s) to run. Default: all.",
+        "--mode", choices=["build", "push", "pull"], required=True,
+        help="build | push | pull the selected images.",
+    )
+    parser.add_argument(
+        "--image_names", type=json.loads, default=list(IMAGE_NAMES),
+        help=f'JSON list of image names among {list(IMAGE_NAMES)}. '
+             'Default: all. Example: --image_names \'["cov_py"]\'',
     )
     parser.add_argument(
         "--versions", type=json.loads, required=True,
-        help='JSON list of Python minors to operate on. '
+        help='JSON list of Python versions to operate on. '
              'Example: --versions \'["2.7", "3.5"]\'',
     )
     args = parser.parse_args()
     versions = list(args.versions)
+    image_names = list(args.image_names)
+    supported_versions = DEV_TOOL_VERSIONS[DEV_TOOL_NAME]["versions"]
+    invalid_image_names = [name for name in image_names if name not in IMAGE_NAMES]
+    if invalid_image_names:
+        parser.error(f'--image_names must be among {list(IMAGE_NAMES)}, got {invalid_image_names}')
+    invalid_versions = [v for v in versions if v not in supported_versions]
+    if invalid_versions:
+        parser.error(f'--versions must be among {list(supported_versions)}, got {invalid_versions}')
+    logger = setup_logger(get_log_dir("default", "env_setup"), "build_base.log",
+        __spec__.name, add_stdout=False)
 
-    if args.mode in ("build", "all"):
-        # base_py first, then dind_py only for the base_py builds that succeeded
-        # (dind_py FROMs base_py:{minor}).
-        base_built = build_threadpool(
-            "base_py", versions,
-            lambda m: build_base_py_single(m, DEV_TOOL_VERSIONS[DEV_TOOL_NAME]["versions"][m]),
-            args.max_workers,
-        )
-        build_threadpool(
-            "dind_py", [m for m, _ in base_built],
-            build_dind_py_single,
-            args.max_workers,
-        )
-
-    if args.mode in ("push", "all"):
-        # push_single skips images not present locally.
-        push_targets = (
-            [("base_py", v) for v in versions] +
-            [("dind_py", v) for v in versions]
-        )
-        push_threadpool(push_targets, args.max_workers)
+    if args.mode == "build":
+        if "base_py" in image_names:
+            build_threadpool(
+                "base_py", versions,
+                lambda version: build_base_py_single(
+                    version, supported_versions[version]["upstream_image_name"], logger),
+                args.max_workers,
+            )
+        # dind_py/cov_py are built FROM base_py, so it must already exist locally.
+        if "dind_py" in image_names or "cov_py" in image_names:
+            missing_base = []
+            for version in versions:
+                base_py_image = f'{get_image_name("base_py")}:{version}'
+                try:
+                    Deployment.collect_image(image_name=base_py_image)
+                except docker.errors.ImageNotFound:
+                    missing_base.append(base_py_image)
+            if missing_base:
+                raise RuntimeError(f"Base image(s) not found: {missing_base}.")
+        if "dind_py" in image_names:
+            build_threadpool(
+                "dind_py", versions,
+                lambda version: build_dind_py_single(version, logger),
+                args.max_workers,
+            )
+        if "cov_py" in image_names:
+            build_threadpool(
+                "cov_py", versions,
+                lambda version: build_cov_single(version, logger),
+                args.max_workers,
+            )
+    elif args.mode == "push":
+        # missing locals are skipped.
+        targets = [(image_name, version) for image_name in image_names for version in versions]
+        push_threadpool(targets, args.max_workers)
+    elif args.mode == "pull":
+        targets = [(image_name, version) for image_name in image_names for version in versions]
+        pull_threadpool(targets, args.max_workers)

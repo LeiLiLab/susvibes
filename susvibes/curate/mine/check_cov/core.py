@@ -5,14 +5,19 @@ at ``base_commit`` and by static analysis only (no execution), whether the repo'
 own test suite covers the files touched by the ``security_patch`` — at the FILE
 level: does any test in the repo reach any one of them.
 
-Engines (see check_cov.md); each scoring rule has an ID — S* (symbol_trace),
-F* (file_trace), H* (heuristics) — emitted in the evidence message:
-  - symbol_trace (jedi): precise backward symbol-reference trace (S1-S4); used when
-    jedi can parse the repo (Python 3). Its hits carry the highest weight.
-  - file_trace: ast->tree-sitter->regex approximation (F1-F6); fallback when jedi
-    cannot parse the repo (Python 2).
-  - heuristics: H1-H5 (conftest, framework routes/CLI, dynamic-import strings);
-    always run, because these edges are not symbol references.
+Per-version Docker isolation. Each instance is analyzed INSIDE a container whose
+Python version matches the instance (from ``dev_tools.json``), so the engine runs on
+that interpreter's NATIVE ast/jedi/parso — no py2/py3 parser conflicts. The self
+contained ``engine/`` package (S*/F*/H* scoring; see check_cov.md) is COPYied into
+a thin per-instance image built ``FROM`` the version-matched cov_py image (prebuilt by build_base),
+run once, and torn down (image + container removed). The host only orchestrates:
+reset the repo to base_commit, snapshot sources, build/run the container, read the
+JSON result from its logs.
+
+Because jedi runs in the container (a fresh process each time, naturally isolated),
+the host needs no per-instance process isolation: a ThreadPoolExecutor with the
+per-repo RepoLocks (reset of the shared clone is serialized per repo name) drives
+it, one container per worker.
 
 The goal is to MINIMIZE false negatives: a file that really is tested must not be
 marked uncovered.
@@ -22,184 +27,154 @@ Usage:
 """
 import argparse
 import json
-from collections import Counter
-import fcntl
+import logging
+import os
+import shutil
+import subprocess
 import tempfile
-from concurrent.futures import ProcessPoolExecutor, as_completed
-from contextlib import contextmanager
-from tqdm import tqdm
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
+import docker.errors
+from tqdm import tqdm
+
+from susvibes.constants import ContainerLimits, get_env_spec_path
+from susvibes.env_specs.constants import (
+    WORKSPACE_DIR_NAME,
+    SUSVIBES_RUNTIME_DATA_DIR,
+)
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_path
-from susvibes.utils import load_file, save_file, touched_files, setup_instance_logger
+from susvibes.utils import (
+    load_file, save_file, touched_files, setup_instance_logger, get_image_name,
+)
 from susvibes.curate.utils import (
     get_repo_dir,
-    clone_github_repo,
     reset_to_commit,
+    RepoLocks,
+    get_summary,
+    print_summary,
 )
-from susvibes.curate.mine.constants import TARGET_EXTENSIONS
-from susvibes.curate.mine.check_cov.constants import (
-    CoverageLabel, LABEL_RANK, CoverageResult, file_result, is_test_file,
-    Classifier, SymbolTrace, FileTrace,
-)
-from susvibes.curate.mine.check_cov import repo_index, file_trace, heuristics, symbol_trace
+from susvibes.env import Deployment
+from susvibes.curate.mine.check_cov.engine.constants import SymbolTrace
+from susvibes.curate.mine.check_cov.engine.extract_facts import TARGET_EXTENSIONS
 
 LOG_INSTANCE = "check_cov.log"
+LOG_COV_OUTPUT = "cov_output.txt"
 LOG_SUMMARY = "summary.json"
 
+# Files laid into each per-instance build context (context_path) and where each lands in
+# the image (by prepare_engine_context + compose_cov_dockerfile):
+#   context_path/<WORKSPACE_DIR_NAME>/  (repo tree)  -> image  /<WORKSPACE_DIR_NAME>
+#   context_path/<ENGINE_PKG_NAME>/     (engine pkg) -> image  <SITE_PACKAGES_DIR>/<ENGINE_PKG_NAME>
+#   context_path/<SUSVIBES_RUNTIME_DATA_DIR>/<INPUT_FILE_NAME>  (input json) -> image  <SUSVIBES_RUNTIME_DATA_DIR>/<INPUT_FILE_NAME>
+ENGINE_DIR = Path(__file__).parent / "engine"       # host: engine source to copy in
+ENGINE_PKG_NAME = "_susvibes_cov_engine"             # engine package name (context dir + image pkg)
+INPUT_FILE_NAME = "input.json"                       # worker input: instance meta + targets
+SITE_PACKAGES_DIR = "/usr/local/lib/python{version}/site-packages"  # purelib (all 9 cov bases)
 
-# --- cross-process per-repo lock -------------------------------------------
-# Each instance runs in its own fresh process (see check_cov_processpool) so jedi
-# state never degrades across instances. That makes the in-process RepoLocks
-# useless for serializing concurrent resets of a shared clone, so two instances of
-# the SAME repo (e.g. web2py x2) could `reset_to_commit` it at once. A file lock
-# keyed by repo name (matching get_repo_dir) serializes them; distinct repos never
-# contend, so cross-repo parallelism is unaffected.
-_REPO_LOCK_DIR = Path(tempfile.gettempdir()) / "check_cov_repo_locks"
+RESULT_MARKER = "<<<COV_RESULT>>>"
 
-
-@contextmanager
-def _repo_lock(project):
-    name = project.split("/", 1)[1] if "/" in project else project
-    _REPO_LOCK_DIR.mkdir(parents=True, exist_ok=True)
-    lockfile = _REPO_LOCK_DIR / f"{name.replace('/', '_')}.lock"
-    with open(lockfile, "w") as fh:
-        fcntl.flock(fh, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(fh, fcntl.LOCK_UN)
+class CovContainerLimits:
+    """Per-instance cov container limits. The analysis is light (one single-threaded
+    jedi process — get_references does not parallelize), so CPU is kept small to let
+    many instances run concurrently, capped at the host's share so a small box isn't
+    oversubscribed. The run is hard-capped so a hung container can't stall the pool."""
+    RUN_TIMEOUT = 600   # seconds — hard cap per instance container
+    MEM_LIMIT = ContainerLimits.MEM_LIMIT
+    CPU_LIMIT = min(2, max(1, int(os.cpu_count() * 0.75)))
 
 
-# --- repo snapshot ---------------------------------------------------------
+# --- per-instance build context --------------------------------------------
 
-def _read_file_raw(path: Path) -> str:
-    """Read a repo file as raw text, tolerating odd encodings (one bad file must
-    not abort the scan)."""
-    try:
-        return path.read_text(encoding="utf-8", errors="replace")
-    except Exception:
-        return ""
-
-
-def _snapshot_sources(repo_dir: Path) -> dict:
-    """Return {rel_path: source} for every target-language file under repo_dir,
-    read while holding the repo lock right after reset_to_commit."""
-    repo_dir = Path(repo_dir)
-    sources = {}
-    for path in repo_dir.rglob("*"):
-        if ".git" in path.parts or not path.is_file():
-            continue
-        if path.suffix in TARGET_EXTENSIONS:
-            sources[path.relative_to(repo_dir).as_posix()] = _read_file_raw(path)
-    return sources
-
-
-# --- scoring / classification ----------------------------------------------
-
-def _classify(score: float):
-    if score >= Classifier.LIKELY_THRESHOLD:
-        return CoverageLabel.LIKELY
-    if score > 0:
-        return CoverageLabel.MAYBE
-    return CoverageLabel.UNLIKELY
-
-
-def _result_from_evidence(evidence):
-    """evidence: list of (score, message). Strongest score wins."""
-    if not evidence:
-        return file_result(CoverageLabel.UNLIKELY, "no evidence found")
-    evidence = sorted(evidence, key=lambda e: -e[0])
-    score = evidence[0][0]
-    label = _classify(score)
-    msgs = [m for _, m in evidence][:6]
-    return file_result(label, msgs[0], score=round(score, 3), evidence=msgs)
-
-
-def _aggregate(data_record, per_file, engine, n_targets, reason=None) -> CoverageResult:
-    files = list(per_file.values())
-    if files:
-        best = max(files, key=lambda v: (LABEL_RANK[v["label"]], v["score"]))
-        label, score = best["label"], best["score"]
-    else:
-        best, label, score = None, CoverageLabel.UNKNOWN, 0.0
-    return {
+def prepare_engine_context(repo_dir: Path, data_record: dict, targets: list[str],
+                           max_depth: int, context_path: Path) -> None:
+    """Lay the repo tree, engine package, and worker input into the build context (see the
+    build-context constants above for the exact names and their image targets). The repo is
+    rsync'd -aHAX (max fidelity); .git pruning and .py selection happen in the worker."""
+    workspace_dir = context_path / WORKSPACE_DIR_NAME
+    workspace_dir.mkdir(parents=True, exist_ok=True)
+    subprocess.run(
+        ["rsync", "-aHAX",
+         str(repo_dir).rstrip("/") + "/", str(workspace_dir).rstrip("/") + "/"],
+        check=True,
+    )
+    shutil.copytree(ENGINE_DIR, context_path / ENGINE_PKG_NAME,
+                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    inp = {
         "instance_id": data_record["instance_id"],
         "project": data_record["project"],
         "base_commit": data_record["base_commit"],
-        "label": label,
-        "score": score,
-        "per_file": per_file,
-        "reason": reason or (best["reason"] if best else "no target-language files in patch"),
-        "engine": engine,
-        "n_target_files": n_targets,
+        "targets": targets,
+        "max_depth": max_depth,
     }
+    runtime_dir = context_path / SUSVIBES_RUNTIME_DATA_DIR.lstrip("/")
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    (runtime_dir / INPUT_FILE_NAME).write_text(json.dumps(inp), encoding="utf-8")
 
 
-def analyze(data_record, repo_dir, sources, max_depth=SymbolTrace.MAX_DEPTH) -> CoverageResult:
-    """Classify coverage of an instance's security-patch files against the snapshot."""
-    # process.py guarantees the security_patch is non-empty and all target-language
-    # (.py): non-code and non-target-language files are split into the test_patch,
-    # and an instance with an empty or non-target code patch is dropped. A patch
-    # with no .py target here means that upstream invariant was violated.
-    targets = sorted(touched_files(data_record["security_patch"]))
-    if not targets or any(not t.endswith(TARGET_EXTENSIONS) for t in targets):
-        raise ValueError(
-            f"{data_record['instance_id']}: security_patch must be all .py files, got {targets}")
+# --- container run / result --------------------------------------------------
 
-    per_file = {}
-    test_set = {rel for rel in sources if is_test_file(rel)}
-    if not test_set:
-        for t in targets:
-            per_file[t] = file_result(CoverageLabel.UNLIKELY, "no test suite detected")
-        return _aggregate(data_record, per_file, "none", len(targets), reason="no test suite detected")
-
-    # The index (parse + maps) is always needed: heuristics consume it, and it is
-    # the file-level fallback when jedi is unusable.
-    index = repo_index.build(sources, test_set)
-    jedi_ok = symbol_trace.usable(repo_dir, sources)
-    jctx = symbol_trace.build(repo_dir, sources, test_set) if jedi_ok else None
-    engine = "symbol" if jedi_ok else "file"
-
-    for t in targets:
-        evidence, reliable = [], True
-        if jedi_ok:
-            sym_evidence, reliable = symbol_trace.score(t, jctx, index, max_depth)  # S1-S4 precise
-            evidence += sym_evidence
-        else:
-            evidence += file_trace.score(t, index)               # F1-F6 approximation
-        evidence += heuristics.score(t, index)                   # H1-H5 always
-        if not evidence and not reliable:
-            # Symbol trace could not complete (jedi unreliable, or target unparseable)
-            # and nothing else scored: we cannot tell — unknown, not (false) unlikely.
-            per_file[t] = file_result(CoverageLabel.UNKNOWN,
-                                      "symbol trace incomplete (jedi unreliable or target unparseable)")
-        else:
-            per_file[t] = _result_from_evidence(evidence)
-
-    # File engine only: if most targets were unparseable and nothing scored, the
-    # absence of evidence is unreliable — report unknown rather than unlikely. (The
-    # symbol engine is precise: no reference chain genuinely means uncovered.)
-    if not jedi_ok and _mostly_unparseable(targets, index) \
-            and all(per_file[t]["score"] == 0.0 for t in targets):
-        for t in targets:
-            per_file[t] = file_result(CoverageLabel.UNKNOWN, "target files unparseable")
-        return _aggregate(data_record, per_file, engine, len(targets),
-                          reason="target files unparseable")
-
-    return _aggregate(data_record, per_file, engine, len(targets))
+def parse_cov_result(logs: str) -> dict | None:
+    """Extract the CoverageResult JSON the worker printed after RESULT_MARKER."""
+    if not logs or RESULT_MARKER not in logs:
+        return None
+    tail = logs.split(RESULT_MARKER)[-1].strip()
+    for line in tail.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            return json.loads(line)
+        except ValueError:
+            return None
+    return None
 
 
-def _mostly_unparseable(targets, index) -> bool:
-    fails = sum(1 for t in targets
-                if index.facts.get(t, {}).get("parse_level") in ("regex", "none"))
-    return fails > len(targets) * FileTrace.MAX_PARSE_FAIL_RATIO
+def compose_cov_dockerfile(version: str) -> str:
+    """Per-instance Dockerfile over the version-matched cov_py base (see the build-context
+    constants for what lands where). The engine is installed as a site-packages library, not on
+    PYTHONPATH=/, so jedi treats it as a library and won't scan the container root and time out
+    on large repos."""
+    cov_py_image = f'{get_image_name("cov_py")}:{version}'
+    site_packages = SITE_PACKAGES_DIR.format(version=version)
+    return (
+        "FROM {base_image}\n"
+        "COPY {ws} /{ws}\n"
+        "COPY {engine} {site_packages}/{engine}\n"
+        "COPY {runtime_rel}/{input} {runtime}/{input}\n"
+        'CMD ["python", "-m", "{engine}.worker", "/{ws}", "{runtime}/{input}"]\n'
+    ).format(base_image=cov_py_image, ws=WORKSPACE_DIR_NAME, engine=ENGINE_PKG_NAME,
+             site_packages=site_packages, input=INPUT_FILE_NAME,
+             runtime=SUSVIBES_RUNTIME_DATA_DIR,
+             runtime_rel=SUSVIBES_RUNTIME_DATA_DIR.lstrip("/"))
+
+
+def build_cov_deployment(data_record: dict, version: str, context_path: Path,
+                         logger: logging.Logger) -> Deployment | None:
+    """Build the per-instance cov image over context_path; return the Deployment
+    (image + container auto-removed after the run) or None on build failure."""
+    image_name = get_image_name("cov_{0}".format(data_record["instance_id"]))
+    try:
+        return Deployment.from_build(
+            logger=logger,
+            context_path=context_path,
+            dockerfile=compose_cov_dockerfile(version),
+            image_name=image_name,
+            remove_image=True,
+            remove_container=True,
+        )
+    except docker.errors.BuildError as e:
+        logger.error(f"Failed to build cov deployment for {data_record['instance_id']}: {e}")
+        return None
 
 
 # --- orchestration ---------------------------------------------------------
 
-def check_cov_single(data_record, log_dir, max_depth=SymbolTrace.MAX_DEPTH) -> CoverageResult:
-    """Analyze one instance's file-level test coverage at base_commit."""
+def check_cov_single(data_record: dict, log_dir: Path, dev_tools: dict,
+                     max_depth: int = SymbolTrace.MAX_DEPTH) -> tuple[dict | None, str | None]:
+    """Analyze one instance's file-level test coverage at base_commit, inside a
+    version-matched cov container. Returns (CoverageResult, None) on success,
+    (None, reason) on failure."""
     instance_id = data_record["instance_id"]
     project = data_record["project"]
     base_commit = data_record["base_commit"]
@@ -208,110 +183,150 @@ def check_cov_single(data_record, log_dir, max_depth=SymbolTrace.MAX_DEPTH) -> C
     logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
     logger.info(f"Checking test coverage for {instance_id}...")
 
+    version = (dev_tools.get(instance_id) or {}).get("version")
+    if not version:
+        logger.warning(f"No dev_tools Python version for {instance_id}; failing.")
+        return None, "no dev_tools python version"
+
+    # engine.analyze requires every target be a target-language (.py) file; filter
+    # here (process does not guarantee it) so a patch mixing .py with non-.py still
+    # gets its .py analyzed instead of failing the whole instance.
+    targets = sorted(t for t in touched_files(data_record["security_patch"])
+                     if t.endswith(TARGET_EXTENSIONS))
+    if not targets:
+        logger.warning(f"No target-language files in security_patch for {instance_id}; failing.")
+        return None, "no target-language files in security_patch"
+
     repo_dir = get_repo_dir(project, LOCAL_REPOS_DIR)
-    with _repo_lock(project):
-        clone_github_repo(project, LOCAL_REPOS_DIR, force=False)
-        reset_to_commit(repo_dir, base_commit, new_branch=False)
-        sources = _snapshot_sources(repo_dir)
-        result = analyze(data_record, repo_dir, sources, max_depth)
+    result = None
+    with tempfile.TemporaryDirectory(prefix="cov_") as tmpdir:
+        context_path = Path(tmpdir)
+        # reset + snapshot under the per-repo lock (the shared clone is mutated);
+        # the build context is an independent copy, so build/run happen lock-free.
+        with RepoLocks.locked(project):
+            reset_to_commit(repo_dir, base_commit, new_branch=False)
+            prepare_engine_context(repo_dir, data_record, targets, max_depth, context_path)
+        cov_deployment = build_cov_deployment(data_record, version, context_path, logger)
+        # Run the worker in the container, read its CoverageResult from the logs.
+        # create_container / run_with_timeout self-clean on failure; errors leave result=None.
+        if cov_deployment:
+            try:
+                cov_deployment.create_container(mem_limit=CovContainerLimits.MEM_LIMIT,
+                                                cpu_limit=CovContainerLimits.CPU_LIMIT)
+            except docker.errors.APIError as e:
+                logger.error(f"Failed to create container: {e}")
+            else:
+                try:
+                    logs, timed_out = cov_deployment.run_with_timeout(timeout=CovContainerLimits.RUN_TIMEOUT)
+                except docker.errors.APIError as e:
+                    logger.error(f"Failed to start container: {e}")
+                else:
+                    save_file(logs, Path(log_dir) / instance_id / LOG_COV_OUTPUT)
+                    if timed_out:
+                        logger.warning(f"Container timed out after {CovContainerLimits.RUN_TIMEOUT}s.")
+                    else:
+                        result = parse_cov_result(logs)
+                        if result is None:
+                            logger.error("Failed to parse coverage logs.")
 
-    logger.info(f"{instance_id} -> {result['label']} (score {result['score']:.2f}, "
-                f"{result['engine']}): {result['reason']}")
-    return result
+    if result is None:
+        return None, "container run failed or produced no result"
+    logger.info(f"Coverage for {instance_id}: {result['label']} "
+                f"(score {result.get('score')}, engine {result.get('engine')}): {result.get('reason')}")
+    return result, None
 
 
-def check_cov_processpool(processed_dataset, max_workers, coverage_report_path,
-                          processed_dataset_path, log_dir, instance_ids=None,
-                          max_depth=SymbolTrace.MAX_DEPTH):
-    """Analyze each instance, write the full coverage report, write a per-instance
-    ``coverage`` summary back into processed_dataset.jsonl, and save a run summary.
+def check_cov_threadpool(processed_dataset: list, max_workers: int, coverage_report_path: Path,
+                         log_dir: Path, dev_tools: dict,
+                         instance_ids: list[str] | None = None,
+                         max_depth: int = SymbolTrace.MAX_DEPTH) -> dict:
+    """Analyze each instance in its own version-matched container, write every
+    instance that ran to the coverage report, and save a run summary (succeeded
+    coverage labels + failed reasons).
 
-    Each instance runs in its OWN fresh worker process (``max_tasks_per_child=1``):
-    jedi's inference state degrades across instances within a long-lived process
-    (its compiled subprocess gets poisoned), silently making later instances'
-    ``get_references`` fail or return empty — a reused worker would then mislabel
-    them unknown/uncovered. A fresh process per instance keeps jedi pristine;
-    processes also don't share jedi's non-thread-safe state, so ``max_workers`` > 1
-    is safe (and parallel)."""
+    One container per worker thread; the host imports no jedi, so threads (not
+    processes) suffice. Per-repo resets are serialized by RepoLocks; distinct repos
+    run concurrently."""
     records = processed_dataset
     if instance_ids is not None:
         wanted = set(instance_ids)
         records = [r for r in records if r["instance_id"] in wanted]
 
-    results, result_by_id, label_counts = [], {}, Counter()
-    with ProcessPoolExecutor(max_workers=max_workers, max_tasks_per_child=1) as executor:
-        futures = {executor.submit(check_cov_single, r, log_dir, max_depth): r["instance_id"]
-                   for r in records}
+    # Cov images are a hard dependency — fail fast if a needed version is missing.
+    versions = {v for r in records
+                if (v := (dev_tools.get(r["instance_id"]) or {}).get("version"))}
+    for version in versions:
+        cov_py_image = f'{get_image_name("cov_py")}:{version}'
+        try:
+            Deployment.collect_image(image_name=cov_py_image)
+        except (docker.errors.ImageNotFound, docker.errors.NotFound):
+            raise RuntimeError(f"Cov image not found: {cov_py_image}")
+
+    results, succeeded, failed = [], [], {}
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(check_cov_single, r, log_dir, dev_tools, max_depth):
+                   r["instance_id"] for r in records}
         with tqdm(total=len(futures), dynamic_ncols=True,
-                  desc=f"Checking coverage [{max_workers} procs]") as pbar:
+                  desc=f"Checking coverage [{max_workers} threads]") as pbar:
             for future in as_completed(futures):
                 instance_id = futures[future]
                 try:
-                    result = future.result()
+                    result, reason = future.result()
                 except Exception as e:
                     raise RuntimeError(f"Internal error for {instance_id}: {e}")
-                results.append(result)
-                result_by_id[instance_id] = result
-                label_counts[str(result["label"])] += 1
+                if result is not None:
+                    results.append(result)
+                    succeeded.append(instance_id)
+                else:
+                    failed[instance_id] = reason
                 pbar.update(1)
-                pbar.set_description(", ".join(f"{k}={v}" for k, v in sorted(label_counts.items())))
+                pbar.set_description(
+                    f"{len(succeeded)} ran successfully, {len(failed)} failed"
+                )
                 save_file(results, coverage_report_path)
 
-    for record in processed_dataset:
-        res = result_by_id.get(record["instance_id"])
-        if res is not None:
-            record["coverage"] = {"label": res["label"], "score": res["score"],
-                                  "engine": res["engine"]}
-    save_file(processed_dataset, processed_dataset_path)
-
-    summary = get_cov_summary(results)
+    summary = get_summary(succeeded, failed)
     summary_path = Path(log_dir) / LOG_SUMMARY
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(summary, summary_path)
-    print_cov_summary(summary)
+    print_summary(summary)
     print(f"Coverage report saved to {coverage_report_path}.")
     print(f"Summary saved to {summary_path}.")
-    return results
+    return summary
 
 
-# --- run summary -----------------------------------------------------------
-
-def get_cov_summary(results: list) -> dict:
-    by_label: dict = {}
-    for r in results:
-        by_label.setdefault(str(r["label"]), []).append(r["instance_id"])
-    return {
-        "num_instances": len(results),
-        "counts": {label: len(ids) for label, ids in by_label.items()},
-        "engines": dict(Counter(r.get("engine", "?") for r in results)),
-        "details": {label: sorted(ids) for label, ids in by_label.items()},
-    }
-
-
-def print_cov_summary(summary: dict) -> None:
-    print(f"Coverage ({summary['num_instances']} instances, engines={summary['engines']}):")
-    for label in (CoverageLabel.LIKELY, CoverageLabel.MAYBE,
-                  CoverageLabel.UNLIKELY, CoverageLabel.UNKNOWN):
-        ids = summary["details"].get(str(label))
-        if not ids:
-            continue
-        print(f"  [{label}] ({len(ids)}):")
-        for instance_id in ids:
-            print(f"    {instance_id}")
-
-
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument('--run_id', type=str, default='default',
-                        help='Run ID locating datasets/<run_id>/processed_dataset.jsonl')
-    parser.add_argument('--max_workers', type=int, default=5,
-                        help='Number of worker processes (each instance runs in a fresh process)')
-    parser.add_argument('--max_records', type=int, default=None,
-                        help='Maximum number of instances to analyze')
-    parser.add_argument('--instance_ids', type=json.loads, default=None,
-                        help='JSON list of instance_ids to analyze (subset)')
-    parser.add_argument('--max_depth', type=int, default=SymbolTrace.MAX_DEPTH,
-                        help='Max symbol-trace hops for indirect coverage evidence')
+    parser.add_argument(
+        "--run_id",
+        type=str,
+        default="default",
+        help="Run ID locating datasets/<run_id>/processed_dataset.jsonl",
+    )
+    parser.add_argument(
+        "--max_workers",
+        type=int,
+        default=5,
+        help="Number of concurrent instance containers",
+    )
+    parser.add_argument(
+        "--max_records",
+        type=int,
+        default=None,
+        help="Maximum number of instances to analyze",
+    )
+    parser.add_argument(
+        "--instance_ids",
+        type=json.loads,
+        default=None,
+        help="JSON list of instance_ids to analyze (subset)",
+    )
+    parser.add_argument(
+        "--max_depth",
+        type=int,
+        default=SymbolTrace.MAX_DEPTH,
+        help="Max symbol-trace hops for indirect coverage evidence",
+    )
     args = parser.parse_args()
 
     mine_log_dir = get_log_dir(args.run_id, "mine", "check_cov")
@@ -320,18 +335,20 @@ def main():
     coverage_report_path.parent.mkdir(parents=True, exist_ok=True)
 
     processed_dataset = load_file(processed_dataset_path)
+    dev_tools = load_file(get_env_spec_path('dev_tools', args.run_id))
+
     analyze_ids = args.instance_ids
     if args.max_records is not None:
         head_ids = [r["instance_id"] for r in processed_dataset[:args.max_records]]
         analyze_ids = head_ids if analyze_ids is None else \
             [i for i in head_ids if i in set(analyze_ids)]
 
-    check_cov_processpool(
+    check_cov_threadpool(
         processed_dataset,
         max_workers=args.max_workers,
         coverage_report_path=coverage_report_path,
-        processed_dataset_path=processed_dataset_path,
         log_dir=mine_log_dir,
+        dev_tools=dev_tools,
         instance_ids=analyze_ids,
         max_depth=args.max_depth,
     )
