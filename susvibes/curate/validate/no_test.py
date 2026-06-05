@@ -21,13 +21,10 @@ from susvibes.constants import *
 from susvibes.curate.constants import get_log_dir, LOGS_PARSER_MODEL, get_path
 from susvibes.env import Deployment, Env
 from susvibes.curate.validate.logs import get_logs_parser, get_logs_checker, get_llm_cost, reset_llm_cost
-from susvibes.curate.validate.utils import (
-    build_clean_eval_deployment, get_validate_summary, print_summary)
+from susvibes.curate.validate.utils import build_clean_eval_deployment
+from susvibes.curate.utils import get_summary, print_summary
 from susvibes.curate.utils.agents.ports import SWEAgentPort
 from susvibes.utils import load_file, save_file, get_image_name, setup_instance_logger, parse_instance_id, filter_binary_files
-from susvibes.curate.utils import (
-    reverse_patch,
-)
 
 LOG_INSTANCE = "validate.log"
 LOG_TEST_OUTPUT = "test_outputs/{}.txt"
@@ -56,9 +53,9 @@ def run_repo_test_suite_multi(
     what decides startup_error vs completion. Finally applies the critical-abort checks."""
     logger.info(f"Running repo tests in environment deployment {env.deployment.image.tags[0]}...")
     runs_list = [
-        (),                                           # base: original (secure)
-        (data_record["security_patch"], "-R"),         # rollback: reverse security fix (vulnerable)
-        (data_record["task_patch"],),                  # task: apply mask
+        [],                                                       # base: original (secure)
+        [(data_record["security_patch"], {"reverse": True})],     # rollback: reverse security fix (vulnerable)
+        [(data_record["task_patch"], {})],                        # task: apply mask
     ]
     allow_timeout = lambda id: id == 2        # only task may timeout
     allow_startup_error = lambda id: id == 2  # only task may have startup error
@@ -77,7 +74,7 @@ def run_repo_test_suite_multi(
             try:
                 deployment: Deployment = env.build_instance_deployment(
                     base_commit=data_record["base_commit"],
-                    patches={"post_install": run_patches},
+                    patches=run_patches,
                     logger=logger,
                 )
             except docker.errors.BuildError as e:
@@ -187,7 +184,7 @@ def run_sec_test(
     log_dir: Path,
     logger: logging.Logger,
     run_name: str,
-    patches: tuple,
+    patches: list[tuple[str, dict]],
     force: bool = False,
 ) -> dict:
     """Run one sec test configuration. Raises RuntimeError on failure; returns secresults dict on success."""
@@ -201,7 +198,7 @@ def run_sec_test(
     try:
         deployment: Deployment = env.build_instance_deployment(
             base_commit=data_record["base_commit"],
-            patches={"post_install": patches},
+            patches=patches,
             logger=logger,
         )
     except docker.errors.BuildError as e:
@@ -283,7 +280,7 @@ def validate_sec_test_breaks(
     vuln_results = run_sec_test(
         env, data_record, log_dir, logger,
         run_name="rollback_with_test",
-        patches=(reverse_patch(data_record["security_patch"]), test_patch),
+        patches=[(data_record["security_patch"], {"reverse": True}), (test_patch, {})],
         force=force,
     )
 
@@ -291,7 +288,7 @@ def validate_sec_test_breaks(
     gold_results = run_sec_test(
         env, data_record, log_dir, logger,
         run_name="base_with_test",
-        patches=(test_patch,),
+        patches=[(test_patch, {})],
         force=force,
     )
 
@@ -356,7 +353,7 @@ def validate_single(
             **env_spec
         )
     except (docker.errors.ImageNotFound, docker.errors.NotFound):
-        msg = f"Image not found: {image_name}"
+        msg = f"Env image not found: {image_name}"
         logger.error(msg)
         raise RuntimeError(msg)
 
@@ -384,7 +381,7 @@ def validate_single(
     try:
         task_deployment = env.build_instance_deployment(
             base_commit=data_record["base_commit"],
-            patches={"post_install": (data_record["task_patch"],)},
+            patches=[(data_record["task_patch"], {})],
             logger=logger
         )
     except docker.errors.BuildError as e:
@@ -472,7 +469,7 @@ def validate_threadpool(
                 )
                 if save_specs:
                     save_file(env_specs, env_specs_path)
-    summary = get_validate_summary(succeeded, failed)
+    summary = get_summary(succeeded, failed)
     summary_path = validate_log_dir / LOG_SUMMARY
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(summary, summary_path)

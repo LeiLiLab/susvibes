@@ -81,12 +81,13 @@ def build_base_no_test_deployment(
             dockerfile=env_spec["dockerfile"],
         )
     except (docker.errors.ImageNotFound, docker.errors.NotFound):
-        logger.error(f"Image not found: {data_record['env_image_name']}")
-        return None
+        msg = f"Env image not found: {data_record['env_image_name']}"
+        logger.error(msg)
+        raise RuntimeError(msg)
     try:
         deployment = env.build_instance_deployment(
             base_commit=data_record["base_commit"],
-            patches={"post_install": (data_record["test_patch"], "-R")},
+            patches=[(data_record["test_patch"], {"reverse": True})],
             logger=logger,
             remove_image=False,
         )

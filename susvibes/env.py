@@ -1,4 +1,5 @@
 import os
+import time
 import uuid
 import re
 import signal
@@ -9,14 +10,18 @@ from pathlib import Path
 
 import docker
 import docker.errors
+import requests
 from docker.models.containers import Container
 from docker.models.images import Image
 
-from susvibes.constants import ContainerLimits, TestStatus, FAILURE_STATUSES
+from susvibes.constants import ContainerLimits, TestStatus, FAILURE_STATUSES, ImageLoc
 from susvibes.env_specs import *
 from susvibes.utils import get_image_name, get_instance_id, save_file
 
 docker_client = docker.from_env()
+
+PATCHES_DIR_NAME = "patches"
+
 
 class Deployment():
     image: Image
@@ -42,8 +47,80 @@ class Deployment():
     def get_default_image_name() -> str:
         return get_image_name("auto_{}".format(uuid.uuid4()))
 
+    @staticmethod
+    def collect_image(
+        image_name: str = None,
+        image_id: str = None,
+        image_loc: ImageLoc = ImageLoc.LOCAL,
+        logger: logging.Logger = None,
+        max_retries: int = 5,
+    ) -> Image:
+        """Collect an image into the local daemon and return it. ImageLoc.LOCAL
+        gets an existing local image (by name or id); ImageLoc.REMOTE pulls
+        image_name from the Hub. Raises if absent. logger optional (silent if None)."""
+        if image_loc == ImageLoc.REMOTE:
+            if not image_name:
+                raise ValueError("Image name is required to pull a remote image.")
+            try:
+                for retry in range(max_retries):
+                    try:
+                        image = docker_client.images.pull(image_name)
+                        break
+                    except docker.errors.NotFound:
+                        if retry == max_retries - 1:
+                            raise
+                if logger:
+                    logger.info(f"Image {image_name} pulled successfully.")
+                return image
+            except docker.errors.APIError as e:
+                if logger:
+                    logger.warning(f"Error pulling {image_name}: {e}")
+                raise
+        if not image_id and not image_name:
+            raise ValueError("Image name or image id is required.")
+        ref = image_name or image_id
+        try:
+            for retry in range(max_retries):
+                try:
+                    image = docker_client.images.get(ref)
+                    break
+                except docker.errors.ImageNotFound:
+                    if retry == max_retries - 1:
+                        raise
+            if logger:
+                logger.info(f"Image {ref} found locally.")
+            if not image.tags:
+                default_image_name = Deployment.get_default_image_name()
+                if logger:
+                    logger.warning(f"Image has no names, tagging a default name {default_image_name}.")
+                assert image.tag(default_image_name)
+            return image
+        except docker.errors.APIError as e:
+            if logger:
+                logger.warning(f"Error getting {ref}: {e}")
+            raise
+
+    @staticmethod
+    def push_image(image_name: str, logger: logging.Logger = None,
+                   max_retries: int = 5, base_delay: int = 5) -> None:
+        """Push image_name to the Docker Hub, retrying transient errors (rate
+        limiting, network blips) with exponential backoff. logger optional."""
+        for retry in range(max_retries):
+            try:
+                response = docker_client.images.push(image_name, stream=True, decode=True)
+                for chunk in response:
+                    if any(k in chunk for k in ["error", "denied"]):
+                        raise docker.errors.APIError(chunk["error"])
+                if logger:
+                    logger.info(f"Image {image_name} pushed successfully.")
+                return
+            except (docker.errors.APIError, requests.exceptions.RequestException):
+                if retry == max_retries - 1:
+                    raise
+                time.sleep(base_delay * (2 ** retry))
+
     @classmethod
-    def from_build(cls, 
+    def from_build(cls,
         logger: logging.Logger,
         context_path: Path,
         dockerfile: str,
@@ -93,48 +170,22 @@ class Deployment():
         remove_container: bool = True,
         max_retries: int = 3,
     ) -> "Deployment":
-        try:
-            for retry in range(max_retries):
-                try:
-                    image = docker_client.images.pull(image_name)
-                    break
-                except docker.errors.NotFound:
-                    if retry == max_retries - 1:
-                        raise
-            logger.info(f"Image {image_name} pulled successfully.")
-            return cls(image, logger, remove_image, remove_container)
-        except docker.errors.APIError as e:
-            logger.warning(f"Error pulling {image_name}: {e}")
-            raise
+        image = cls.collect_image(image_name=image_name, image_loc=ImageLoc.REMOTE,
+            logger=logger, max_retries=max_retries)
+        return cls(image, logger, remove_image, remove_container)
 
     @classmethod
     def from_local(cls,
         logger: logging.Logger,
-        image_name: str = None, 
+        image_name: str = None,
         image_id: str = None,
         remove_image: bool = False,
         remove_container: bool = True,
         max_retries: int = 3,
     ) -> "Deployment":
-        if not image_id and not image_name:
-            raise ValueError("Either docker image name or image id must be provided.")
-        try:
-            for retry in range(max_retries):
-                try:
-                    image = docker_client.images.get(image_name or image_id)
-                    break
-                except docker.errors.ImageNotFound:
-                    if retry == max_retries - 1:
-                        raise
-            logger.info(f"Image {image_name or image_id} found locally.")
-            if not image.tags:
-                default_image_name = cls.get_default_image_name()
-                logger.warning(f"Image has no names, tagging a default name {default_image_name}.")
-                assert image.tag(default_image_name)
-            return cls(image, logger, remove_image, remove_container)
-        except docker.errors.APIError as e:
-            logger.warning(f"Error getting {image_name or image_id}: {e}")
-            raise
+        image = cls.collect_image(image_name=image_name, image_id=image_id,
+            image_loc=ImageLoc.LOCAL, logger=logger, max_retries=max_retries)
+        return cls(image, logger, remove_image, remove_container)
     
     def create_container(
         self,
@@ -261,7 +312,7 @@ class Env:
         image_name: str,
         dockerfile: str,
         dockerignore: str = None,
-        image_loc: str = "local",
+        image_loc: ImageLoc = ImageLoc.LOCAL,
         logs_parser: dict = None,
         logs_checker: str = None,
         remove_image: bool = False,
@@ -273,8 +324,8 @@ class Env:
         self.logs_parser = logs_parser
         self.logs_checker = logs_checker
         logger.info(f"Collecting enviroment deployment...")
-        collect_method = Deployment.from_local if image_loc == "local" else \
-            Deployment.from_pull if image_loc == "remote" else None
+        collect_method = Deployment.from_local if image_loc == ImageLoc.LOCAL else \
+            Deployment.from_pull if image_loc == ImageLoc.REMOTE else None
         self.deployment = collect_method(
             logger=logger,
             image_name=image_name,
@@ -282,32 +333,30 @@ class Env:
             remove_container=remove_container
         )
     
-    @staticmethod 
-    def _apply_patches(patches: tuple[str, ...], group) -> None:
-        """Get commands for applying patches to the repository."""
+    @staticmethod
+    def _apply_patches(patches: list[tuple[str, dict]], pre_install: bool) -> str:
+        """Build the `git apply` && chain for patches whose pre_install flag matches,
+        kept in their original list order; each patch uses its own `reverse` flag."""
         cmds = []
-        build_data_dir = Path(f"/{BUILD_DATA_DIR_NAME}")
-        patches_dir = build_data_dir / PATCHES_DIR_NAME / group
-        reverse = any(flag in patches[group] for flag in REVERSE_PATCH_FLAG)
-        for id, patch in enumerate(patches[group]):
-            if patch not in REVERSE_PATCH_FLAG:
-                patch_path = patches_dir / f"{id}.patch"
-                cmd = "git apply --ignore-space-change" + (" --reverse" if reverse else "")
-                cmds.append(f"{cmd} {str(patch_path)}")
-        return " && ".join(cmds)    
+        for id, (_, cfg) in enumerate(patches):
+            if bool(cfg.get("pre_install", False)) != pre_install:
+                continue
+            reverse = " --reverse" if cfg.get("reverse", False) else ""
+            patch_path = f"{SUSVIBES_BUILD_DATA_DIR}/{PATCHES_DIR_NAME}/{id}.patch"
+            cmds.append(f"git apply --ignore-space-change{reverse} {patch_path}")
+        return " && ".join(cmds)
 
     def _compose_instance_dockerfile(
         self,
         base_commit: str,
-        patches: dict[tuple[str, ...]],
+        patches: list[tuple[str, dict]],
         reinstall: bool = True,
-        persist_files: list[tuple[str, str]] = None,
     ) -> str:
         """Create the Dockerfile for building instance deployment."""
         dockerfile_re = re.compile(DOCKERFILE_PATTERN, re.MULTILINE | re.DOTALL)
         m = dockerfile_re.search(self.dockerfile)
         from_stm, _, _, dependency_install_stm, cmd_stm = m.groups()
-        
+
         replace_pattern = r'^(FROM(?:\s+--\S+)*\s+)(\S+)(.*)$'
         cached_base_image = self.deployment.image.tags[0]
         cached_from_stm = re.sub(
@@ -316,62 +365,66 @@ class Env:
             from_stm, count=1, flags=re.MULTILINE
         )
         run_stm = "RUN {}\n"
-        reset_cmds = f'git reset --hard {base_commit} && git clean -fdq'  
+        reset_cmds = f'git reset --hard {base_commit} && git clean -fdq'
         instance_dockerfile = "".join([
             cached_from_stm,
             run_stm.format(" && ".join(GIT_AUTHOR_CONFIGS)),
-            run_stm.format(f"mkdir -p {BUILD_DATA_DIR_NAME}"),
-            f'COPY . /{BUILD_DATA_DIR_NAME}/\n'
+            'COPY . /\n'
         ])
-        
-        if patches.get("pre_install", None):
+
+        pre_cmds = type(self)._apply_patches(patches, pre_install=True)
+        post_cmds = type(self)._apply_patches(patches, pre_install=False)
+        if pre_cmds:
             instance_dockerfile += run_stm.format(reset_cmds)
-            instance_dockerfile += run_stm.format(type(self)._apply_patches(
-                patches, "pre_install"))
+            instance_dockerfile += run_stm.format(pre_cmds)
             if reinstall:
                 instance_dockerfile += dependency_install_stm
-        if patches.get("post_install", None):
-            instance_dockerfile += run_stm.format(type(self)._apply_patches(
-                patches, "post_install"))
+        if post_cmds:
+            instance_dockerfile += run_stm.format(post_cmds)
 
-        if persist_files:
-            for src, dst in persist_files:
-                instance_dockerfile += run_stm.format(f"cp {src} {dst}")
+        for id, (_, cfg) in enumerate(patches):
+            save_to = cfg.get("save_to")
+            if save_to:
+                src = f"{SUSVIBES_BUILD_DATA_DIR}/{PATCHES_DIR_NAME}/{id}.patch"
+                instance_dockerfile += run_stm.format(
+                    f"mkdir -p $(dirname {save_to}) && cp {src} {save_to}")
 
         commit_msg = "Instance created."
         commit_cmds = f'git add . && git commit --allow-empty -m "{commit_msg}" --no-verify'
-        rm_cmd = f'rm -rf -- /{BUILD_DATA_DIR_NAME}'
+        rm_cmd = f'rm -rf -- {SUSVIBES_BUILD_DATA_DIR}'
         instance_dockerfile += run_stm.format(commit_cmds) + \
             run_stm.format(rm_cmd) + cmd_stm
         return instance_dockerfile
-    
+
     def build_instance_deployment(
         self,
         base_commit: str,
-        patches: dict[tuple[str, ...]],
+        patches: list[tuple[str, dict]],
         logger: logging.Logger,
         remove_image: bool = True,
         remove_container: bool = True,
-        persist_files: list[tuple[str, str]] = None,
     ) -> Deployment:
-        """Build a instance-level Docker image from the environment."""
+        """Build a instance-level Docker image from the environment.
+
+        `patches` is an ordered list of (patch_str, cfg); cfg keys are all optional:
+        `reverse` (git apply -R), `pre_install` (apply before dependency reinstall;
+        default post_install), `save_to` (keep this .patch file at the given image
+        path). All pre_install patches apply first (in order), then post_install."""
         logger.info(f"Building instance deployment...")
         banned_reinstall = BANNED_REINSTALL_FOR_INSTANCE.get(self.project, [])
         reinstall = True
         if any(base_commit.startswith(commit) for commit in banned_reinstall):
             logger.info(f"Reinstalling {self.project} at commit {base_commit} is banned.")
             reinstall = False
-            
+
         with tempfile.TemporaryDirectory() as tmpdir:
             context_path = Path(tmpdir)
-            for k, v in patches.items():
-                patches_dir = context_path / PATCHES_DIR_NAME / k
-                patches_dir.mkdir(parents=True, exist_ok=True)
-                for id, patch in enumerate(v):
-                    if patch not in REVERSE_PATCH_FLAG:
-                        save_file(patch, patches_dir / f"{id}.patch")
+            patches_dir = context_path / SUSVIBES_BUILD_DATA_DIR.lstrip("/") / PATCHES_DIR_NAME
+            patches_dir.mkdir(parents=True, exist_ok=True)
+            for id, (patch_str, _) in enumerate(patches):
+                save_file(patch_str, patches_dir / f"{id}.patch")
             instance_dockerfile = self._compose_instance_dockerfile(
-                base_commit, patches, reinstall, persist_files=persist_files)
+                base_commit, patches, reinstall)
 
             deployment = Deployment.from_build(
                 logger=logger,
@@ -381,7 +434,7 @@ class Env:
                 image_name=get_image_name(f"instance_{get_instance_id(self.project, base_commit)}"),
                 remove_image=remove_image,
                 remove_container=remove_container,
-            )    
+            )
         return deployment
     
     def check_test_logs(self, run_logs: str, timed_out: bool = False) -> str:

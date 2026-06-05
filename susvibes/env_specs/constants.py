@@ -9,24 +9,26 @@ TEST_SYMBOL_RESOLUTION_ERROR_PATTERNS = [
 ]
 
 # Per dev tool: a config dict containing
-#   - `versions`: minor -> full Docker Hub tag of the canonical base image to
-#     FROM when building base_<tool> for that minor (mapping rationale in
-#     env_specs/dockerfiles.py)
+#   - `versions`: version -> {upstream_image_name, cov_deps} — the full upstream
+#     image reference to FROM when building base_<tool>, plus the cov_py jedi/parso
+#     pin (per-version detail inline below; tag rationale in env_specs/dockerfiles.py)
 #   - `minimal_compatible_version`: floor below which a discovered version is
 #     dropped instead of rounded up to the nearest available.
 DEV_TOOL_VERSIONS = {
     "python": {
         "minimal_compatible_version": "2.5",
+        # Per version: full upstream image reference + the jedi/parso pin for cov_py.
+        # jedi 0.19 needs py3.6+, so 2.7/3.5 pin the last py2-capable line (0.17.2 + parso 0.7.x).
         "versions": {
-            "2.7":  "2.7-buster",
-            "3.5":  "3.5-buster",
-            "3.6":  "3.6-bullseye",
-            "3.7":  "3.7-bookworm",
-            "3.8":  "3.8-bookworm",
-            "3.9":  "3.9-bookworm",
-            "3.10": "3.10-bookworm",
-            "3.11": "3.11-bookworm",
-            "3.12": "3.12-bookworm",
+            "2.7":  {"upstream_image_name": "python:2.7-buster",    "cov_deps": "jedi==0.17.2 parso==0.7.1 pathlib2"},
+            "3.5":  {"upstream_image_name": "python:3.5-buster",    "cov_deps": "jedi==0.17.2 parso==0.7.1"},
+            "3.6":  {"upstream_image_name": "python:3.6-bullseye",  "cov_deps": "jedi==0.19.2 parso==0.8.4"},
+            "3.7":  {"upstream_image_name": "python:3.7-bookworm",  "cov_deps": "jedi==0.19.2 parso==0.8.4"},
+            "3.8":  {"upstream_image_name": "python:3.8-bookworm",  "cov_deps": "jedi==0.19.2 parso==0.8.4"},
+            "3.9":  {"upstream_image_name": "python:3.9-bookworm",  "cov_deps": "jedi==0.19.2 parso==0.8.4"},
+            "3.10": {"upstream_image_name": "python:3.10-bookworm", "cov_deps": "jedi==0.19.2 parso==0.8.4"},
+            "3.11": {"upstream_image_name": "python:3.11-bookworm", "cov_deps": "jedi==0.19.2 parso==0.8.4"},
+            "3.12": {"upstream_image_name": "python:3.12-bookworm", "cov_deps": "jedi==0.19.2 parso==0.8.4"},
         },
     },
 }
@@ -38,10 +40,13 @@ DOCKERFILE_PATTERN = (
     r'^(CMD(?:[^\r\n]*\\\r?\n)*[^\r\n]*(?:\r?\n|$))'
 )
 
-WORKSPACE_DIR_NAME = "project"
-BUILD_DATA_DIR_NAME = "build_data"
-PATCHES_DIR_NAME = "patches"
-REVERSE_PATCH_FLAG = ("-R", "--reverse")
+WORKSPACE_DIR_NAME = "project"                            # repo working tree (WORKDIR /project)
+# susvibes namespace for data it injects into instance images (separate from the project
+# copy that the env build already lays down). build_data/ holds build-time inputs and is
+# removed at the end of the build; runtime_data/ holds files the container needs at run time.
+SUSVIBES_DIR = "/.susvibes"
+SUSVIBES_BUILD_DATA_DIR = f"{SUSVIBES_DIR}/build_data"
+SUSVIBES_RUNTIME_DATA_DIR = f"{SUSVIBES_DIR}/runtime_data"
 GIT_AUTHOR_CONFIGS = [
     "git config --global user.email setup@susvibes",
     "git config --global user.name SusVibes"

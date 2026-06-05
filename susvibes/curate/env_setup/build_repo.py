@@ -22,8 +22,8 @@ from jinja2 import Template
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import re
-import docker
 import docker.errors
+from docker.models.images import Image
 
 from susvibes.constants import *
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_path
@@ -31,7 +31,7 @@ from susvibes.env import Deployment
 from susvibes.env_specs import dockerfiles, DOCKERFILE_PATTERN, GIT_AUTHOR_CONFIGS, WORKSPACE_DIR_NAME
 from susvibes.curate.env_setup.prompts import INSTALL_TEST_PROMPT_TEMPLATE
 from susvibes.curate.utils.agents.ports import EnvAgentPort
-from susvibes.utils import load_file, save_file, filter_target_files, filter_binary_files, get_image_name, setup_instance_logger, parse_instance_id, touched_files
+from susvibes.utils import load_file, save_file, filter_target_files, get_image_name, setup_instance_logger, parse_instance_id, touched_files
 from susvibes.curate.utils import (
     RepoLocks,
     clone_github_repo,
@@ -39,8 +39,6 @@ from susvibes.curate.utils import (
     apply_patch,
     get_repo_dir,
 )
-
-docker_client = docker.from_env()
 
 LOG_INSTANCE = "build_repo.log"
 
@@ -120,30 +118,13 @@ def validate_and_compose_env_dockerfile(dockerfile, logger):
     return dockerfile
 
 
-def pull_canonical(short_name: str, version: str) -> str:
-    """Ensure the canonical hub-named image for {short_name}:{version} is
-    locally available; pull from Docker Hub if missing. Returns the canonical
-    name."""
-    canonical = f"{get_image_name(short_name)}:{version}"
-    try:
-        docker_client.images.get(canonical)
-    except docker.errors.ImageNotFound:
-        docker_client.images.pull(canonical)
-    return canonical
-
-
-def pull_short_tag(short_name: str, version: str) -> str:
-    """Ensure {short_name}:{version} exists locally as a tag of the canonical
-    hub-named image; pull and re-tag if missing. Returns the short tag."""
-    short = f"{short_name}:{version}"
-    try:
-        docker_client.images.get(short)
-        return short
-    except docker.errors.ImageNotFound:
-        pass
-    canonical = pull_canonical(short_name, version)
-    docker_client.images.get(canonical).tag(short_name, tag=version)
-    return short
+def strip_tag(image: Image, image_name: str) -> None:
+    """Tag `image` with the hub-prefix-stripped local tag. `image_name` is the canonical
+    `{username}/susvibes.{arch}.{local}:{version}`; keep `{local}:{version}` by taking the
+    repo segment after the last `.` (the `:version` suffix is split off first)."""
+    repo, _, version = image_name.rpartition(":")
+    local_name = repo.rsplit(".", 1)[-1]
+    image.tag(local_name, tag=version)
 
 
 def build_env_deployment(instance_id, dockerfile, logger) -> Deployment | None:
@@ -195,20 +176,29 @@ def prologue(
 
     versions = {dev_tools[d["instance_id"]]["version"] for d in task_dataset}
     for version in versions:
-        pull_short_tag("base_py", version)
-        pull_canonical("dind_py", version)
+        base_py_image_name = f'{get_image_name("base_py")}:{version}'
+        dind_py_image_name = f'{get_image_name("dind_py")}:{version}'
+        try:
+            base_py_image = Deployment.collect_image(image_name=base_py_image_name)
+        except (docker.errors.ImageNotFound, docker.errors.NotFound):
+            raise RuntimeError(f"Base image not found: {base_py_image_name}")
+        strip_tag(base_py_image, base_py_image_name)
+        try:
+            Deployment.collect_image(image_name=dind_py_image_name)
+        except (docker.errors.ImageNotFound, docker.errors.NotFound):
+            raise RuntimeError(f"Dind image not found: {dind_py_image_name}")
 
     for data_record in task_dataset:
         repo_dir = clone_github_repo(data_record["project"], root_dir=LOCAL_REPOS_DIR, force=False)
         reset_to_commit(repo_dir, data_record["base_commit"])
         dev_tool = dev_tools[data_record["instance_id"]]
-        image_name = f'{get_image_name("dind_py")}:{dev_tool["version"]}'
+        dind_py_image_name = f'{get_image_name("dind_py")}:{dev_tool["version"]}'
         dockerfile_template = dockerfiles.DOCKERFILE_ENV_PY_TEMPLATE.format_map(
             SafeDict(base_image=f'base_py:{dev_tool["version"]}'))
         test_files = [] if no_require_test else data_record["test_files"]
         coverage_files = sorted(touched_files(data_record.get("task_patch", "")))
         port.add_task(
-            image=image_name,
+            image=dind_py_image_name,
             repo_type="local",
             repo_dir=repo_dir,
             base_commit=data_record["base_commit"],
@@ -294,7 +284,7 @@ def build_repo_single(
 
     if not force and env_spec.get("dockerfile") == dockerfile:
         try:
-            docker_client.images.get(env_image_name)
+            Deployment.collect_image(image_name=env_image_name)
             logger.info("Environment image matches env_spec and exists locally; skipping build.")
             return env_spec, env_image_name
         except docker.errors.ImageNotFound:

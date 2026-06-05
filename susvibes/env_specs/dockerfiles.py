@@ -1,9 +1,9 @@
 DOCKERFILE_BASE_PY = r"""
-FROM python:{version}
-# Pass `{version}` as the full Docker Hub tag for the desired Python minor.
+FROM {upstream_image_name}
+# Pass `{upstream_image_name}` as the full upstream image reference (e.g. python:3.11-bookworm).
 # Use non-slim (full) tags — we rely on the preinstalled build toolchain
 # (gcc, g++, make, git, plus libssl/libffi/etc. -dev headers) for pip builds.
-# Each minor is pinned to the newest Debian base its official image supports:
+# Each version is pinned to the newest Debian base its official image supports:
 #   2.7  -> python:2.7-buster      (Debian 10; Python 2 EOL 2020, no newer base)
 #   3.5  -> python:3.5-buster      (Debian 10; Python 3.5 EOL 2020, no newer base)
 #   3.6  -> python:3.6-bullseye    (Debian 11; Python 3.6 EOL 2021, no newer base)
@@ -45,15 +45,31 @@ RUN apt-get update && \
 CMD ["python", "--version"]
 """
 
-# dind_py = base_py + docker.io CLI. Build with `FROM base_py:{version}` so the
-# two stay in lockstep automatically.
+# dind_py = base_py + docker.io CLI. Built `FROM {base_image}` (the base_py Hub tag) so
+# the two stay in lockstep automatically.
 DOCKERFILE_DIND_PY = r"""
-FROM base_py:{version}
+FROM {base_image}
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         docker.io && \
     rm -rf /var/lib/apt/lists/*
+"""
+
+# cov_py = base_py + the version-matched static-analysis stack for check_cov.
+# Built `FROM {base_image}` (the base_py Hub tag) so each cov image inherits the exact Python version
+# (its native `ast` then parses that version's syntax, and jedi introspects its
+# native stdlib). `jedi` + `parso` are REQUIRED (symbol trace) — if the pinned
+# versions cannot install on this version the build FAILS by design, since check_cov
+# cannot run without them. `tree-sitter` is best-effort (repo_index falls back to
+# regex), so its install is allowed to fail.
+DOCKERFILE_COV_PY = r"""
+FROM {base_image}
+
+RUN pip install --no-cache-dir {jedi_parso}
+RUN pip install --no-cache-dir tree-sitter tree-sitter-python || true
+
+CMD ["python", "--version"]
 """
 
 DOCKERFILE_ENV_PY_TEMPLATE = r"""

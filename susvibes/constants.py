@@ -27,7 +27,7 @@ class ContainerLimits:
 
 DOCKERHUB_USERNAME = "songwen6968"
 HF_DATASET_REPO = "songwen6968/SusVibes"
-HF_DATASET_FILENAME = "susvibes_dataset.jsonl"
+HF_DATASET_FILE_NAME = "susvibes_dataset.jsonl"
 ARCH = os.uname().machine
 
 class Strategies(StrEnum):
@@ -36,6 +36,10 @@ class Strategies(StrEnum):
     ORACLE = "oracle"
     FEEDBACK_DRIVEN = "feedback-driven"
     SEC_TEST = "sec-test"
+
+class ImageLoc(StrEnum):
+    LOCAL = "local"
+    REMOTE = "remote"
 
 class PredictionKeys(StrEnum):
     INSTANCE_ID = "instance_id"

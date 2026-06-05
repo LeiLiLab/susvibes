@@ -10,7 +10,7 @@ import argparse
 from tqdm import tqdm
 from typing import TypedDict
 
-from susvibes.constants import HF_DATASET_REPO, HF_DATASET_FILENAME
+from susvibes.constants import HF_DATASET_REPO, HF_DATASET_FILE_NAME
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_path
 from susvibes.utils import load_file
 from susvibes.curate.utils import (
@@ -67,6 +67,6 @@ if __name__ == "__main__":
     dataset = [make_susvibes_record(data_record)
         for data_record in tqdm(dataset, desc="Wrapping up")]
 
-    push_dataset_to_hub(dataset, HF_DATASET_REPO, HF_DATASET_FILENAME,
+    push_dataset_to_hub(dataset, HF_DATASET_REPO, HF_DATASET_FILE_NAME,
         commit_message=f"wrapup: {len(dataset)} instances (run_id={args.run_id})")
     print(f"Pushed {len(dataset)} records to https://huggingface.co/datasets/{HF_DATASET_REPO}")

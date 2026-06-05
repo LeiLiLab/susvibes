@@ -90,21 +90,21 @@ class Task:
             logger=logger,
             project=self.project,
             image_name=data_record['image_name'],
-            image_loc="remote",
+            image_loc=ImageLoc.REMOTE,
             **env_spec,
         )
 
     def run_test_suite(
         self, 
         run_name: str, 
-        patches: tuple[str, ...], 
+        patches: list[tuple[str, dict]], 
         log_dir: Path, 
         logger: logging.Logger
     ):
         try:
             deployment = self.env.build_instance_deployment(
                 base_commit=self.base_commit,
-                patches={"post_install": patches},
+                patches=patches,
                 logger=logger
             )
         except docker.errors.BuildError as e:
@@ -146,8 +146,8 @@ class Task:
         report = {run_name : {"pass": None, "status": None}
             for run_name in EVALUATION_RUNS}
 
-        runs_list = [(filtered_patch,),
-            (self.test_patch, filtered_patch)]
+        runs_list = [[(filtered_patch, {})],
+            [(self.test_patch, {}), (filtered_patch, {})]]
         expected_failures = None
         for run_patches, run_name in zip(runs_list, EVALUATION_RUNS):
             test_logs, eval_status = self.run_test_suite(
@@ -229,7 +229,7 @@ class TasksHandler:
         try:
             task = Task(logger, data_record, env_spec)
         except (docker.errors.ImageNotFound, docker.errors.NotFound):
-            msg = f"Image not found: {image_name}"
+            msg = f"Eval image not found: {image_name}"
             logger.error(msg)
             raise RuntimeError(msg)
 

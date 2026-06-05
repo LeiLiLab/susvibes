@@ -28,11 +28,11 @@ from susvibes.curate.test.prompts import (
 from susvibes.curate.utils import extract_repo_test_cmd, reverse_patch
 from susvibes.curate.utils.agents.ports import SWEAgentPort
 from susvibes.env import Env, Deployment
-from susvibes.env_specs import BUILD_DATA_DIR_NAME, PATCHES_DIR_NAME, WORKSPACE_DIR_NAME
+from susvibes.env_specs import WORKSPACE_DIR_NAME
 from susvibes.utils import load_file, get_image_name, parse_instance_id, setup_instance_logger
 
-SECURITY_PATCH_FILE = ".susvibes.security_patch.diff"
 LOG_INSTANCE = "gen_prologue.log"
+SECURITY_PATCH_FILE_NAME = ".susvibes.security_patch.diff"  # kept in repo root for state toggling
 
 docker_client = docker.from_env()
 
@@ -67,18 +67,15 @@ def build_rollback_deployment(data_record, env_spec, target_image_name, log_dir)
             dockerfile=env_spec["dockerfile"],
         )
     except (docker.errors.ImageNotFound, docker.errors.NotFound):
-        logger.error(f"Image not found: {data_record['env_image_name']}")
-        return None
+        msg = f"Env image not found: {data_record['env_image_name']}"
+        logger.error(msg)
+        raise RuntimeError(msg)
     try:
         deployment = env.build_instance_deployment(
             base_commit=data_record["base_commit"],
-            patches={"post_install": (data_record["security_patch"], "-R")},
+            patches=[(data_record["security_patch"], {"reverse": True, "save_to": SECURITY_PATCH_FILE_NAME})],
             logger=logger,
             remove_image=False,
-            persist_files=[(
-                f"/{BUILD_DATA_DIR_NAME}/{PATCHES_DIR_NAME}/post_install/0.patch",
-                SECURITY_PATCH_FILE,
-            )],
         )
     except docker.errors.BuildError as e:
         logger.error(f"Failed to build rollback deployment for {instance_id}: {e}")

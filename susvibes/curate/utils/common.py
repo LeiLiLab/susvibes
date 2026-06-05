@@ -1,6 +1,5 @@
 import os
 import re
-import time
 import uuid
 import shutil
 import tempfile
@@ -181,21 +180,6 @@ def count_patch_additions_deletions(patch):
             deletions += 1
     return additions, deletions
 
-def push_image_to_hub(image_name, max_retries=5, base_delay=5):
-    """Push image to Docker Hub with a specified name. Retries transient errors
-    (rate limiting, network blips) with exponential backoff."""
-    docker_client = docker.from_env()
-    for retry in range(max_retries):
-        try:
-            response = docker_client.images.push(image_name, stream=True, decode=True)
-            for chunk in response:
-                if any(key in chunk for key in ["error", "denied"]):
-                    raise docker.errors.APIError(chunk["error"])
-            break
-        except (docker.errors.APIError, requests.exceptions.RequestException):
-            if retry == max_retries - 1:
-                raise
-            time.sleep(base_delay * (2 ** retry))
 
 
 def push_dataset_to_hub(records, repo_id, filename, private=False, commit_message=None):
