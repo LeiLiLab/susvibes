@@ -16,8 +16,8 @@ token = os.getenv("GITHUB_TOKEN")
 RECENT_YR_CUTOFF = 2014
 
 RAW_MOREFIXES_DIR = get_path('cve_records') / 'Morefixes'
-URL_DATASET_NAME = "dataset_url.jsonl"
-DATASET_NAME = "dataset.jsonl"
+URL_DATASET_FILE_NAME = "dataset_url.jsonl"
+DATASET_FILE_NAME = "dataset.jsonl"
 
 def fetch_github_commit_patch(owner: str, repo: str, sha: str,
     timeout: int = 10, max_retries: int = 3) -> str:
@@ -78,13 +78,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--input_file",
         type=str,
-        default=URL_DATASET_NAME,
+        default=URL_DATASET_FILE_NAME,
         help="Input URL-dataset filename under the Morefixes directory.",
     )
     parser.add_argument(
         "--output_file",
         type=str,
-        default=DATASET_NAME,
+        default=DATASET_FILE_NAME,
         help="Output dataset filename under the Morefixes directory.",
     )
     args = parser.parse_args()

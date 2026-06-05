@@ -20,15 +20,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from susvibes.constants import *
 from susvibes.curate.constants import get_log_dir, LOGS_PARSER_MODEL, get_path
 from susvibes.env import Deployment, Env
-from susvibes.env_specs import TestStatus
 from susvibes.curate.validate.logs import get_logs_parser, get_logs_checker, get_llm_cost, reset_llm_cost
-from susvibes.curate.validate.utils import (
-    build_clean_eval_deployment, get_validate_summary, print_summary)
+from susvibes.curate.validate.utils import build_clean_eval_deployment
+from susvibes.curate.utils import get_summary, print_summary
 from susvibes.curate.utils.agents.ports import SWEAgentPort
 from susvibes.utils import load_file, save_file, get_image_name, setup_instance_logger, parse_instance_id, filter_binary_files
-from susvibes.curate.utils import (
-    reverse_patch,
-)
 
 LOG_INSTANCE = "validate.log"
 LOG_TEST_OUTPUT = "test_outputs/{}.txt"
@@ -57,9 +53,9 @@ def run_repo_test_suite_multi(
     what decides startup_error vs completion. Finally applies the critical-abort checks."""
     logger.info(f"Running repo tests in environment deployment {env.deployment.image.tags[0]}...")
     runs_list = [
-        (),                                           # base: original (secure)
-        (data_record["security_patch"], "-R"),         # rollback: reverse security fix (vulnerable)
-        (data_record["task_patch"],),                  # task: apply mask
+        [],                                                       # base: original (secure)
+        [(data_record["security_patch"], {"reverse": True})],     # rollback: reverse security fix (vulnerable)
+        [(data_record["task_patch"], {})],                        # task: apply mask
     ]
     allow_timeout = lambda id: id == 2        # only task may timeout
     allow_startup_error = lambda id: id == 2  # only task may have startup error
@@ -78,7 +74,7 @@ def run_repo_test_suite_multi(
             try:
                 deployment: Deployment = env.build_instance_deployment(
                     base_commit=data_record["base_commit"],
-                    patches={"post_install": run_patches},
+                    patches=run_patches,
                     logger=logger,
                 )
             except docker.errors.BuildError as e:
@@ -86,12 +82,17 @@ def run_repo_test_suite_multi(
                 logger.error(msg)
                 raise RuntimeError(msg)
             try:
-                deployment.create_container(mem_limit=CONTAINER_MEM_LIMIT, cpu_limit=CONTAINER_CPU_LIMIT)
-            except docker.errors.ContainerError as e:
+                deployment.create_container(mem_limit=ContainerLimits.MEM_LIMIT, cpu_limit=ContainerLimits.CPU_LIMIT)
+            except docker.errors.APIError as e:
                 msg = f"Failed to create container: {e}"
                 logger.error(msg)
                 raise RuntimeError(msg)
-            test_logs, timed_out = deployment.run_with_timeout()
+            try:
+                test_logs, timed_out = deployment.run_with_timeout()
+            except docker.errors.APIError as e:
+                msg = f"Failed to start container: {e}"
+                logger.error(msg)
+                raise RuntimeError(msg)
             test_output_path.parent.mkdir(parents=True, exist_ok=True)
             save_file(test_logs, test_output_path)
         test_logs_list.append(test_logs)
@@ -183,7 +184,7 @@ def run_sec_test(
     log_dir: Path,
     logger: logging.Logger,
     run_name: str,
-    patches: tuple,
+    patches: list[tuple[str, dict]],
     force: bool = False,
 ) -> dict:
     """Run one sec test configuration. Raises RuntimeError on failure; returns secresults dict on success."""
@@ -197,7 +198,7 @@ def run_sec_test(
     try:
         deployment: Deployment = env.build_instance_deployment(
             base_commit=data_record["base_commit"],
-            patches={"post_install": patches},
+            patches=patches,
             logger=logger,
         )
     except docker.errors.BuildError as e:
@@ -208,14 +209,19 @@ def run_sec_test(
     try:
         deployment.create_container(
             command=SEC_TEST_CMD,
-            mem_limit=CONTAINER_MEM_LIMIT,
-            cpu_limit=CONTAINER_CPU_LIMIT,
+            mem_limit=ContainerLimits.MEM_LIMIT,
+            cpu_limit=ContainerLimits.CPU_LIMIT,
         )
-    except docker.errors.ContainerError as e:
+    except docker.errors.APIError as e:
         msg = f"Failed to create sec test container: {e}"
         logger.error(msg)
         raise RuntimeError(msg)
-    test_logs, timed_out = deployment.run_with_timeout()
+    try:
+        test_logs, timed_out = deployment.run_with_timeout()
+    except docker.errors.APIError as e:
+        msg = f"Failed to start sec test container: {e}"
+        logger.error(msg)
+        raise RuntimeError(msg)
 
     sec_output_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(test_logs, sec_output_path)
@@ -274,7 +280,7 @@ def validate_sec_test_breaks(
     vuln_results = run_sec_test(
         env, data_record, log_dir, logger,
         run_name="rollback_with_test",
-        patches=(reverse_patch(data_record["security_patch"]), test_patch),
+        patches=[(data_record["security_patch"], {"reverse": True}), (test_patch, {})],
         force=force,
     )
 
@@ -282,7 +288,7 @@ def validate_sec_test_breaks(
     gold_results = run_sec_test(
         env, data_record, log_dir, logger,
         run_name="base_with_test",
-        patches=(test_patch,),
+        patches=[(test_patch, {})],
         force=force,
     )
 
@@ -347,7 +353,7 @@ def validate_single(
             **env_spec
         )
     except (docker.errors.ImageNotFound, docker.errors.NotFound):
-        msg = f"Image not found: {image_name}"
+        msg = f"Env image not found: {image_name}"
         logger.error(msg)
         raise RuntimeError(msg)
 
@@ -371,18 +377,28 @@ def validate_single(
     logger.info("Task verified successfully, expected_failures-{}, sec_test_names-{}, num_sec_tests-{}, num_func_tests-{}".format(
         expected_failures, sec_test_names, test_stats["num_sec_tests"], test_stats["num_func_tests"]))
 
-    logger.info(f"Building task image for {instance_id}...")
-    task_deployment = env.build_instance_deployment(
-        base_commit=data_record["base_commit"],
-        patches={"post_install": (data_record["task_patch"],)},
-        logger=logger
-    )
+    logger.info(f"Building task deployment for {instance_id}...")
+    try:
+        task_deployment = env.build_instance_deployment(
+            base_commit=data_record["base_commit"],
+            patches=[(data_record["task_patch"], {})],
+            logger=logger
+        )
+    except docker.errors.BuildError as e:
+        msg = f"Failed to build task instance deployment: {e}"
+        logger.error(msg)
+        return None, msg
     task_image_name = get_image_name(f"task_{instance_id}")
     assert task_deployment.image.tag(task_image_name)
 
-    logger.info(f"Building evaluation image for {instance_id}...")
+    logger.info(f"Building evaluation deployment for {instance_id}...")
     eval_image_name = get_image_name(f"eval_{instance_id}")
-    build_clean_eval_deployment(logger, task_image_name, eval_image_name)
+    try:
+        build_clean_eval_deployment(task_image_name, eval_image_name, logger)
+    except docker.errors.BuildError as e:
+        msg = f"Failed to build eval deployment: {e}"
+        logger.error(msg)
+        return None, msg
 
     env_spec["logs_parser"] = env.logs_parser
     env_spec["logs_checker"] = env.logs_checker
@@ -453,7 +469,7 @@ def validate_threadpool(
                 )
                 if save_specs:
                     save_file(env_specs, env_specs_path)
-    summary = get_validate_summary(succeeded, failed)
+    summary = get_summary(succeeded, failed)
     summary_path = validate_log_dir / LOG_SUMMARY
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(summary, summary_path)

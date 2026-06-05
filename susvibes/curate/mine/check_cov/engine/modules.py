@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """Map a repo file path to the dotted module name it is importable as.
 
 This mirrors how jedi resolves a path to a module (jedi/inference/sys_path.py
@@ -21,9 +22,10 @@ source root simply by not being a package, which adapts to any layout.
 
 Only check_cov's file-level engine needs this; the symbol engine asks jedi.
 """
+from __future__ import print_function, division, absolute_import, unicode_literals
 
 
-def package_dirs(sources) -> set:
+def package_dirs(sources):
     """Repo-relative posix dirs that contain an ``__init__.py`` (``""`` = repo
     root). These are the package boundaries the module-name walk stops at."""
     out = set()
@@ -33,7 +35,7 @@ def package_dirs(sources) -> set:
     return out
 
 
-def module_name(rel: str, pkg_dirs: set):
+def module_name(rel, pkg_dirs):
     """Dotted module name for ``rel`` (jedi's shortest-path resolution), or None
     if ``rel`` is not a .py file or has no importable name (a top-level
     ``__init__.py``).
@@ -58,7 +60,7 @@ def module_name(rel: str, pkg_dirs: set):
     return ".".join(comps) if comps else None
 
 
-def module_names(rel: str, pkg_dirs: set) -> list:
+def module_names(rel, pkg_dirs):
     """Candidate dotted module names for ``rel`` — a list for the caller's
     convenience (jedi resolves to one name, so this is [] or a single name)."""
     name = module_name(rel, pkg_dirs)

@@ -5,7 +5,7 @@ import subprocess
 import getpass
 from pathlib import Path
 
-from susvibes.constants import CONTAINER_MEM_LIMIT, CONTAINER_CPU_LIMIT
+from susvibes.constants import ContainerLimits
 from susvibes.utils import load_file, save_file
 
 from susvibes.curate.constants import AGENT_RUN_LOG_DIR
@@ -60,8 +60,8 @@ class SWEAgentPort:
                     'image': image or "python:3.11",
                     'python_standalone_dir': "/root",
                     'docker_args': [
-                        f"--memory={CONTAINER_MEM_LIMIT}",
-                        f"--cpus={CONTAINER_CPU_LIMIT}",
+                        f"--memory={ContainerLimits.MEM_LIMIT}",
+                        f"--cpus={ContainerLimits.CPU_LIMIT}",
                     ],
                 },
                 'repo': repo_config

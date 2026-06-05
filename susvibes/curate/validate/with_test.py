@@ -20,14 +20,10 @@ import docker.errors
 from susvibes.constants import *
 from susvibes.curate.constants import get_log_dir, LOGS_PARSER_MODEL, get_path
 from susvibes.env import Deployment, Env
-from susvibes.env_specs import TestStatus
 from susvibes.curate.validate.logs import get_logs_parser, get_logs_checker, get_llm_cost, reset_llm_cost
-from susvibes.curate.validate.utils import (
-    build_clean_eval_deployment, get_validate_summary, print_summary)
+from susvibes.curate.validate.utils import build_clean_eval_deployment
+from susvibes.curate.utils import get_summary, print_summary
 from susvibes.utils import load_file, save_file, get_image_name, setup_instance_logger, parse_instance_id
-from susvibes.curate.utils import (
-    reverse_patch,
-)
 
 docker_client = docker.from_env()
 
@@ -59,21 +55,21 @@ def run_test_suite_multi(
     from env_spec or synthesized from these logs) BEFORE classifying — the checker is
     what decides startup_error vs completion. Finally applies the critical-abort checks."""
     logger.info(f"Running tests in environment deployment {env.deployment.image.tags[0]}...")
-    rev_security = reverse_patch(data_record["security_patch"])
+    sec = data_record["security_patch"]
+    test = data_record["test_patch"]
     if from_base_no_test_image:
         runs_list = [
-            (data_record["test_patch"],),                          # base
-            (rev_security,),                                        # rollback
-            (),                                                     # base_no_test
-            (rev_security, data_record["test_patch"]),              # rollback_with_test
-            (rev_security, data_record["mask_patch"]),              # task: rollback to vulnerable, then mask feature
+            [(test, {})],                                                 # base
+            [(sec, {"reverse": True})],                                   # rollback
+            [],                                                           # base_no_test
+            [(sec, {"reverse": True}), (test, {})],                       # rollback_with_test
+            [(sec, {"reverse": True}), (data_record["mask_patch"], {})],  # task: rollback to vulnerable, then mask feature
         ]
     else:
-        rev_test = reverse_patch(data_record["test_patch"])
         runs_list = [
-            (), (rev_security, rev_test),
-            (rev_test,), (rev_security,),
-            (data_record["task_patch"],)
+            [], [(sec, {"reverse": True}), (test, {"reverse": True})],
+            [(test, {"reverse": True})], [(sec, {"reverse": True})],
+            [(data_record["task_patch"], {})]
         ]
     allow_timeout = lambda id: id >= 3
     allow_startup_error = lambda id: id == 4
@@ -92,7 +88,7 @@ def run_test_suite_multi(
             try:
                 deployment: Deployment = env.build_instance_deployment(
                     base_commit=data_record["base_commit"],
-                    patches={"post_install": run_patches},
+                    patches=run_patches,
                     logger=logger,
                 )
             except docker.errors.BuildError as e:
@@ -100,12 +96,17 @@ def run_test_suite_multi(
                 logger.error(msg)
                 raise RuntimeError(msg)
             try:
-                deployment.create_container(mem_limit=CONTAINER_MEM_LIMIT, cpu_limit=CONTAINER_CPU_LIMIT)
-            except docker.errors.ContainerError as e:
+                deployment.create_container(mem_limit=ContainerLimits.MEM_LIMIT, cpu_limit=ContainerLimits.CPU_LIMIT)
+            except docker.errors.APIError as e:
                 msg = f"Failed to create container: {e}"
                 logger.error(msg)
                 raise RuntimeError(msg)
-            test_logs, timed_out = deployment.run_with_timeout()
+            try:
+                test_logs, timed_out = deployment.run_with_timeout()
+            except docker.errors.APIError as e:
+                msg = f"Failed to start container: {e}"
+                logger.error(msg)
+                raise RuntimeError(msg)
             test_output_path.parent.mkdir(parents=True, exist_ok=True)
             save_file(test_logs, test_output_path)
         test_logs_list.append(test_logs)
@@ -237,7 +238,7 @@ def validate_single(
             **env_spec
         )
     except (docker.errors.ImageNotFound, docker.errors.NotFound):
-        msg = f"Image not found: {image_name}"
+        msg = f"Env image not found: {image_name}"
         logger.error(msg)
         raise RuntimeError(msg)
     try:
@@ -258,22 +259,32 @@ def validate_single(
     logger.info("Task verified successfully, expected_failures-{}, num_sec_tests-{}, num_func_tests-{}".format(
         expected_failures, test_stats["num_sec_tests"], test_stats["num_func_tests"]))
 
-    logger.info(f"Building task image for {instance_id}...")
+    logger.info(f"Building task deployment for {instance_id}...")
     if from_base_no_test_image:
-        eval_patches = (reverse_patch(data_record["security_patch"]), data_record["mask_patch"])
+        eval_patches = [(data_record["security_patch"], {"reverse": True}), (data_record["mask_patch"], {})]
     else:
-        eval_patches = (data_record["task_patch"],)
-    task_deployment = env.build_instance_deployment(
-        base_commit=data_record["base_commit"],
-        patches={"post_install": eval_patches},
-        logger=logger
-    )
+        eval_patches = [(data_record["task_patch"], {})]
+    try:
+        task_deployment = env.build_instance_deployment(
+            base_commit=data_record["base_commit"],
+            patches=eval_patches,
+            logger=logger
+        )
+    except docker.errors.BuildError as e:
+        msg = f"Failed to build task instance deployment: {e}"
+        logger.error(msg)
+        return None, msg
     task_image_name = get_image_name(f"task_{instance_id}")
     assert task_deployment.image.tag(task_image_name)
 
-    logger.info(f"Building evaluation image for {instance_id}...")
+    logger.info(f"Building evaluation deployment for {instance_id}...")
     eval_image_name = get_image_name(f"eval_{instance_id}")
-    build_clean_eval_deployment(logger, task_image_name, eval_image_name)
+    try:
+        build_clean_eval_deployment(task_image_name, eval_image_name, logger)
+    except docker.errors.BuildError as e:
+        msg = f"Failed to build eval deployment: {e}"
+        logger.error(msg)
+        return None, msg
 
     env_spec["logs_parser"] = env.logs_parser
     env_spec["logs_checker"] = env.logs_checker
@@ -316,7 +327,7 @@ def validate_threadpool(
             if not bnt_name:
                 continue
             try:
-                docker_client.images.get(bnt_name)
+                Deployment.collect_image(image_name=bnt_name)
                 use_bnt.add(iid)
             except docker.errors.ImageNotFound:
                 pass
@@ -365,7 +376,7 @@ def validate_threadpool(
                 if save_specs:
                     save_file(env_specs, env_specs_path)
 
-    summary = get_validate_summary(succeeded, failed)
+    summary = get_summary(succeeded, failed)
     summary_path = validate_log_dir / LOG_SUMMARY
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(summary, summary_path)

@@ -38,7 +38,7 @@ def prologue(dataset_path: Path, strategy: str, feedback_tool: str = None):
         )
     port.before_start()
     
-def _run_evaluation(
+def run_evaluation(
     run_id: str,
     dataset_path: Path,
     predictions: list,
@@ -57,30 +57,6 @@ def _run_evaluation(
         print(f"\n=== {model_name_or_path} ===")
         print_summary(eval_summary)
         print(f"Summary saved to {summary_path}.")
-    
-def run_evaluation(
-    run_id: str,
-    dataset_path: Path,
-    predictions_path: Path,
-    strategy: str,
-    max_workers: int,
-    force: bool = False
-):
-    predictions = load_file(predictions_path)
-    _run_evaluation(run_id, dataset_path, predictions, strategy,
-              max_workers, force)
-    
-def epilogue(
-    run_id: str,
-    dataset_path: Path,
-    agent_output_dir: Path,
-    strategy: str,
-    max_workers: int,
-    force: bool = False
-):
-    predictions, _ = SWEAgentPort.after_completion(agent_output_dir)
-    _run_evaluation(run_id, dataset_path, predictions, strategy,
-              max_workers, force)
 
 def main():
     """Entry point for the susvibes-eval command."""
@@ -151,12 +127,14 @@ def main():
     if args.prologue:
         prologue(dataset_path, args.strategy)
     elif args.epilogue:
-        epilogue(args.run_id, dataset_path, args.agent_output_dir, args.strategy,
+        predictions, _ = SWEAgentPort.after_completion(args.agent_output_dir)
+        run_evaluation(args.run_id, dataset_path, predictions, args.strategy,
             args.max_workers, args.force)
     elif args.prepare_dataset:
         prepare_dataset(dataset_path, args.strategy, args.feedback_tool)
     else:
-        run_evaluation(args.run_id, dataset_path, args.predictions_path, args.strategy,
+        predictions = load_file(args.predictions_path)
+        run_evaluation(args.run_id, dataset_path, predictions, args.strategy,
             args.max_workers, args.force)
 
 if __name__ == "__main__":

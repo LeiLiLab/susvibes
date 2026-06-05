@@ -1,17 +1,22 @@
 # SusVibes Task Curation
 
-This directory contains code for the curation pipeline of SusVibes, including vulnerability mining, adaptive generation of task candidates, building environments, and conducting execution-based task validation. Before proceeding, ensure the repository is correctly installed according to the guidelines in the main [README](../../README.md).
+This directory contains the SusVibes task-curation pipeline: mining vulnerability records, identifying each repo's developer tools, checking test coverage, adaptively generating task candidates, building per-instance Docker environments, and execution-based validation. Before proceeding, ensure the repository is installed per the main [README](../../README.md).
 
-The pipeline runs in four sequential stages:
+The pipeline runs in this order (all artifacts land under `datasets/<run_id>/` and `env_specs/<run_id>/`):
 
-1. [`mine/`](mine/) — mine vulnerability records from existing datasets
-2. [`adaptive_gen/`](adaptive_gen/) — adaptively generate task candidates (masks + problem statements)
-3. [`env_setup/`](env_setup/) — build per-instance Docker environments
-4. [`validate/`](validate/) — validate tasks via execution and finalize the dataset
+1. [`mine/process`](mine/) — mine vulnerability-fixing commits → `processed_dataset.jsonl`
+2. [`env_setup/dev_tools`](env_setup/) — identify each repo's Python version → `dev_tools.json`
+3. [`env_setup/build_base`](env_setup/) `--mode pull` — pull the `base_py` / `dind_py` / `cov_py` images for those versions
+4. [`mine/check_cov`](mine/check_cov/) — label each instance's test coverage → `coverage_report.jsonl`
+5. [`adaptive_gen`](adaptive_gen/) — generate masks + problem statements for the covered instances → `task_dataset.jsonl`
+6. [`env_setup/build_repo`](env_setup/) — build a per-instance environment image → `susvibes_dataset.jsonl`
+7. [`validate`](validate/) — validate via execution, then publish the dataset
 
-## Collecting Vulnerability Records
+Several stages drive [SWE-agent (sv)](https://github.com/songwen6968/SWE-agent/tree/sv). Install it from source per its [guidelines](https://swe-agent.com/latest/installation/source/) (a `conda` env is recommended); for each agent stage, place its config (named below) under SWE-agent's `config/` directory and configure [`utils/agents/settings.yaml`](utils/agents/settings.yaml) (a pre-filled example is provided). Run the agent batches as specified in [`utils/agents/runs.sh`](utils/agents/runs.sh).
 
-First, retrieve data on historically observed software vulnerabilities from existing datasets. We provide the vulnerability dataset from ReposVul as an example; download it from [Google Drive](https://drive.google.com/file/d/1vk_WAPW3DvRsRKT7mfb4lpZWtVEGED0M/view?usp=share_link) and place it at `datasets/cve_records/ReposVul/`. Then run:
+## 1. Collecting Vulnerability Records
+
+Retrieve data on historically observed software vulnerabilities from existing datasets. We provide the ReposVul dataset as an example; download it from [Google Drive](https://drive.google.com/file/d/1vk_WAPW3DvRsRKT7mfb4lpZWtVEGED0M/view?usp=share_link) and place it at `datasets/cve_records/ReposVul/`. Then run:
 
 ```bash
 python -m susvibes.curate.mine.process \
@@ -20,22 +25,47 @@ python -m susvibes.curate.mine.process \
     --run_id playground
 ```
 
-This produces an assembled dataset of vulnerability fixing commits, `processed_dataset.jsonl`, under `datasets/<run_id>/`.
+This produces `processed_dataset.jsonl` — an assembled dataset of vulnerability-fixing commits.
 
-## Generating Task Candidates
+## 2. Identifying Developer Tools
 
-From these vulnerability fixing commits, an adaptive pipeline creates a SusVibes task for each. The pipeline includes:
+An agent identifies the Python version each project requires and maps it to an available base-image version, producing `env_specs/<run_id>/dev_tools.json` (see [`env_specs/default/dev_tools.json`](../env_specs/default/dev_tools.json) for an example). It reads `processed_dataset.jsonl` (SWE-agent config: [`utils/agents/configs/curate.yaml`](utils/agents/configs/curate.yaml)):
 
-1. **An agent to generate an initial mask.** This mask is generated on the vulnerable commit before the security fix, i.e., masking out a software feature from its vulnerable implementation.
-2. **A task description is generated** to describe the functionality of this masked implementation.
-3. **A verifier agent** checks whether the task description covers all lines in feature implementation with *security fixes*. If verification fails, go back to step 1; otherwise, proceed to step 4.
-4. Return the task description and the mask.
+```bash
+python -m susvibes.curate.env_setup.dev_tools \
+  --run_id playground
+```
 
-These stages are implemented in [`adaptive_gen/core.py`](adaptive_gen/core.py) and leverage [SWE-agent (sv)](https://github.com/songwen6968/SWE-agent/tree/sv).
+## 3. Pulling Base Images
 
-Follow the installation [guidelines](https://swe-agent.com/latest/installation/source/) to install SWE-agent from source (a `conda` environment is recommended). Set up SWE-agent with the config file at [`utils/agents/configs/adaptive_gen.yaml`](utils/agents/configs/adaptive_gen.yaml) by placing it under the `config/` directory of SWE-agent. You may configure the SWE-agent setup itself in [`utils/agents/settings.yaml`](utils/agents/settings.yaml); a pre-filled example is provided.
+Pull the per-version `base_py`, `dind_py`, and `cov_py` images from [Docker Hub](https://hub.docker.com/r/songwen6968) for the Python versions `dev_tools` identified — `check_cov` and `build_repo` expect them present locally:
 
-With that, run:
+```bash
+python -m susvibes.curate.env_setup.build_base \
+  --mode pull \
+  --image_names '["base_py", "dind_py", "cov_py"]' \
+  --versions '["3.10", "3.11"]'
+```
+
+## 4. Checking Test Coverage
+
+For each instance, statically decide (no execution) whether the repo's own test suite covers the files touched by the security fix, inside a version-matched `cov_py` container. This labels each instance (`likely_covered` / `maybe_covered` / `unlikely_covered` / `unknown`) and writes `coverage_report.jsonl`; only `likely_covered` / `maybe_covered` instances proceed to the next step. See [`mine/check_cov/`](mine/check_cov/) for details.
+
+```bash
+python -m susvibes.curate.mine.check_cov \
+  --run_id playground \
+  --max_workers 5
+```
+
+## 5. Generating Task Candidates
+
+From the covered vulnerability-fixing commits, an adaptive pipeline creates a SusVibes task for each:
+
+1. **An agent generates an initial mask** on the vulnerable commit (before the security fix), masking out a software feature from its vulnerable implementation.
+2. **A task description is generated** for the masked implementation.
+3. **A verifier agent** checks whether the description covers all lines of the security-fixed feature implementation; if not, it retries the mask.
+
+These stages are implemented in [`adaptive_gen/core.py`](adaptive_gen/core.py) (SWE-agent config: [`utils/agents/configs/curate.yaml`](utils/agents/configs/curate.yaml)). They run only on the instances `check_cov` labeled covered, and save tasks to `task_dataset.jsonl` (previewed at `datasets/<run_id>/examples/`):
 
 ```bash
 python -m susvibes.curate.adaptive_gen.core \
@@ -44,30 +74,9 @@ python -m susvibes.curate.adaptive_gen.core \
   --run_id playground
 ```
 
-The resulting tasks are saved at `datasets/<run_id>/task_dataset.jsonl` and previewed at `datasets/<run_id>/examples/`.
+## 6. Building Execution Environments
 
-## Building Execution Environment
-
-Next, build a Docker image for each task capable of executing the test suite of the associated repository. We leverage an [environment building agent](https://github.com/songwen6968/SWE-agent/tree/sv-env-setup) for automation.
-
-The image building process has two phases: (i) identifying basic developer tools required (e.g., Python versions) and creating a base image equipped with these tools; and (ii) installing the repository and running the test suite within the base image.
-
-### Step 1: Preparing Base Image with Developer Tools
-
-An agent identifies the Python version each project requires, using the SWE-agent set up in the previous section. The following command prepares the agent run, runs the agent, and post-processes the output into `env_specs/<run_id>/dev_tools.json` (see [`env_specs/default/dev_tools.json`](../env_specs/default/dev_tools.json) for an example):
-
-```bash
-python -m susvibes.curate.env_setup.dev_tools \
-  --run_id playground
-```
-
-The `build_repo --prologue` command in Step 2 will automatically pull the canonical `base_py` and `dind_py` images from [Docker Hub](https://hub.docker.com/r/songwen6968) for every Python version needed and tag `base_py:<version>` locally; no manual pull is required.
-
-### Step 2: Installing Repo and Executing Test Suite
-
-This step uses a specialized environment building agent, [SWE-agent (sv-env-setup)](https://github.com/songwen6968/SWE-agent/tree/sv-env-setup), whose config file is located at [`utils/agents/configs/env_setup.yaml`](utils/agents/configs/env_setup.yaml). Configure it similarly via [`utils/agents/settings.yaml`](utils/agents/settings.yaml).
-
-In short, SWE-agent (sv-env-setup) starts inside the corresponding base image and consults (in order) the pre-existing container configurations, CI/CD pipeline, and other documentation for reproducing the testing workflow. It then invokes Docker commands to create a new image with successful installation and testing steps baked in.
+Build a Docker image for each task capable of executing the test suite of its repository, using the environment-building agent [SWE-agent (sv-env-setup)](https://github.com/songwen6968/SWE-agent/tree/sv-env-setup) (config: [`utils/agents/configs/env_setup.yaml`](utils/agents/configs/env_setup.yaml)). The agent starts inside the corresponding base image and consults the pre-existing container configuration, CI/CD pipeline, and other docs to reproduce the testing workflow, then bakes the working install + test steps into a new image.
 
 First, prepare the agent run:
 
@@ -77,11 +86,11 @@ python -m susvibes.curate.env_setup.build_repo \
   --run_id playground
 ```
 
-Then run the environment building agent as specified in [`utils/agents/runs.sh`](utils/agents/runs.sh).
+Then run the environment-building agent as specified in [`utils/agents/runs.sh`](utils/agents/runs.sh).
 
-> **Note:** *This step can be resource-consuming in both time and space, as the agent repeatedly installs dependencies, tests the environment, and builds Docker images. We recommend at least 2GB of free storage per instance and adjusting parallelism based on available CPU cores.*
+> **Note:** *This step can be resource-consuming in time and space, as the agent repeatedly installs dependencies, tests the environment, and builds Docker images. We recommend at least 2GB of free storage per instance and adjusting parallelism to available CPU cores.*
 
-After the agent finishes, build the environment Docker images from its output:
+After the agent finishes, build the environment images from its output, producing `susvibes_dataset.jsonl` (each record tagged with its `env_image_name`):
 
 ```bash
 python -m susvibes.curate.env_setup.build_repo \
@@ -93,9 +102,9 @@ python -m susvibes.curate.env_setup.build_repo \
   [--from_existing_specs]  # Optional: reuse the cached dockerfile in env_specs instead of re-extracting it from agent output
 ```
 
-## Validating Test Cases via Execution
+## 7. Validating and Publishing
 
-Finally, run validation: this synthesizes test suite output parsers and verifies each collected task instance against its execution environment.
+Validation synthesizes test-suite output parsers and verifies each task instance against its environment (expected security + functional test breaks), tagging an evaluation image per validated instance:
 
 ```bash
 python -m susvibes.curate.validate.with_test \
@@ -105,16 +114,13 @@ python -m susvibes.curate.validate.with_test \
   [--from_existing_specs]  # Optional: reuse the cached logs_parser in env_specs instead of re-synthesizing it via LLM
 ```
 
-This step requires an LLM API setup for generating test suite output parsers. Configure which LLM to use in [`constants.py`](constants.py), and set the API key in your `.env` file. Set your Docker Hub namespace under which produced images are tagged in [`susvibes/constants.py`](../constants.py).
+This requires an LLM API for generating test-suite output parsers: configure the model in [`constants.py`](constants.py), set the API key in your `.env`, and set your Docker Hub namespace in [`susvibes/constants.py`](../constants.py).
 
-Then finalize the dataset and publish it to Hugging Face:
+Finally, finalize the dataset and publish it to Hugging Face:
 
 ```bash
 python -m susvibes.curate.validate.wrapup \
   --run_id playground
 ```
 
-This filters to validated instances, computes each golden patch, strips records to the released
-schema, and uploads `susvibes_dataset.jsonl` to the Hugging Face dataset repo configured by
-`HF_DATASET_REPO` in [`susvibes/constants.py`](../constants.py) — it does **not** write the local
-dataset. Set `HF_TOKEN` (with write access to that repo) in your `.env` first.
+This filters to validated instances, computes each golden patch, strips records to the released schema, and uploads `susvibes_dataset.jsonl` to the Hugging Face dataset repo set by `HF_DATASET_REPO` in [`susvibes/constants.py`](../constants.py) — it does **not** write the local dataset. Set `HF_TOKEN` (with write access) in your `.env` first.
