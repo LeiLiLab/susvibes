@@ -41,8 +41,11 @@ def read_sources(src_root):
         if ".git" in dirnames:
             dirnames.remove(".git")   # prune: never descend into a .git tree
         for fn in filenames:
-            if not fn.endswith(TARGET_EXTENSIONS):
-                continue
+            try:
+                if not fn.endswith(TARGET_EXTENSIONS):
+                    continue
+            except UnicodeDecodeError:
+                continue   # py2: a non-ascii (undecodable) filename is never a .py we analyze
             abs_path = os.path.join(dirpath, fn)
             rel = os.path.relpath(abs_path, src_root).replace(os.sep, "/")
             try:

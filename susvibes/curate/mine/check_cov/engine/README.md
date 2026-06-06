@@ -32,20 +32,42 @@ label: `≥ Classifier.LIKELY_THRESHOLD` → likely, `> 0` → maybe, `0` → un
 ## How a target is scored
 
 `analyze` picks **one** trace engine per repo — `symbol_trace` (precise, jedi) if
-`symbol_trace.usable()` finds jedi can parse the repo, else `file_trace` (the Python-2
-fallback) — and **always** layers `heuristics` (runtime wiring) on top. The per-file
+`symbol_trace.usable()` finds jedi can parse the repo, else `file_trace` (the no-jedi
+fallback, rarely needed now the cov containers ship a py2-capable jedi) — and
+**always** layers `heuristics` (runtime wiring) on top. The per-file
 score is the max over every layer that fired. (No test suite at all → every target is
 `unlikely_covered` immediately.)
 
 ### symbol_trace (jedi) — S1–S4
-A backward BFS over the symbol use-graph: seeds are the symbols **defined** in the
-target file; jedi's project-wide `get_references` finds each use, and the scope of the
-use decides the next hop — a use **in a test** is a hit; a use in another def **taints
-that def** (test → wrapper → … → target); a use bound into a **module global**
-(`urlpatterns = [View]`) taints the global; an implicitly-invoked method (dunder /
-`@property`) continues through its **class**. Type-annotation uses (`x: T`, `-> T`) are
-skipped (looked up as a type, never executed). Scope discovery uses parso, not jedi
-inference (only `get_references` touches jedi — its name inference is thread-unsafe).
+A backward BFS over the symbol use-graph. **One predicate
+(`traceable_symbol_positions`) defines what counts as a traceable node** —
+**module-level functions / classes / globals, and class methods (properties
+included)** (it qualifies only if referenceable from **outside** the file and resolved
+precisely by `get_references`). **Seeds** are *all* such symbols in the target file —
+so a class is **always** seeded. **Successors** taint only the *innermost* such node
+enclosing a use, so a class is tainted **only** when the use sits directly in a class
+body (base class / class-variable value) or in a dunder; an ordinary method-body use
+taints the **method**, never its class. Deliberately excluded: **class variables and instance attributes**
+(`self.x` is scattered, possibly dynamic/inherited, shared mutable state — running
+`get_references` on it over-links every method that merely touches it into bogus
+chains; the **class** is seeded instead, which covers "a test constructs/subclasses
+it"); **imports** (resolve to a definition in another file → would match that external
+symbol's uses repo-wide); **nested functions** (unreachable from outside their scope).
+
+`get_references` finds every use of a seed; **`successors`** routes each use to the
+innermost qualifying symbol that **carries** it, re-expanded on the next hop:
+
+| the use sits… | tainted successor |
+|---|---|
+| in a **test file** | — hit (FIFO frontier ⇒ the first hit is the shortest chain) |
+| in a **function / method body** | that function (a wrapper chain of any length is followed); a **dunder**, lacking a by-name call site, continues through its **class** |
+| **directly in a class body** (base class, class-variable value) | the class |
+| bound into a **module-level global** (`urlpatterns = [View]`) | that global |
+| a bare module-top-level statement, no name to follow | — only the S4 import-reachability backstop applies |
+
+Type-annotation uses (`x: T`, `-> T`) are skipped (looked up as a type, never
+executed). Scope discovery uses parso, not jedi inference (only `get_references`
+touches jedi — its name inference is thread-unsafe).
 
 | id | evidence | score |
 |---|---|---|
@@ -54,7 +76,7 @@ inference (only `get_references` touches jedi — its name inference is thread-u
 | S3 | reached through a deeper real reference chain | `0.65` |
 | S4 | target symbol used at module top level of a test-imported file (backstop) | `0.55` |
 
-### file_trace — Python-2 fallback: F1–F6
+### file_trace — no-jedi fallback: F1–F6
 When jedi is unusable, reachability is approximated over imports/symbols.
 
 **F1–F2 — a test imports the target**
@@ -127,5 +149,4 @@ shared `RepoIndex` (imports, module map, re-exports, route table, symbol def-cou
 test-to-file BFS depths) is built in [`repo_index.py`](repo_index.py); path→module
 mapping is in [`modules.py`](modules.py); the tolerant `ast → tree-sitter → regex` fact
 extractor is in [`extract_facts.py`](extract_facts.py).
-```
 

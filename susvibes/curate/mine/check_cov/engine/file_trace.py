@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""File-level static coverage approximation (no jedi) — the Python 2 fallback.
+"""File-level static coverage approximation (no jedi) — the fallback for when jedi cannot parse the repo.
 
 Scores a target with cheap, language-agnostic layers over the shared RepoIndex:
 
@@ -10,8 +10,9 @@ Scores a target with cheap, language-agnostic layers over the shared RepoIndex:
     F5  a test references a distinctive symbol the target defines
     F6  a distinctive symbol the target defines appears only as a string in a test
 
-When jedi can parse the repo, `symbol_trace` (S1-S4) replaces these precise-er;
-this engine is used only when jedi cannot (heavy Python 2).
+When jedi can parse the repo, `symbol_trace` (S1-S4) supersedes these with precise
+reference chains; this engine runs only when jedi cannot parse it (`usable()` False),
+rare now that the version-matched jedi handles py2 and py3 alike.
 """
 from __future__ import print_function, division, absolute_import, unicode_literals
 

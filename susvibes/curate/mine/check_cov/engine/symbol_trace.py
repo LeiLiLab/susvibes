@@ -6,20 +6,23 @@ reachability, distinctive-symbol matching) with a single precise question: is
 there a real symbol-reference chain from some test into a symbol DEFINED in the
 target file?
 
-The trace is a backward BFS over the symbol use-graph. Starting from the symbols
-defined in the target file (functions, classes, and module-level globals),
-jedi's project-wide ``get_references`` finds every place each symbol is used. For
-each use we look at the SCOPE that contains it:
+The trace is a backward BFS over the symbol use-graph. Seeds are the symbols
+defined in the target file that can be referenced from outside it and reliably found
+by get_references — module-level functions, classes, and globals, plus class methods
+(properties included); see ``traceable_symbol_positions``. jedi's project-wide
+``get_references`` finds every place each symbol is used; ``successors`` maps each
+use to the innermost such symbol that carries it, expanded on the next hop:
 
   - a use inside a test file means the target is reached (covered);
-  - a use inside another function/class body taints that enclosing definition,
-    which is expanded on the next hop — so a test that calls a wrapper that calls
-    ... that calls the target symbol is found, however many hops away;
-  - a use at MODULE TOP LEVEL bound into a global (``urlpatterns = [MyView]``,
-    ``HANDLERS = {...: target}``) taints that global, which is expanded next — so
-    a test that imports the global reaches the target. This keeps the trace
+  - a use inside a function/method body taints that function, expanded on the next
+    hop — so a wrapper chain of any length is found; a dunder, lacking a by-name
+    call site, continues through its CLASS instead;
+  - a use directly in a class body (a base class, a class-variable value) taints the
+    class — who instantiates or subclasses it is then traced;
+  - a use bound into a module-level global (``urlpatterns = [MyView]``) taints that
+    global, so a test that uses the global reaches the target. This keeps the trace
     symbol-precise instead of degrading to "the file is importable" the moment a
-    symbol is used outside a function;
+    symbol is used at module top level;
   - a use at module top level with no name to continue (a bare ``register(X)``)
     has no symbol to follow: the file simply executes it on import, so the only
     signal left is whether a test imports that file (import-graph reachability).
@@ -71,10 +74,6 @@ SCORE_DIRECT = 0.95         # S1: a test references a target-defined symbol dire
 SCORE_CHAIN_NEAR = 0.80     # S2: reached through 2-3 wrapping/global hops
 SCORE_CHAIN_FAR = 0.65      # S3: reached through >3 hops (still a real reference chain)
 
-# Decorators that make a method implicitly invoked (via attribute access, not an
-# explicit ``obj.method()`` call) — like dunder methods, these have no by-name call
-# site for get_references to find, so the trace must continue through the class.
-PROPERTY_DECORATORS = {"property", "cached_property", "setter", "getter", "deleter"}
 # A target symbol is used by a bare top-level statement in a non-test file that a
 # test imports: the file runs the statement on import, but no method body need run
 # (often only construction/registration) — weaker, like a file-level reach.
@@ -83,7 +82,8 @@ SCORE_TOPLEVEL_REACH = 0.55   # S4: target symbol used at module top level of a 
 
 def usable(repo_dir, sources):
     """Sample-parse repo files with jedi; return False (-> file-level fallback) when
-    too many fail, which in practice means a Python 2 repo jedi cannot parse."""
+    too many fail to parse — a repo this version of jedi cannot handle (rare: the cov
+    container's jedi parses py2 and py3, so this means genuinely broken sources)."""
     rels = list(sources)[:SymbolTrace.JEDI_PARSE_SAMPLE]
     if not rels:
         return False
@@ -100,10 +100,9 @@ class JediContext(object):
     """Per-instance jedi/parso state. Not reusable across instances: each instance
     is a different commit, so the working tree (and parse results) differ."""
 
-    def __init__(self, repo_dir, test_set):
+    def __init__(self, repo_dir):
         self.repo_dir = Path(repo_dir)
         self.project = jedi.Project(str(repo_dir))
-        self.test_set = test_set
         self._scripts = {}
         self._trees = {}
 
@@ -142,8 +141,8 @@ class JediContext(object):
             return None
 
 
-def build(repo_dir, sources, test_set):
-    return JediContext(repo_dir, test_set)
+def build(repo_dir):
+    return JediContext(repo_dir)
 
 
 def assignment_lhs_names(expr_stmt):
@@ -160,62 +159,70 @@ def assignment_lhs_names(expr_stmt):
     return [c.start_pos for c in children[:eq[-1]] if c.type == "name"]
 
 
-def defined_name_positions(tree):
-    """(line, col) of every traceable symbol DEFINED in a file: function/class
-    names, and the target names of module-level assignments (globals)."""
+def definition_scope(node):
+    """The scope a definition lives in: 'module', 'class', or 'function' (the kind of
+    the nearest enclosing def/class, or 'module' if none)."""
+    parent = node.parent
+    while parent is not None:
+        if parent.type == "funcdef":
+            return "function"
+        if parent.type == "classdef":
+            return "class"
+        if parent.type == "module":
+            return "module"
+        parent = parent.parent
+    return "module"
+
+
+def traceable_symbol_positions(tree):
+    """(line, col) of every symbol DEFINED in a file that can be referenced from
+    OUTSIDE it and reliably found by get_references — the single predicate shared by
+    seeding and successor-tainting:
+
+      - module-level function / class / global variable;
+      - class method (property included).
+
+    Class variables and instance attributes are NOT seeded. An instance attribute
+    (``self.X``) has no real definition point (scattered across methods, possibly set
+    via setattr or inherited) and is shared mutable state — get_references on it links
+    every method that merely touches the attribute, fabricating chains between code
+    that never calls each other. Seeding the CLASS instead covers the real case (a
+    test that constructs or subclasses it) without that hazard. Imports are not seeded
+    either: an imported name resolves to a definition in ANOTHER file, so
+    get_references would match that external symbol's uses project-wide. Nested
+    functions and function-local names are excluded too — nothing outside their
+    function can reference them."""
     if tree is None:
         return []
     out = []
-    # Function/class definitions anywhere in the file.
     stack = list(getattr(tree, "children", []))
     while stack:
         node = stack.pop()
-        if node.type in ("funcdef", "classdef"):
-            out.append(node.name.start_pos)
+        t = node.type
+        if t in ("funcdef", "classdef"):
+            if definition_scope(node) in ("module", "class"):
+                out.append(node.name.start_pos)
+        elif t == "expr_stmt":
+            if definition_scope(node) == "module":
+                out.extend(assignment_lhs_names(node))   # module-level global
         if hasattr(node, "children"):
             stack.extend(node.children)
-    # Module-level globals: direct module children that are assignments.
-    for stmt in getattr(tree, "children", []):
-        if stmt.type != "simple_stmt":
-            continue
-        for child in stmt.children:
-            if child.type == "expr_stmt":
-                out.extend(assignment_lhs_names(child))
     return out
 
 
 def seed_positions(ctx, target):
-    """(abs_path, [(line, col), ...]) of symbols defined in the target file."""
+    """(abs_path, [(line, col), ...]) of traceable symbols defined in the target file."""
     abs_path = ctx.repo_dir / target
-    return abs_path, defined_name_positions(ctx.parso_tree(abs_path))
-
-
-def decorator_tails(funcnode):
-    """Last dotted segment of each decorator on a funcdef (``@x.setter`` -> setter,
-    ``@property`` -> property); empty if the funcdef carries no decorators."""
-    decorated = funcnode.parent
-    if decorated is None or decorated.type != "decorated":
-        return []
-    tails = []
-    for dec in decorated.children:
-        if dec.type != "decorator":
-            continue
-        names = [c.value for c in dec.children if c.type == "name"]
-        for c in dec.children:
-            if c.type == "trailer":
-                names += [cc.value for cc in c.children if cc.type == "name"]
-        if names:
-            tails.append(names[-1])
-    return tails
+    return abs_path, traceable_symbol_positions(ctx.parso_tree(abs_path))
 
 
 def is_implicit_method(funcnode):
-    """Whether a method is invoked implicitly (no ``obj.method()`` call site for
-    get_references to find): a dunder, or a property/descriptor accessor."""
+    """Whether a method is invoked implicitly, with no by-name site for get_references
+    to find — a dunder (``__init__`` on construction, ``__getitem__`` on indexing):
+    the trace must continue through its class. A property is NOT implicit — ``obj.attr``
+    IS its by-name site (verified) — so it traces as an ordinary method."""
     name = funcnode.name.value
-    if name.startswith("__") and name.endswith("__"):
-        return True
-    return any(t in PROPERTY_DECORATORS for t in decorator_tails(funcnode))
+    return name.startswith("__") and name.endswith("__")
 
 
 def enclosing_class(funcnode):
@@ -276,19 +283,39 @@ def is_annotation_ref(ctx, ref):
     return False
 
 
-def successors(ctx, ref):
-    """What to trace next from a non-test reference site, as
-    ``(successor_positions, module_level)``:
+def carrier_names(expr_stmt, leaf):
+    """If ``leaf`` is in the RHS of a MODULE-LEVEL assignment, the
+    ``(global_positions, True)`` of the global name(s) it is bound into
+    (``urlpatterns = [View]`` binds View into urlpatterns), so the trace follows who
+    uses that global; else None (not a module-level assignment, or the leaf is on the
+    LHS). Class-body and function-level bindings are not carried — a class-body
+    reference taints the class and a function-level one taints the function (see
+    ``successors``)."""
+    if definition_scope(expr_stmt) != "module":
+        return None
+    children = expr_stmt.children
+    eq = [i for i, c in enumerate(children)
+          if c.type == "operator" and c.value == "="]
+    if not eq:
+        return None
+    if (leaf.line, leaf.column) < children[eq[-1]].start_pos:
+        return None   # leaf is on the LHS, not a use of the bound value
+    names = assignment_lhs_names(expr_stmt)
+    return (names, True) if names else None
 
-      - inside a function/class body -> [(abs_path, line, col)] of the innermost
-        enclosing def's name (taint the wrapper), module_level=False. When that
-        innermost def is an implicitly-invoked method (a dunder or property — it
-        has no by-name call site), the trace continues through its CLASS instead,
-        since the method runs when the class is instantiated / its attribute read;
-      - at module top level inside an assignment -> the LHS global name
-        position(s) to trace who uses that global, module_level=True;
-      - at module top level with nothing to continue -> [], module_level=True
-        (the caller may apply the import-reachability backstop)."""
+
+def successors(ctx, ref):
+    """Innermost traceable symbol that carries a non-test reference, as
+    ``(successor_positions, module_level)`` — symmetric with
+    traceable_symbol_positions:
+
+      - inside a function/method body -> that function's name (a dunder, lacking a
+        by-name call site, continues through its CLASS instead);
+      - directly in a class body (a base class, a class-variable value) -> the class;
+      - bound into a module-level global (``urlpatterns = [target]``) -> the global
+        name, to trace who uses it;
+      - nothing left to continue at module top level -> [], module_level=True (the
+        caller may apply the import-reachability backstop)."""
     abs_path = Path(ref.module_path)
     tree = ctx.parso_tree(abs_path)
     if tree is None:
@@ -300,27 +327,23 @@ def successors(ctx, ref):
     if leaf is None:
         return [], False
 
-    # Inside a function/class body? Innermost enclosing def is hit first going up.
-    node = leaf.parent
-    while node is not None and node.type != "module":
-        if node.type == "classdef":
-            return [(abs_path,) + node.name.start_pos], False
-        if node.type == "funcdef":
-            if is_implicit_method(node):
-                cls = enclosing_class(node)
-                if cls is not None:
-                    return [(abs_path,) + cls.name.start_pos], False
-            return [(abs_path,) + node.name.start_pos], False
-        node = node.parent
-
-    # Module top level: trace the assignment global(s) this reference feeds, if any.
     node = leaf.parent
     while node is not None and node.type != "module":
         if node.type == "expr_stmt":
-            names = assignment_lhs_names(node)
-            if names:
-                return [(abs_path,) + p for p in names], True
-            break
+            carrier = carrier_names(node, leaf)
+            if carrier is not None:
+                positions, module_level = carrier
+                return [(abs_path,) + p for p in positions], module_level
+        elif node.type == "classdef":
+            if definition_scope(node) != "function":
+                return [(abs_path,) + node.name.start_pos], False
+        elif node.type == "funcdef":
+            if definition_scope(node) != "function":   # skip nested functions: not
+                if is_implicit_method(node):            # externally traceable, keep
+                    cls = enclosing_class(node)         # walking up to the outer def
+                    if cls is not None:
+                        return [(abs_path,) + cls.name.start_pos], False
+                return [(abs_path,) + node.name.start_pos], False
         node = node.parent
     return [], True
 
@@ -381,6 +404,9 @@ def score(target, ctx, index, max_depth):
             failures += 1   # lost this hop; keep walking other branches
             continue
 
+        # A widely-referenced symbol is a framework/util API, not a coverage chain: check
+        # its refs for a direct test hit but don't expand them (see REFERENCE_EXPAND_LIMIT).
+        expand = len(refs) <= SymbolTrace.REFERENCE_EXPAND_LIMIT
         for ref in refs:
             if ref.is_definition():
                 continue
@@ -395,6 +421,8 @@ def score(target, ctx, index, max_depth):
                 return [(hop_score,
                          "[{0}] test {1}:{2} reaches target symbol (symbol hop {3})".format(
                              sid, rel, ref.line, hop))], True
+            if not expand:
+                continue
             succs, module_level = successors(ctx, ref)
             for s in succs:
                 frontier.append(s + (depth + 1,))

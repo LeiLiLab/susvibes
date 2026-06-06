@@ -92,8 +92,15 @@ class SymbolTrace(object):
     """symbol_trace: precise backward symbol trace via jedi."""
     # Max hops in the backward symbol use-graph (target symbol -> who uses it -> ...).
     MAX_DEPTH = 12
+    # A symbol with more references than this is a framework/util API used repo-wide,
+    # not a coverage chain: still check its refs for a direct test hit, but don't expand
+    # its successors, or the backward BFS blows up combinatorially — each get_references
+    # is a project-wide scan, so expanding a widely-referenced symbol re-searches the
+    # whole repo for every one of its hundreds of references, at each hop.
+    REFERENCE_EXPAND_LIMIT = 100
     # If more than this fraction of a sample of repo files fail to parse under jedi,
-    # treat jedi as unusable (likely Python 2) and fall back to file_trace.
+    # treat jedi as unusable and fall back to file_trace (rare — the version-matched
+    # jedi parses py2 and py3 alike; this catches genuinely broken/exotic sources).
     JEDI_PARSE_FAIL_RATIO = 0.5
     JEDI_PARSE_SAMPLE = 40
     # A get_references call (project-wide search) can fail transiently — retry this
@@ -118,7 +125,7 @@ class SymbolTrace(object):
 
 
 class FileTrace(object):
-    """file_trace: file-level approximation (F1-F6, the Python 2 fallback)."""
+    """file_trace: file-level approximation (F1-F6, the no-jedi fallback)."""
     # Fraction of target files that must be unparseable (with no other evidence)
     # before the instance is downgraded to `unknown` (don't go unknown too eagerly).
     MAX_PARSE_FAIL_RATIO = 0.5
