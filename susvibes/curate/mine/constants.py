@@ -6,6 +6,13 @@ collect.check_cov (repo test-suite discovery & module mapping), so all three
 agree on the target language, its file extensions, and what counts as a "test".
 """
 
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
+GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
+GITHUB_HEADERS = {"Authorization": f"Bearer {GITHUB_TOKEN}"} if GITHUB_TOKEN else {}
+
 TARGET_LANG = "python"
 LANG_EXTENSIONS = {
     'python': ['.py'],

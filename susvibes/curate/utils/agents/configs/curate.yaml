@@ -46,7 +46,8 @@ agent:
           1. Check that the diff accurately reflects what you're asked to do.
           2. If you have modified any TEST files, please revert them to the state they had before you started.
             You can do this with `git checkout -- /path/to/test/file.py`. Use below <diff> to find the files you need to revert.
-          3. Run the submit command again to confirm.
+          3. If the diff below does not include a desired change you made, the repository's `.gitignore` may be excluding it. Force-track each missing change with `git add -f <path>`.
+          4. Run the submit command again to confirm.
 
           Here is a list of all of your changes:
 

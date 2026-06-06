@@ -1,4 +1,5 @@
 import argparse
+import json
 from tqdm import tqdm
 from pathlib import Path
 from jinja2 import Template
@@ -10,7 +11,6 @@ from susvibes.curate.adaptive_gen.utils import module_setup_logger
 from susvibes.utils import load_file, save_file, touched_files, filter_target_files
 from susvibes.curate.utils import (
     get_repo_dir,
-    clone_github_repo,
     apply_patch,
     rollback,
     len_patch,
@@ -28,7 +28,7 @@ def prologue(
     length_ratio: int = 1,
     max_length: int = None,
     instance_ids: list = None,
-    no_require_test: bool = False,
+    require_test: bool = True,
 ):
     port = SWEAgentPort(run_name=__spec__.name)
     processed_dataset = load_file(processed_dataset_path)
@@ -37,9 +37,9 @@ def prologue(
             if data_record["instance_id"] in instance_ids]
     for data_record in tqdm(processed_dataset, desc="Preparing agent run"):
         instance_id = data_record["instance_id"]
-        repo_dir = clone_github_repo(data_record["project"], root_dir=LOCAL_REPOS_DIR, force=False)
+        repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
         try:
-            test_patch = None if no_require_test else data_record["test_patch"]
+            test_patch = data_record["test_patch"] if require_test else None
             rollback_commit = rollback(repo_dir, data_record["base_commit"],
                 data_record["security_patch"], test_patch)
         except Exception as e:
@@ -69,7 +69,7 @@ def epilogue(
     length_ratio: int = 1,
     max_length: int = None,
     ratio_tolerance: float = 0,
-    no_require_test: bool = False,
+    require_test: bool = True,
 ):
     predictions, total_cost = SWEAgentPort.after_completion(agent_output_dir, submitted_only=True)
     processed_dataset_by_id = {data_record["instance_id"]: data_record
@@ -83,7 +83,7 @@ def epilogue(
         instance_id = pred["instance_id"]
         data_record = processed_dataset_by_id[instance_id]
         repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
-        test_patch = None if no_require_test else data_record["test_patch"]
+        test_patch = data_record["test_patch"] if require_test else None
         rollback_commit = rollback(repo_dir, data_record["base_commit"],
             data_record["security_patch"], test_patch)
         model_patch = pred.get("model_patch", "")
@@ -142,7 +142,7 @@ def pipeline(
     max_length: int = None,
     ratio_tolerance: float = 0,
     instance_ids: list = None,
-    no_require_test: bool = False,
+    require_test: bool = True,
     iter_id: int = None,
 ):
     logger.info("=== Mask generation pipeline started (iter=%s, ratio=%.1fx) ===",
@@ -152,7 +152,7 @@ def pipeline(
         length_ratio=length_ratio,
         max_length=max_length,
         instance_ids=instance_ids,
-        no_require_test=no_require_test,
+        require_test=require_test,
     )
     agent_output_dir = port.run_batch()
     successful_instance_ids, total_cost = epilogue(
@@ -162,7 +162,7 @@ def pipeline(
         length_ratio=length_ratio,
         max_length=max_length,
         ratio_tolerance=ratio_tolerance,
-        no_require_test=no_require_test,
+        require_test=require_test,
     )
     logger.info("  Agent cost: $%.2f", total_cost or 0)
     return successful_instance_ids, total_cost
@@ -201,16 +201,17 @@ if __name__ == "__main__":
         help="Directory where the agent output is stored, required in epilogue.",
     )
     parser.add_argument(
-        "--no_require_test",
-        action="store_true",
-        help="Do not require test patches; skip test_patch in rollback.",
+        "--require_test",
+        type=json.loads,
+        default=True,
+        help="Require repo-provided tests (default True); false uses the synthesized-test path.",
     )
     args = parser.parse_args()
     if args.prologue:
-        prologue(args.processed_dataset_path, no_require_test=args.no_require_test)
+        prologue(args.processed_dataset_path, require_test=args.require_test)
     elif args.epilogue:
         epilogue(args.agent_output_dir, args.processed_dataset_path,
-            task_dataset_path=args.task_dataset_path, no_require_test=args.no_require_test)
+            task_dataset_path=args.task_dataset_path, require_test=args.require_test)
     else:
         pipeline(processed_dataset_path=args.processed_dataset_path,
-            task_dataset_path=args.task_dataset_path, no_require_test=args.no_require_test)
+            task_dataset_path=args.task_dataset_path, require_test=args.require_test)

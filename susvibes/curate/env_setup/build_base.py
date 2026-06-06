@@ -207,7 +207,7 @@ if __name__ == "__main__":
     if invalid_versions:
         parser.error(f'--versions must be among {list(supported_versions)}, got {invalid_versions}')
     logger = setup_logger(get_log_dir("default", "env_setup"), "build_base.log",
-        __spec__.name, add_stdout=False)
+        __spec__.name, add_stdout=False, mode="w")
 
     if args.mode == "build":
         if "base_py" in image_names:

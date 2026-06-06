@@ -130,8 +130,8 @@ def dump_test(data_record, env_spec, edits_dir: Path):
     save_file(readme, task_dir / TaskArtifact.README)
 
 
-def dump_single(record, env_spec, edits_dir: Path, log_dir: Path, no_require_test: bool = False):
-    if no_require_test:
+def dump_single(record, env_spec, edits_dir: Path, log_dir: Path, require_test: bool = True):
+    if not require_test:
         dump_test(record, env_spec, edits_dir)
         return True
     base_no_test_image_name = get_image_name(f"base_no_test_{record['instance_id']}")
@@ -151,11 +151,11 @@ def dump_threadpool(
     log_dir: Path,
     max_workers: int,
     instance_ids: list = None,
-    no_require_test: bool = False,
+    require_test: bool = True,
 ) -> tuple[int, list]:
     """Build base_no_test images and dump editable folders for all candidate
     instances in parallel. Returns (dumped_count, failed_instance_ids).
-    When no_require_test is True, the base_no_test image build is skipped."""
+    When require_test is False, the base_no_test image build is skipped."""
     candidates = [r for r in dataset
         if r.get("test_patch") and r["instance_id"] in env_specs]
     if instance_ids is not None:
@@ -166,7 +166,7 @@ def dump_threadpool(
         futures = {
             executor.submit(
                 dump_single, r, env_specs[r["instance_id"]], edits_dir, log_dir,
-                no_require_test=no_require_test,
+                require_test=require_test,
             ): r["instance_id"] for r in candidates
         }
         with tqdm(total=len(futures), dynamic_ncols=True,
@@ -258,9 +258,10 @@ if __name__ == "__main__":
         help="Number of threads to use for dump.",
     )
     parser.add_argument(
-        "--no_require_test",
-        action="store_true",
-        help="Skip building the base_no_test image during dump.",
+        "--require_test",
+        type=json.loads,
+        default=True,
+        help="Build the base_no_test image during dump (default True); false skips it.",
     )
     args = parser.parse_args()
 
@@ -275,7 +276,7 @@ if __name__ == "__main__":
         dumped, failed = dump_threadpool(
             dataset, env_specs, edits_dir, log_dir, args.max_workers,
             instance_ids=args.instance_ids,
-            no_require_test=args.no_require_test,
+            require_test=args.require_test,
         )
         save_file(dataset, dataset_path)
         print(f"Built and dumped {dumped} instances to {edits_dir}.")

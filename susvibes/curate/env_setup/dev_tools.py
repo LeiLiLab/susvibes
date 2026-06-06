@@ -9,16 +9,16 @@ python -m susvibes.curate.env_setup.dev_tools \
 import argparse
 import re
 from pathlib import Path
+from jinja2 import Template
 
 from susvibes.constants import *
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_path
 from susvibes.env_specs import DEV_TOOL_VERSIONS
 from susvibes.curate.env_setup.prompts import DEV_TOOLS_PROMPT_TEMPLATE
 from susvibes.curate.utils.agents.ports import SWEAgentPort
-from susvibes.utils import load_file, save_file, setup_logger, parse_instance_id
+from susvibes.utils import load_file, save_file, setup_logger, parse_instance_id, touched_files
 from susvibes.curate.utils import (
     get_repo_dir,
-    clone_github_repo,
     reset_to_commit,
     apply_patch,
 )
@@ -30,20 +30,23 @@ detail_logger = None
 
 def init_loggers(log_dir):
     global logger, detail_logger
-    logger = setup_logger(log_dir, "dev_tools.log", f"{__name__}.summary", add_stdout=True)
-    detail_logger = setup_logger(log_dir, "dev_tools_details.log", f"{__name__}.detail", add_stdout=False)
+    logger = setup_logger(log_dir, "dev_tools.log", f"{__name__}.summary", add_stdout=True, mode="w")
+    detail_logger = setup_logger(log_dir, "dev_tools_details.log", f"{__name__}.detail", add_stdout=False, mode="w")
 
-def prologue(task_dataset_path: Path):
+def prologue(processed_dataset_path: Path):
     port = SWEAgentPort(run_name=__spec__.name)
-    task_dataset = load_file(task_dataset_path)
-    for data_record in task_dataset:
-        repo_dir = clone_github_repo(data_record["project"], root_dir=LOCAL_REPOS_DIR, force=False)
+    processed_dataset = load_file(processed_dataset_path)
+    for data_record in processed_dataset:
+        repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
         reset_to_commit(repo_dir, data_record["base_commit"])
+        security_files = sorted(touched_files(data_record["security_patch"]))
         port.add_task(
             repo_type="local",
             repo_dir=repo_dir,
             base_commit=data_record["base_commit"],
-            problem_statement=DEV_TOOLS_PROMPT_TEMPLATE,
+            problem_statement=Template(DEV_TOOLS_PROMPT_TEMPLATE).render(
+                security_files=security_files,
+            ),
             instance_id=data_record["instance_id"],
         )
     port.before_start()
@@ -104,9 +107,9 @@ def epilogue(agent_output_dir: Path, run_id: str = "default"):
     save_file(dev_tools, dev_tools_path)
     print(f"Dev tools saved to {dev_tools_path}.")
 
-def pipeline(task_dataset_path: Path, run_id: str = "default"):
+def pipeline(processed_dataset_path: Path, run_id: str = "default"):
     logger.info("Dev tools pipeline started.")
-    port = prologue(task_dataset_path)
+    port = prologue(processed_dataset_path)
     agent_output_dir = port.run_batch()
     epilogue(agent_output_dir, run_id=run_id)
     logger.info("Dev tools pipeline finished.")
@@ -138,23 +141,14 @@ if __name__ == "__main__":
     env_setup_log_dir = get_log_dir(args.run_id, "env_setup")
     init_loggers(env_setup_log_dir)
 
-    task_dataset_path = get_path('task_dataset', args.run_id)
-    if not task_dataset_path.exists():
-        fallback_path = get_path('processed_dataset', args.run_id)
-        if fallback_path.exists():
-            answer = input(f"task_dataset not found. Use {fallback_path} instead? [Y/n] ").strip().lower()
-            if answer in ('', 'y'):
-                task_dataset_path = fallback_path
-            else:
-                print("Aborted.")
-                exit(1)
-        else:
-            print(f"Neither task_dataset nor processed_dataset found under {task_dataset_path.parent}.")
-            exit(1)
+    processed_dataset_path = get_path('processed_dataset', args.run_id)
+    if not processed_dataset_path.exists():
+        print(f"processed_dataset not found: {processed_dataset_path}")
+        exit(1)
 
     if args.prologue:
-        prologue(task_dataset_path)
+        prologue(processed_dataset_path)
     elif args.epilogue:
         epilogue(args.agent_output_dir, run_id=args.run_id)
     else:
-        pipeline(task_dataset_path, run_id=args.run_id)
+        pipeline(processed_dataset_path, run_id=args.run_id)

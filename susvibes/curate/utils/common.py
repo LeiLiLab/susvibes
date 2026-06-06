@@ -5,9 +5,6 @@ import shutil
 import tempfile
 import subprocess
 import threading
-import requests
-import docker
-import docker.errors
 from pathlib import Path
 from contextlib import contextmanager
 from textwrap import dedent
@@ -63,16 +60,6 @@ def get_repo_dir(project, root_dir):
     root_dir = Path(root_dir)
     repo_name = project.split("/", 1)[1]
     return root_dir / repo_name
-
-def get_repo_size(project) -> int | None:
-    """Return repo size in KB via GitHub API, or None on failure."""
-    try:
-        r = requests.get(f"https://api.github.com/repos/{project}", timeout=10)
-        if r.status_code == 200:
-            return r.json().get("size", 0)
-    except requests.RequestException:
-        pass
-    return None
 
 def clone_github_repo(project, root_dir, force=False, max_retries=3, timeout=None):
     """Clone a GitHub repository ("owner/repo") into the root directory."""

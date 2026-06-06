@@ -1,5 +1,6 @@
 import random
 import argparse
+import json
 from pathlib import Path
 
 from susvibes.curate.constants import get_path, get_log_dir
@@ -30,7 +31,7 @@ def adaptive_task_gen(
     coverage_report_path: Path,
     max_iters: int = None,
     start_iter: int = 0,
-    no_require_test: bool = False,
+    require_test: bool = True,
     debug: bool = False,
 ):
     processed_dataset = load_file(processed_dataset_path)
@@ -94,7 +95,7 @@ def adaptive_task_gen(
             max_length=TASK_MAX_LENGTH,
             ratio_tolerance=MASK_RATIO_TOLERANCE,
             instance_ids=pending_instance_ids,
-            no_require_test=no_require_test,
+            require_test=require_test,
             iter_id=iter_id + 1,
         )
         iter_cost += mask_cost or 0
@@ -114,7 +115,7 @@ def adaptive_task_gen(
         successful_instance_ids, gen_cost = problem_gen.pipeline(
             task_dataset_path=task_dataset_path,
             instance_ids=pending_instance_ids,
-            no_require_test=no_require_test,
+            require_test=require_test,
             iter_id=iter_id + 1,
         )
         iter_cost += gen_cost or 0
@@ -134,7 +135,7 @@ def adaptive_task_gen(
         successful_instance_ids, verified_instance_ids, verify_cost = verifier.pipeline(
             task_dataset_path=task_dataset_path,
             instance_ids=pending_instance_ids,
-            no_require_test=no_require_test,
+            require_test=require_test,
             iter_id=iter_id + 1,
         )
         iter_cost += verify_cost or 0
@@ -220,9 +221,10 @@ if __name__ == "__main__":
         help='Number of tasks to preview after generation'
     )
     parser.add_argument(
-        '--no_require_test',
-        action='store_true',
-        help='Do not require test patches; skip test_patch in rollback.'
+        '--require_test',
+        type=json.loads,
+        default=True,
+        help='Require repo-provided tests (default True); false uses the synthesized-test path.'
     )
     parser.add_argument(
         '--run_id',
@@ -252,7 +254,7 @@ if __name__ == "__main__":
         coverage_report_path=coverage_report_path,
         max_iters=args.max_iters,
         start_iter=args.start_iter,
-        no_require_test=args.no_require_test,
+        require_test=args.require_test,
         debug=args.debug,
     )
     get_task_stats(

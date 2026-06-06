@@ -30,11 +30,11 @@ from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_path
 from susvibes.env import Deployment
 from susvibes.env_specs import dockerfiles, DOCKERFILE_PATTERN, GIT_AUTHOR_CONFIGS, WORKSPACE_DIR_NAME
 from susvibes.curate.env_setup.prompts import INSTALL_TEST_PROMPT_TEMPLATE
+from susvibes.curate.mine.check_cov.engine.constants import CoverageLabel
 from susvibes.curate.utils.agents.ports import EnvAgentPort
 from susvibes.utils import load_file, save_file, filter_target_files, get_image_name, setup_instance_logger, parse_instance_id, touched_files
 from susvibes.curate.utils import (
     RepoLocks,
-    clone_github_repo,
     reset_to_commit,
     apply_patch,
     get_repo_dir,
@@ -157,7 +157,7 @@ def prologue(
     task_dataset_path: Path,
     instance_ids: list = None,
     exclude_projects: list = [],
-    no_require_test: bool = False,
+    require_test: bool = True,
     run_id: str = "default",
 ):
     class SafeDict(dict):
@@ -189,13 +189,13 @@ def prologue(
             raise RuntimeError(f"Dind image not found: {dind_py_image_name}")
 
     for data_record in task_dataset:
-        repo_dir = clone_github_repo(data_record["project"], root_dir=LOCAL_REPOS_DIR, force=False)
+        repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
         reset_to_commit(repo_dir, data_record["base_commit"])
         dev_tool = dev_tools[data_record["instance_id"]]
         dind_py_image_name = f'{get_image_name("dind_py")}:{dev_tool["version"]}'
         dockerfile_template = dockerfiles.DOCKERFILE_ENV_PY_TEMPLATE.format_map(
             SafeDict(base_image=f'base_py:{dev_tool["version"]}'))
-        test_files = [] if no_require_test else data_record["test_files"]
+        test_files = data_record["test_files"] if require_test else []
         coverage_files = sorted(touched_files(data_record.get("task_patch", "")))
         port.add_task(
             image=dind_py_image_name,
@@ -414,9 +414,10 @@ if __name__ == "__main__":
         help="Only run for the given instance IDs.",
     )
     parser.add_argument(
-        "--no_require_test",
-        action="store_true",
-        help="Do not require mandatory test files; run the repo's entire test suite instead.",
+        "--require_test",
+        type=json.loads,
+        default=True,
+        help="Require designated test files (default True); false runs the repo's whole test suite.",
     )
     parser.add_argument(
         "--run_id",
@@ -432,7 +433,16 @@ if __name__ == "__main__":
         if fallback_path.exists():
             answer = input(f"task_dataset not found. Use {fallback_path} instead? [Y/n] ").strip().lower()
             if answer in ('', 'y'):
-                task_dataset_path = fallback_path
+                # Temp: lets this prologue run concurrently with adaptive_gen — reset repos on a
+                # separate projects copy so the two don't race the same working trees, and gate
+                # processed by coverage (mirrors adaptive_gen, since task_dataset isn't produced yet).
+                LOCAL_REPOS_DIR = "/mnt/data2/songwenzhao/projects1"
+                processed = load_file(fallback_path)
+                covered = {r["instance_id"] for r in load_file(get_path('coverage_report', args.run_id))
+                    if r["label"] in (CoverageLabel.LIKELY, CoverageLabel.MAYBE)}
+                processed = [r for r in processed if r["instance_id"] in covered]
+                task_dataset_path = fallback_path.parent / "processed_dataset_cov.jsonl"
+                save_file(processed, task_dataset_path)
             else:
                 print("Aborted.")
                 exit(1)
@@ -441,7 +451,7 @@ if __name__ == "__main__":
             exit(1)
 
     if args.prologue:
-        prologue(task_dataset_path, no_require_test=args.no_require_test, run_id=args.run_id)
+        prologue(task_dataset_path, require_test=args.require_test, run_id=args.run_id)
     elif args.epilogue:
         dataset_path = get_path('dataset', args.run_id)
         env_specs_path = get_env_spec_path('components', args.run_id)

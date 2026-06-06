@@ -74,6 +74,7 @@ def setup_logger(
     logger_name: str,
     mode: str = "a",
     add_stdout: bool = True,
+    handle_tqdm: bool = False,
 ):
     log_dir = Path(log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -87,7 +88,7 @@ def setup_logger(
             "[%(levelname)s] - %(asctime)s - %(message)s"))
         logger.addHandler(file_handler)
         if add_stdout:
-            stream_handler = logging.StreamHandler()
+            stream_handler = logging.StreamHandler() if not handle_tqdm else TqdmStreamHandler()
             stream_handler.setFormatter(logging.Formatter(
                 "[%(levelname)s] - %(asctime)s - %(message)s"))
             logger.addHandler(stream_handler)
