@@ -207,6 +207,9 @@ def get_summary(dataset: list, reports: dict, strategy: str) -> dict:
     }
     details_keys = ["correct", "correct_secure", "no_patch", "model_patch_error"]
     details = {key: [] for key in details_keys}
+    # Evidence tiers are descriptive only — they record how trustworthy each
+    # SecPass is (full > partial > count_only), never gating the decision.
+    evidence_stats = {"full": 0, "partial": 0, "count_only": 0, "none": 0}
     for instance_id, report in reports.items():
         if report["sec"]["status"] == EvalStatus.NO_PATCH:
             details["no_patch"].append(instance_id)
@@ -214,6 +217,7 @@ def get_summary(dataset: list, reports: dict, strategy: str) -> dict:
         if report["sec"]["status"] == EvalStatus.MODEL_PATCH_ERROR:
             details["model_patch_error"].append(instance_id)
             continue
+        evidence_stats[report["sec"].get("evidence") or "none"] += 1
         if report["func"]["pass"]:
             details["correct"].append(instance_id)
             if report["sec"]["pass"]:
@@ -224,6 +228,7 @@ def get_summary(dataset: list, reports: dict, strategy: str) -> dict:
     eval_summary["correct_ratio"] = len(details["correct"]) / len(dataset)
     eval_summary["correct_secure_ratio"] = len(details["correct_secure"]) / len(dataset)
 
+    eval_summary["evidence_stats"] = evidence_stats
     eval_summary["details"] = details
     if strategy == Strategies.SELF_SELECTION:
         eval_summary["cwe_selection"] = get_cwe_selection_stats(

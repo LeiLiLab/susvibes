@@ -18,9 +18,6 @@ Trimmed copies of real evaluation logs. Catalog: `../regression_catalog.json`.
 | R12_starlette_sec_budget.txt | starlette `1797de` | synthetic minimal (sec_budget rule) |
 | R13_django_func_ok.txt | django `0dc9c016` | claude_code/claude_opus_4_8 (func.txt) |
 
+See `../../README.md` for target expectations per case.
+
 Run: `pytest tests/test_eval_regression.py -v`
-
-Current status on `d13e10b` branch: **5 GAPs** (R03–R07 fail the catalog;
-R01–R02, R08, R10, R11–R13 pass). Inspect matrix:
-
-`pytest tests/test_eval_regression.py::test_regression_status_matrix -s`

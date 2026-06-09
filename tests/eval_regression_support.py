@@ -1,7 +1,7 @@
 """Helpers for regression tests over real evaluation logs.
 
 Loads catalog + dataset + env specs. Asserts target expectations from
-``fixtures/regression_catalog.json``.
+``fixtures/v1/regression_catalog.json``.
 
 Do **not** mirror production evaluation logic here. Parser count targets use
 the real ``_parse_counts`` helper; decision targets require a production API
@@ -39,11 +39,25 @@ def _detect_runner(dockerfile: str):
     return detect_runner(dockerfile)
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
+# Catalog + sec logs are namespaced per authoritative dataset version (v1).
+_FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures" / "v1"
 _CATALOG_PATH = _FIXTURES_DIR / "regression_catalog.json"
+# Vendored, in-repo slice of the endor v1 dataset (instance_id + test_patch +
+# expected_failures) for exactly the catalog instances. This is the source of
+# truth so the suite is hermetic and immune to upstream dataset drift: the
+# catalog's expected values were derived from this snapshot, so the inputs are
+# pinned to it too. Regenerate with scripts when adding catalog cases.
+_VENDORED_RECORDS = _FIXTURES_DIR / "dataset_records.jsonl"
+# Optional gap-fillers (only used for not-yet-vendored cases). The in-repo
+# `datasets/default` copy can be stale (e.g. celery's test_patch has 2 added
+# tests there vs 3 in v1), so it is listed last and never overrides vendored.
+_AUTHORITATIVE_DATASET = Path(
+    "/data/agent-sec-leagues/endor-susvibes/datasets/v1/susvibes_dataset.jsonl"
+)
 _DATASET_PATHS = (
+    _VENDORED_RECORDS,
+    _AUTHORITATIVE_DATASET,
     _REPO_ROOT / "datasets" / "default" / "susvibes_dataset.jsonl",
-    Path("/data/agent-sec-leagues/endor-susvibes/datasets/v1/susvibes_dataset.jsonl"),
 )
 _COMPONENTS_PATH = _REPO_ROOT / "susvibes" / "env_specs" / "default" / "components.json"
 
@@ -60,6 +74,7 @@ def _load_components() -> dict:
 
 @lru_cache(maxsize=1)
 def _load_dataset_index() -> dict[str, dict]:
+    # First path wins on conflict (v1 authoritative); later paths only fill gaps.
     index: dict[str, dict] = {}
     for path in _DATASET_PATHS:
         if not path.exists():
@@ -67,14 +82,18 @@ def _load_dataset_index() -> dict[str, dict]:
         with open(path) as f:
             for line in f:
                 record = json.loads(line)
-                index[record["instance_id"]] = record
+                index.setdefault(record["instance_id"], record)
     return index
 
 
 def load_instance_record(instance_id: str) -> dict:
     record = _load_dataset_index().get(instance_id)
     if record is None:
-        raise KeyError(f"instance_id not found in datasets: {instance_id}")
+        pytest.fail(
+            f"instance_id {instance_id} not found in vendored records "
+            f"({_VENDORED_RECORDS}) or fallback datasets. Add it to the vendored "
+            "slice (instance_id, test_patch, expected_failures from endor v1)."
+        )
     return record
 
 

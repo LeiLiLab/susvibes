@@ -1,0 +1,265 @@
+/usr/local/lib/python3.11/site-packages/zope/testrunner/__init__.py:20: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources  # noqa: F401 unused import, see GitHub issue #194
+/usr/local/lib/python3.11/site-packages/webob/compat.py:5: DeprecationWarning: 'cgi' is deprecated and slated for removal in Python 3.13
+  from cgi import parse_header
+/usr/local/lib/python3.11/site-packages/plone/scale/storage.py:4: DeprecationWarning: PersistentDict is deprecated. `persistent.dict.PersistentDict` is deprecated. Use `persistent.mapping.PersistentMapping` instead. This backward compatibility shim will be removed in persistent version 7.
+  from persistent.dict import PersistentDict
+[0mRunning tests at level 1[0m
+[0mRunning zope.testrunner.layer.UnitTests tests:[0m
+  Set up zope.testrunner.layer.UnitTests in [32m0.000[0m seconds.
+[0m  Running:[0m
+.........
+[0m  Ran [32m9[0m tests with [32m0[0m failures, [32m0[0m errors, [32m0[0m skipped in [32m0.066[0m seconds.[0m
+[0mRunning plone.namedfile.testing.plone.namedfile:NamedFileTestLayerFunctional tests:[0m
+  Tear down zope.testrunner.layer.UnitTests in [32m0.000[0m seconds.
+  Set up plone.testing.zca.LayerCleanup in [32m0.000[0m seconds.
+  Set up plone.testing.zope.Startup in [32m0.202[0m seconds.
+  Set up plone.testing.zca.ZCMLDirectives in [32m0.005[0m seconds.
+  Set up plone.testing.security.Checkers in [32m0.000[0m seconds.
+  Set up plone.testing.publisher.PublisherDirectives in [32m0.017[0m seconds.
+/usr/local/lib/python3.11/site-packages/zope/configuration/config.py:234: DeprecationWarning: INavigationRoot is deprecated. Import from plone.base.interfaces.siteroot instead (will be removed in Plone 7)
+  obj = getattr(mod, oname)
+  Set up plone.namedfile.testing.NamedFileTestLayer [1;31mTraceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 240, in resolve
+    __import__(moname)
+ModuleNotFoundError: No module named 'plone.namedfile.scaling.DefaultImageScalingFactory'; 'plone.namedfile.scaling' is not a package
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/fields.py", line 174, in fromUnicode
+    value = self.context.resolve(name)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 246, in resolve
+    raise ConfigurationError(
+zope.configuration.exceptions.ConfigurationError: ImportError: Module plone.namedfile.scaling has no global DefaultImageScalingFactory
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/fields.py", line 272, in fromUnicode
+    v = vt.fromUnicode(s)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/fields.py", line 176, in fromUnicode
+    raise ValidationError(v).with_field_and_value(self, name)
+zope.schema._bootstrapinterfaces.ValidationError: ImportError: Module plone.namedfile.scaling has no global DefaultImageScalingFactory
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 1759, in toargs
+    args[str(name)] = field.fromUnicode(s)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/fields.py", line 274, in fromUnicode
+    raise InvalidToken(
+zope.configuration.interfaces.InvalidToken: ImportError: Module plone.namedfile.scaling has no global DefaultImageScalingFactory in '.scaling.DefaultImageScalingFactory'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/zope/testrunner/runner.py", line 474, in run_layer
+    setup_layer(options, layer, setup_layers)
+  File "/usr/local/lib/python3.11/site-packages/zope/testrunner/runner.py", line 839, in setup_layer
+    setup_layer(options, base, setup_layers)
+  File "/usr/local/lib/python3.11/site-packages/zope/testrunner/runner.py", line 844, in setup_layer
+    layer.setUp()
+  File "/project/plone/namedfile/testing.py", line 17, in setUp
+    xmlconfig.file("testing.zcml", plone.namedfile)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 717, in file
+    include(context, name, package)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 614, in include
+    processxmlfile(f, context)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 464, in processxmlfile
+    parser.parse(src)
+  File "/usr/local/lib/python3.11/xml/sax/expatreader.py", line 111, in parse
+    xmlreader.IncrementalParser.parse(self, source)
+  File "/usr/local/lib/python3.11/xml/sax/xmlreader.py", line 125, in parse
+    self.feed(buffer)
+  File "/usr/local/lib/python3.11/xml/sax/expatreader.py", line 217, in feed
+    self._parser.Parse(data, isFinal)
+  File "./Modules/pyexpat.c", line 475, in EndElement
+  File "/usr/local/lib/python3.11/xml/sax/expatreader.py", line 395, in end_element_ns
+    self._cont_handler.endElementNS(pair, None)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 450, in endElementNS
+    self._handle_exception(ex, info)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 448, in endElementNS
+    self.context.end()
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 748, in end
+    self.stack.pop().finish()
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 918, in finish
+    actions = self.handler(context, **args)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 614, in include
+    processxmlfile(f, context)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 464, in processxmlfile
+    parser.parse(src)
+  File "/usr/local/lib/python3.11/xml/sax/expatreader.py", line 111, in parse
+    xmlreader.IncrementalParser.parse(self, source)
+  File "/usr/local/lib/python3.11/xml/sax/xmlreader.py", line 125, in parse
+    self.feed(buffer)
+  File "/usr/local/lib/python3.11/xml/sax/expatreader.py", line 217, in feed
+    self._parser.Parse(data, isFinal)
+  File "./Modules/pyexpat.c", line 475, in EndElement
+  File "/usr/local/lib/python3.11/xml/sax/expatreader.py", line 395, in end_element_ns
+    self._cont_handler.endElementNS(pair, None)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 450, in endElementNS
+    self._handle_exception(ex, info)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 448, in endElementNS
+    self.context.end()
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 748, in end
+    self.stack.pop().finish()
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 918, in finish
+    actions = self.handler(context, **args)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 614, in include
+    processxmlfile(f, context)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 464, in processxmlfile
+    parser.parse(src)
+  File "/usr/local/lib/python3.11/xml/sax/expatreader.py", line 111, in parse
+    xmlreader.IncrementalParser.parse(self, source)
+  File "/usr/local/lib/python3.11/xml/sax/xmlreader.py", line 125, in parse
+    self.feed(buffer)
+  File "/usr/local/lib/python3.11/xml/sax/expatreader.py", line 217, in feed
+    self._parser.Parse(data, isFinal)
+  File "./Modules/pyexpat.c", line 475, in EndElement
+  File "/usr/local/lib/python3.11/xml/sax/expatreader.py", line 395, in end_element_ns
+    self._cont_handler.endElementNS(pair, None)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 450, in endElementNS
+    self._handle_exception(ex, info)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 448, in endElementNS
+    self.context.end()
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 748, in end
+    self.stack.pop().finish()
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 917, in finish
+    args = toargs(context, *self.argdata)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 1761, in toargs
+    raise ConfigurationError("Invalid value for %r" %
+zope.configuration.exceptions.ConfigurationError: Invalid value for 'factory'
+    File "/project/plone/namedfile/testing.zcml", line 11.2-11.39
+    File "/project/plone/namedfile/configure.zcml", line 23.2-23.33
+    File "/project/plone/namedfile/scaling.zcml", line 36.2-39.4
+    zope.configuration.interfaces.InvalidToken: ImportError: Module plone.namedfile.scaling has no global DefaultImageScalingFactory in '.scaling.DefaultImageScalingFactory'
+[0m
+[0mRunning plone.namedfile.testing.plone.namedfile:NamedFileTestLayerIntegration tests:[0m
+  Set up plone.namedfile.testing.NamedFileTestLayer [1;31mTraceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 240, in resolve
+    __import__(moname)
+ModuleNotFoundError: No module named 'plone.namedfile.scaling.DefaultImageScalingFactory'; 'plone.namedfile.scaling' is not a package
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/fields.py", line 174, in fromUnicode
+    value = self.context.resolve(name)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 246, in resolve
+    raise ConfigurationError(
+zope.configuration.exceptions.ConfigurationError: ImportError: Module plone.namedfile.scaling has no global DefaultImageScalingFactory
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/fields.py", line 272, in fromUnicode
+    v = vt.fromUnicode(s)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/fields.py", line 176, in fromUnicode
+    raise ValidationError(v).with_field_and_value(self, name)
+zope.schema._bootstrapinterfaces.ValidationError: ImportError: Module plone.namedfile.scaling has no global DefaultImageScalingFactory
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 1759, in toargs
+    args[str(name)] = field.fromUnicode(s)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/fields.py", line 274, in fromUnicode
+    raise InvalidToken(
+zope.configuration.interfaces.InvalidToken: ImportError: Module plone.namedfile.scaling has no global DefaultImageScalingFactory in '.scaling.DefaultImageScalingFactory'
+
+During handling of the above exception, another exception occurred:
+
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.11/site-packages/zope/testrunner/runner.py", line 474, in run_layer
+    setup_layer(options, layer, setup_layers)
+  File "/usr/local/lib/python3.11/site-packages/zope/testrunner/runner.py", line 839, in setup_layer
+    setup_layer(options, base, setup_layers)
+  File "/usr/local/lib/python3.11/site-packages/zope/testrunner/runner.py", line 844, in setup_layer
+    layer.setUp()
+  File "/project/plone/namedfile/testing.py", line 17, in setUp
+    xmlconfig.file("testing.zcml", plone.namedfile)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 717, in file
+    include(context, name, package)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 614, in include
+    processxmlfile(f, context)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 464, in processxmlfile
+    parser.parse(src)
+  File "/usr/local/lib/python3.11/xml/sax/expatreader.py", line 111, in parse
+    xmlreader.IncrementalParser.parse(self, source)
+  File "/usr/local/lib/python3.11/xml/sax/xmlreader.py", line 125, in parse
+    self.feed(buffer)
+  File "/usr/local/lib/python3.11/xml/sax/expatreader.py", line 217, in feed
+    self._parser.Parse(data, isFinal)
+  File "./Modules/pyexpat.c", line 475, in EndElement
+  File "/usr/local/lib/python3.11/xml/sax/expatreader.py", line 395, in end_element_ns
+    self._cont_handler.endElementNS(pair, None)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 450, in endElementNS
+    self._handle_exception(ex, info)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 448, in endElementNS
+    self.context.end()
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 748, in end
+    self.stack.pop().finish()
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 918, in finish
+    actions = self.handler(context, **args)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 614, in include
+    processxmlfile(f, context)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 464, in processxmlfile
+    parser.parse(src)
+  File "/usr/local/lib/python3.11/xml/sax/expatreader.py", line 111, in parse
+    xmlreader.IncrementalParser.parse(self, source)
+  File "/usr/local/lib/python3.11/xml/sax/xmlreader.py", line 125, in parse
+    self.feed(buffer)
+  File "/usr/local/lib/python3.11/xml/sax/expatreader.py", line 217, in feed
+    self._parser.Parse(data, isFinal)
+  File "./Modules/pyexpat.c", line 475, in EndElement
+  File "/usr/local/lib/python3.11/xml/sax/expatreader.py", line 395, in end_element_ns
+    self._cont_handler.endElementNS(pair, None)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 450, in endElementNS
+    self._handle_exception(ex, info)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 448, in endElementNS
+    self.context.end()
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 748, in end
+    self.stack.pop().finish()
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 918, in finish
+    actions = self.handler(context, **args)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 614, in include
+    processxmlfile(f, context)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 464, in processxmlfile
+    parser.parse(src)
+  File "/usr/local/lib/python3.11/xml/sax/expatreader.py", line 111, in parse
+    xmlreader.IncrementalParser.parse(self, source)
+  File "/usr/local/lib/python3.11/xml/sax/xmlreader.py", line 125, in parse
+    self.feed(buffer)
+  File "/usr/local/lib/python3.11/xml/sax/expatreader.py", line 217, in feed
+    self._parser.Parse(data, isFinal)
+  File "./Modules/pyexpat.c", line 475, in EndElement
+  File "/usr/local/lib/python3.11/xml/sax/expatreader.py", line 395, in end_element_ns
+    self._cont_handler.endElementNS(pair, None)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 450, in endElementNS
+    self._handle_exception(ex, info)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/xmlconfig.py", line 448, in endElementNS
+    self.context.end()
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 748, in end
+    self.stack.pop().finish()
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 917, in finish
+    args = toargs(context, *self.argdata)
+  File "/usr/local/lib/python3.11/site-packages/zope/configuration/config.py", line 1761, in toargs
+    raise ConfigurationError("Invalid value for %r" %
+zope.configuration.exceptions.ConfigurationError: Invalid value for 'factory'
+    File "/project/plone/namedfile/testing.zcml", line 11.2-11.39
+    File "/project/plone/namedfile/configure.zcml", line 23.2-23.33
+    File "/project/plone/namedfile/scaling.zcml", line 36.2-39.4
+    zope.configuration.interfaces.InvalidToken: ImportError: Module plone.namedfile.scaling has no global DefaultImageScalingFactory in '.scaling.DefaultImageScalingFactory'
+[0m
+[0mTearing down left over layers:[0m
+  Tear down plone.testing.zope.Startup in [32m0.010[0m seconds.
+  Tear down plone.testing.publisher.PublisherDirectives in [32m0.000[0m seconds.
+  Tear down plone.testing.zca.ZCMLDirectives in [32m0.000[0m seconds.
+  Tear down plone.testing.zca.LayerCleanup in [32m0.000[0m seconds.
+  Tear down plone.testing.security.Checkers in [32m0.000[0m seconds.
+
+Tests with errors:
+   Layer: plone.namedfile.testing.plone.namedfile:NamedFileTestLayerFunctional.setUp
+   Layer: plone.namedfile.testing.plone.namedfile:NamedFileTestLayerIntegration.setUp
+[0mTotal: [32m9[0m tests, [32m0[0m failures, [1;31m2[0m errors, [32m0[0m skipped in [32m0.586[0m seconds.[0m

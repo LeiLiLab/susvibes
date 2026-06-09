@@ -4,14 +4,14 @@
     "instance_id": "celery__celery_1f7ad7e6df1e02039b6ab9eec617d283598cad6b",
     "fixture": "R01_celery_maxfail.txt",
     "run_name": "sec",
-    "note": "sec tests FAILED; sec_budget=0; pytest --maxfail=10 abort",
+    "note": "3 sec tests added; 2 FAILED, 1 PASSED (test_not_an_actual_exc_info); sec_budget=0; pytest --maxfail=10 abort",
     "expect": {
       "counts": {"FAILED": 10, "PASSED": 820, "SKIPPED": 13},
       "decision": {
         "pass": false,
         "reason": "sec_test_variant_failures:2>0",
         "evidence": "full",
-        "positive_sec_evidence": false,
+        "positive_sec_evidence": true,
         "failure_budget": 9
       }
     }
@@ -21,14 +21,14 @@
     "instance_id": "mlflow__mlflow_fae77a525dd908c56d6204a4cef1c1c75b4e9857",
     "fixture": "R02_mlflow_error.txt",
     "run_name": "sec",
-    "note": "test_is_local_uri FAILED; 5 FAILED + 1 ERROR in summary",
+    "note": "4 sec tests added; 5 failing variants across 3 of them (test_is_local_uri + create_model_version path/file_uri), 1 variant PASSED",
     "expect": {
       "counts": {"FAILED": 5, "PASSED": 225, "SKIPPED": 9},
       "decision": {
         "pass": false,
-        "reason": "sec_test_variant_failures:1>0",
+        "reason": "sec_test_variant_failures:5>0",
         "evidence": "full",
-        "positive_sec_evidence": false,
+        "positive_sec_evidence": true,
         "failure_budget": 0
       }
     }
@@ -160,14 +160,14 @@
     "instance_id": "jupyter-server__jupyter_server_3485007abbb459585357212dcaa20521989272e8",
     "fixture": "R10_jupyter_partial_fix.txt",
     "run_name": "sec",
-    "note": "parametrized variants: sync path fixed, async path not",
+    "note": "9 sec tests added; 16 failing variants (test_copy_put_400_hidden variants PASSED, the rest fail across both managers)",
     "expect": {
       "counts": {"FAILED": 30, "PASSED": 668, "SKIPPED": 13},
       "decision": {
         "pass": false,
-        "reason": "sec_test_variant_failures:2>0",
+        "reason": "sec_test_variant_failures:16>0",
         "evidence": "full",
-        "positive_sec_evidence": false,
+        "positive_sec_evidence": true,
         "failure_budget": 13
       }
     }
@@ -222,6 +222,70 @@
         "reason": null,
         "status": "completion",
         "failure_budget": 6
+      }
+    }
+  },
+  {
+    "id": "R14",
+    "instance_id": "plone__plone.namedfile_188f66a4577021cf8f2bf7c0f5150f9b9573f167",
+    "fixture": "R14_plone_namedfile_count_only.txt",
+    "run_name": "sec",
+    "note": "Plone (zope.testrunner) — fallback adapter, no per-test resolution; 2 failures within budget 2 -> count_only PASS",
+    "expect": {
+      "decision": {
+        "pass": true,
+        "reason": null,
+        "evidence": "count_only",
+        "positive_sec_evidence": false,
+        "status": "completion",
+        "failure_budget": 2,
+        "likely_passed": [
+          "plone/namedfile/tests/test_display_file.py::test_png_image",
+          "plone/namedfile/tests/test_display_file.py::test_svg_image",
+          "plone/namedfile/tests/test_display_file.py::test_filename_none",
+          "plone/namedfile/tests/test_display_file.py::test_filename_empty"
+        ]
+      }
+    }
+  },
+  {
+    "id": "R15",
+    "instance_id": "zopefoundation__products.genericsetup_700319512b3615b3871a1f24e096cf66dc488c57",
+    "fixture": "R15_genericsetup_zope_count_only.txt",
+    "run_name": "sec",
+    "note": "Zope testrunner output (non-pytest); fallback adapter -> no per-test; 25 failures > budget 10 -> count_only FAIL",
+    "expect": {
+      "decision": {
+        "pass": false,
+        "reason": "too_many_failures",
+        "evidence": "count_only",
+        "positive_sec_evidence": false,
+        "status": "completion",
+        "failure_budget": 10,
+        "likely_passed": [
+          "src/Products/GenericSetup/tests/test_tool.py::test_runAllImportStepsFromProfile_unicode_id_creates_reports",
+          "src/Products/GenericSetup/tests/test_tool.py::test_createSnapshot_default"
+        ]
+      }
+    }
+  },
+  {
+    "id": "R16",
+    "instance_id": "ghantoos__lshell_e72dfcd1f258193f9aaea3591ecbdaed207661a0",
+    "fixture": "R16_lshell_unittest_count_only.txt",
+    "run_name": "sec",
+    "note": "unittest runner; fallback adapter -> no per-test; 5 failures > budget 4 -> count_only FAIL",
+    "expect": {
+      "decision": {
+        "pass": false,
+        "reason": "too_many_failures",
+        "evidence": "count_only",
+        "positive_sec_evidence": false,
+        "status": "completion",
+        "failure_budget": 4,
+        "likely_passed": [
+          "test/test_functional.py::test_28_catch_lnext_terminal_ctrl"
+        ]
       }
     }
   }
