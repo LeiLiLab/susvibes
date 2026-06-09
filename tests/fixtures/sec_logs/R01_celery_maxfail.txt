@@ -1,0 +1,1509 @@
+ROOT: tox-gh-actions won't override envlist because tox is not running in GitHub Actions
+.pkg: _optional_hooks> python /project/.tox/3.10-unit/lib/python3.10/site-packages/pyproject_api/_backend.py True setuptools.build_meta __legacy__
+.pkg: get_requires_for_build_editable> python /project/.tox/3.10-unit/lib/python3.10/site-packages/pyproject_api/_backend.py True setuptools.build_meta __legacy__
+.pkg: build_editable> python /project/.tox/3.10-unit/lib/python3.10/site-packages/pyproject_api/_backend.py True setuptools.build_meta __legacy__
+3.10-unit: install_package> python -I -m pip install --force-reinstall --no-deps /project/.tox/.tmp/package/3/celery-5.2.1-0.editable-py3-none-any.whl
+3.10-unit: commands[0]> pytest --maxfail=10 -v --cov=celery --cov-report=xml --cov-report term --ignore=t/unit/backends/test_s3.py --ignore=t/unit/backends/test_couchbase.py
+============================= test session starts ==============================
+platform linux -- Python 3.10.18, pytest-6.2.5, py-1.11.0, pluggy-1.6.0 -- /project/.tox/3.10-unit/bin/python
+cachedir: .tox/3.10-unit/.pytest_cache
+rootdir: /project, configfile: pyproject.toml, testpaths: t/unit/
+plugins: subtests-0.6.0, cov-6.3.0, timeout-1.4.2, celery-1.2.1, pytest_docker_tools-3.1.9, anyio-4.11.0
+collecting ... collected 2594 items / 2 skipped / 2592 selected
+
+t/unit/test_canvas.py::test_Canvas::test_freeze_reply_to PASSED          [  0%]
+t/unit/app/test_amqp.py::test_TaskConsumer::test_accept_content PASSED   [  0%]
+t/unit/app/test_amqp.py::test_ProducerPool::test_setup_nolimit PASSED    [  0%]
+t/unit/app/test_amqp.py::test_ProducerPool::test_setup PASSED            [  0%]
+t/unit/app/test_amqp.py::test_Queues::test_queues_format PASSED          [  0%]
+t/unit/app/test_amqp.py::test_Queues::test_with_defaults PASSED          [  0%]
+t/unit/app/test_amqp.py::test_Queues::test_add PASSED                    [  0%]
+t/unit/app/test_amqp.py::test_Queues::test_setitem_adds_default_exchange PASSED [  0%]
+t/unit/app/test_amqp.py::test_Queues::test_select_add PASSED             [  0%]
+t/unit/app/test_amqp.py::test_Queues::test_deselect PASSED               [  0%]
+t/unit/app/test_amqp.py::test_Queues::test_add_default_exchange PASSED   [  0%]
+t/unit/app/test_amqp.py::test_Queues::test_alias PASSED                  [  0%]
+t/unit/app/test_amqp.py::test_Queues::test_with_max_priority[queues_kwargs0-foo-foo-expected0] PASSED [  0%]
+t/unit/app/test_amqp.py::test_Queues::test_with_max_priority[queues_kwargs1-xyz-q1-expected1] PASSED [  0%]
+t/unit/app/test_amqp.py::test_Queues::test_with_max_priority[queues_kwargs2-moo-q2-expected2] PASSED [  0%]
+t/unit/app/test_amqp.py::test_Queues::test_with_max_priority[queues_kwargs3-foo2-foo2-None] PASSED [  0%]
+t/unit/app/test_amqp.py::test_Queues::test_with_max_priority[queues_kwargs4-xyx3-q4-expected4] PASSED [  0%]
+t/unit/app/test_amqp.py::test_default_queues::test_setting_default_queue[default-None-None] PASSED [  0%]
+t/unit/app/test_amqp.py::test_default_queues::test_setting_default_queue[default-exchange-None] PASSED [  0%]
+t/unit/app/test_amqp.py::test_default_queues::test_setting_default_queue[default-exchange-routing_key] PASSED [  0%]
+t/unit/app/test_amqp.py::test_default_queues::test_setting_default_queue[default-None-routing_key] PASSED [  0%]
+t/unit/app/test_amqp.py::test_default_exchange::test_setting_default_exchange[default-foo-None] PASSED [  0%]
+t/unit/app/test_amqp.py::test_default_exchange::test_setting_default_exchange[default-foo-routing_key] PASSED [  0%]
+t/unit/app/test_amqp.py::test_default_exchange::test_setting_default_exchange_type[default-direct-None] PASSED [  0%]
+t/unit/app/test_amqp.py::test_default_exchange::test_setting_default_exchange_type[default-direct-routing_key] PASSED [  0%]
+t/unit/app/test_amqp.py::test_default_exchange::test_setting_default_exchange_type[default-topic-None] PASSED [  1%]
+t/unit/app/test_amqp.py::test_default_exchange::test_setting_default_exchange_type[default-topic-routing_key] PASSED [  1%]
+t/unit/app/test_amqp.py::test_AMQP_proto1::test_kwargs_must_be_mapping PASSED [  1%]
+t/unit/app/test_amqp.py::test_AMQP_proto1::test_args_must_be_list PASSED [  1%]
+t/unit/app/test_amqp.py::test_AMQP_proto1::test_countdown_negative PASSED [  1%]
+t/unit/app/test_amqp.py::test_AMQP_proto1::test_as_task_message_without_utc PASSED [  1%]
+t/unit/app/test_amqp.py::test_AMQP::test_kwargs_must_be_mapping PASSED   [  1%]
+t/unit/app/test_amqp.py::test_AMQP::test_args_must_be_list PASSED        [  1%]
+t/unit/app/test_amqp.py::test_AMQP::test_countdown_negative PASSED       [  1%]
+t/unit/app/test_amqp.py::test_AMQP::test_Queues__with_max_priority PASSED [  1%]
+t/unit/app/test_amqp.py::test_AMQP::test_send_task_message__no_kwargs PASSED [  1%]
+t/unit/app/test_amqp.py::test_AMQP::test_send_task_message__properties PASSED [  1%]
+t/unit/app/test_amqp.py::test_AMQP::test_send_task_message__headers PASSED [  1%]
+t/unit/app/test_amqp.py::test_AMQP::test_send_task_message__queue_string PASSED [  1%]
+t/unit/app/test_amqp.py::test_AMQP::test_send_task_message__broadcast_without_exchange PASSED [  1%]
+t/unit/app/test_amqp.py::test_AMQP::test_send_event_exchange_direct_with_exchange PASSED [  1%]
+t/unit/app/test_amqp.py::test_AMQP::test_send_event_exchange_direct_with_routing_key PASSED [  1%]
+t/unit/app/test_amqp.py::test_AMQP::test_send_event_exchange_string PASSED [  1%]
+t/unit/app/test_amqp.py::test_AMQP::test_send_task_message__with_delivery_mode PASSED [  1%]
+t/unit/app/test_amqp.py::test_AMQP::test_send_task_message__with_receivers PASSED [  1%]
+t/unit/app/test_amqp.py::test_AMQP::test_routes PASSED                   [  1%]
+t/unit/app/test_amqp.py::test_as_task_v2::test_raises_if_args_is_not_tuple PASSED [  1%]
+t/unit/app/test_amqp.py::test_as_task_v2::test_raises_if_kwargs_is_not_mapping PASSED [  1%]
+t/unit/app/test_amqp.py::test_as_task_v2::test_countdown_to_eta PASSED   [  1%]
+t/unit/app/test_amqp.py::test_as_task_v2::test_expires_to_datetime PASSED [  1%]
+t/unit/app/test_amqp.py::test_as_task_v2::test_eta_to_datetime PASSED    [  1%]
+t/unit/app/test_amqp.py::test_as_task_v2::test_callbacks_errbacks_chord PASSED [  2%]
+t/unit/app/test_annotations.py::test_MapAnnotation::test_annotate PASSED [  2%]
+t/unit/app/test_annotations.py::test_MapAnnotation::test_annotate_any PASSED [  2%]
+t/unit/app/test_annotations.py::test_prepare::test_dict_to_MapAnnotation PASSED [  2%]
+t/unit/app/test_annotations.py::test_prepare::test_returns_list PASSED   [  2%]
+t/unit/app/test_annotations.py::test_prepare::test_evalutes_qualnames PASSED [  2%]
+t/unit/app/test_app.py::test_module::test_default_app PASSED             [  2%]
+t/unit/app/test_app.py::test_module::test_bugreport PASSED               [  2%]
+t/unit/app/test_app.py::test_task_join_will_block::test_task_join_will_block PASSED [  2%]
+t/unit/app/test_app.py::test_App::test_now PASSED                        [  2%]
+t/unit/app/test_app.py::test_App::test_set_default PASSED                [  2%]
+t/unit/app/test_app.py::test_App::test_setup_security PASSED             [  2%]
+t/unit/app/test_app.py::test_App::test_task_autofinalize_disabled PASSED [  2%]
+t/unit/app/test_app.py::test_App::test_registry_autofinalize_disabled PASSED [  2%]
+t/unit/app/test_app.py::test_App::test_task PASSED                       [  2%]
+t/unit/app/test_app.py::test_App::test_task_too_many_args PASSED         [  2%]
+t/unit/app/test_app.py::test_App::test_with_config_source PASSED         [  2%]
+t/unit/app/test_app.py::test_App::test_task_windows_execv PASSED         [  2%]
+t/unit/app/test_app.py::test_App::test_task_takes_no_args PASSED         [  2%]
+t/unit/app/test_app.py::test_App::test_add_defaults PASSED               [  2%]
+t/unit/app/test_app.py::test_App::test_connection_or_acquire PASSED      [  2%]
+t/unit/app/test_app.py::test_App::test_using_v1_reduce PASSED            [  2%]
+t/unit/app/test_app.py::test_App::test_autodiscover_tasks_force_fixup_fallback PASSED [  2%]
+t/unit/app/test_app.py::test_App::test_autodiscover_tasks_force PASSED   [  2%]
+t/unit/app/test_app.py::test_App::test_autodiscover_tasks_lazy PASSED    [  2%]
+t/unit/app/test_app.py::test_App::test_autodiscover_tasks__no_packages PASSED [  2%]
+t/unit/app/test_app.py::test_App::test_with_broker PASSED                [  3%]
+t/unit/app/test_app.py::test_App::test_pending_configuration_non_true__kwargs PASSED [  3%]
+t/unit/app/test_app.py::test_App::test_pending_configuration__kwargs PASSED [  3%]
+t/unit/app/test_app.py::test_App::test_pending_configuration__setattr PASSED [  3%]
+t/unit/app/test_app.py::test_App::test_pending_configuration__update PASSED [  3%]
+t/unit/app/test_app.py::test_App::test_pending_configuration__compat_settings PASSED [  3%]
+t/unit/app/test_app.py::test_App::test_pending_configuration__compat_settings_mixing PASSED [  3%]
+t/unit/app/test_app.py::test_App::test_pending_configuration__django_settings PASSED [  3%]
+t/unit/app/test_app.py::test_App::test_pending_configuration__compat_settings_mixing_new PASSED [  3%]
+t/unit/app/test_app.py::test_App::test_pending_configuration__compat_settings_mixing_alt PASSED [  3%]
+t/unit/app/test_app.py::test_App::test_pending_configuration__setdefault PASSED [  3%]
+t/unit/app/test_app.py::test_App::test_pending_configuration__iter PASSED [  3%]
+t/unit/app/test_app.py::test_App::test_pending_configuration__raises_ImproperlyConfigured PASSED [  3%]
+t/unit/app/test_app.py::test_App::test_pending_configuration__ssl_settings PASSED [  3%]
+t/unit/app/test_app.py::test_App::test_repr PASSED                       [  3%]
+t/unit/app/test_app.py::test_App::test_custom_task_registry PASSED       [  3%]
+t/unit/app/test_app.py::test_App::test_include_argument PASSED           [  3%]
+t/unit/app/test_app.py::test_App::test_set_as_current PASSED             [  3%]
+t/unit/app/test_app.py::test_App::test_current_task PASSED               [  3%]
+t/unit/app/test_app.py::test_App::test_task_not_shared PASSED            [  3%]
+t/unit/app/test_app.py::test_App::test_task_compat_with_filter PASSED    [  3%]
+t/unit/app/test_app.py::test_App::test_task_with_filter PASSED           [  3%]
+t/unit/app/test_app.py::test_App::test_task_sets_main_name_MP_MAIN_FILE PASSED [  3%]
+t/unit/app/test_app.py::test_App::test_can_get_type_hints_for_tasks PASSED [  3%]
+t/unit/app/test_app.py::test_App::test_annotate_decorator PASSED         [  3%]
+t/unit/app/test_app.py::test_App::test_apply_async_adds_children PASSED  [  3%]
+t/unit/app/test_app.py::test_App::test_pickle_app PASSED                 [  4%]
+t/unit/app/test_app.py::test_App::test_worker_main PASSED                [  4%]
+t/unit/app/test_app.py::test_App::test_config_from_envvar PASSED         [  4%]
+t/unit/app/test_app.py::test_App::test_config_from_object__lazy PASSED   [  4%]
+t/unit/app/test_app.py::test_App::test_config_from_object__force PASSED  [  4%]
+t/unit/app/test_app.py::test_App::test_config_from_object__compat PASSED [  4%]
+t/unit/app/test_app.py::test_App::test_config_from_object__supports_old_names PASSED [  4%]
+t/unit/app/test_app.py::test_App::test_config_from_object__namespace_uppercase PASSED [  4%]
+t/unit/app/test_app.py::test_App::test_config_from_object__namespace_lowercase PASSED [  4%]
+t/unit/app/test_app.py::test_App::test_config_from_object__mixing_new_and_old PASSED [  4%]
+t/unit/app/test_app.py::test_App::test_config_from_object__mixing_old_and_new PASSED [  4%]
+t/unit/app/test_app.py::test_App::test_config_from_cmdline PASSED        [  4%]
+t/unit/app/test_app.py::test_App::test_setting__broker_transport_options PASSED [  4%]
+t/unit/app/test_app.py::test_App::test_Windows_log_color_disabled PASSED [  4%]
+t/unit/app/test_app.py::test_App::test_WorkController PASSED             [  4%]
+t/unit/app/test_app.py::test_App::test_Worker PASSED                     [  4%]
+t/unit/app/test_app.py::test_App::test_AsyncResult PASSED                [  4%]
+t/unit/app/test_app.py::test_App::test_get_active_apps PASSED            [  4%]
+t/unit/app/test_app.py::test_App::test_config_from_envvar_more PASSED    [  4%]
+t/unit/app/test_app.py::test_App::test_start PASSED                      [  4%]
+t/unit/app/test_app.py::test_App::test_amqp_get_broker_info[pyamqp://-expected_fields0] PASSED [  4%]
+t/unit/app/test_app.py::test_App::test_amqp_get_broker_info[pyamqp://:1978/foo-expected_fields1] PASSED [  4%]
+t/unit/app/test_app.py::test_App::test_amqp_get_broker_info[pyamqp:////value-expected_fields2] PASSED [  4%]
+t/unit/app/test_app.py::test_App::test_amqp_failover_strategy_selection PASSED [  4%]
+t/unit/app/test_app.py::test_App::test_after_fork PASSED                 [  4%]
+t/unit/app/test_app.py::test_App::test_global_after_fork PASSED          [  4%]
+t/unit/app/test_app.py::test_App::test_after_fork_cleanup_app__raises PASSED [  5%]
+t/unit/app/test_app.py::test_App::test_ensure_after_fork__no_multiprocessing PASSED [  5%]
+t/unit/app/test_app.py::test_App::test_canvas PASSED                     [  5%]
+t/unit/app/test_app.py::test_App::test_signature PASSED                  [  5%]
+t/unit/app/test_app.py::test_App::test_timezone__none_set PASSED         [  5%]
+t/unit/app/test_app.py::test_App::test_uses_utc_timezone PASSED          [  5%]
+t/unit/app/test_app.py::test_App::test_compat_on_configure PASSED        [  5%]
+t/unit/app/test_app.py::test_App::test_add_periodic_task PASSED          [  5%]
+t/unit/app/test_app.py::test_App::test_pool_no_multiprocessing PASSED    [  5%]
+t/unit/app/test_app.py::test_App::test_bugreport PASSED                  [  5%]
+t/unit/app/test_app.py::test_App::test_send_task__connection_provided PASSED [  5%]
+t/unit/app/test_app.py::test_App::test_send_task_sent_event PASSED       [  5%]
+t/unit/app/test_app.py::test_App::test_select_queues PASSED              [  5%]
+t/unit/app/test_app.py::test_App::test_Beat PASSED                       [  5%]
+t/unit/app/test_app.py::test_App::test_registry_cls PASSED               [  5%]
+t/unit/app/test_app.py::test_App::test_oid PASSED                        [  5%]
+t/unit/app/test_app.py::test_App::test_global_oid PASSED                 [  5%]
+t/unit/app/test_app.py::test_App::test_thread_oid PASSED                 [  5%]
+t/unit/app/test_app.py::test_App::test_backend PASSED                    [  5%]
+t/unit/app/test_app.py::test_App::test_thread_backend PASSED             [  5%]
+t/unit/app/test_app.py::test_App::test_thread_oid_is_local PASSED        [  5%]
+t/unit/app/test_app.py::test_defaults::test_strtobool PASSED             [  5%]
+t/unit/app/test_app.py::test_debugging_utils::test_enable_disable_trace PASSED [  5%]
+t/unit/app/test_app.py::test_pyimplementation::test_platform_python_implementation PASSED [  5%]
+t/unit/app/test_app.py::test_pyimplementation::test_platform_jython PASSED [  5%]
+t/unit/app/test_app.py::test_pyimplementation::test_platform_pypy PASSED [  5%]
+t/unit/app/test_app.py::test_pyimplementation::test_platform_fallback PASSED [  6%]
+t/unit/app/test_app.py::test_shared_task::test_registers_to_all_apps PASSED [  6%]
+t/unit/app/test_backends.py::test_backends::test_get_backend_aliases[cache+memory://-CacheBackend] PASSED [  6%]
+t/unit/app/test_backends.py::test_backends::test_unknown_backend PASSED  [  6%]
+t/unit/app/test_backends.py::test_backends::test_backend_by_url PASSED   [  6%]
+t/unit/app/test_backends.py::test_backends::test_sym_raises_ValuError PASSED [  6%]
+t/unit/app/test_backends.py::test_backends::test_backend_can_not_be_module PASSED [  6%]
+t/unit/app/test_backends.py::test_backends::test_backend_thread_safety PASSED [  6%]
+t/unit/app/test_beat.py::test_BeatLazyFunc::test_beat_lazy_func PASSED   [  6%]
+t/unit/app/test_beat.py::test_ScheduleEntry::test_next PASSED            [  6%]
+t/unit/app/test_beat.py::test_ScheduleEntry::test_is_due PASSED          [  6%]
+t/unit/app/test_beat.py::test_ScheduleEntry::test_repr PASSED            [  6%]
+t/unit/app/test_beat.py::test_ScheduleEntry::test_reduce PASSED          [  6%]
+t/unit/app/test_beat.py::test_ScheduleEntry::test_lt PASSED              [  6%]
+t/unit/app/test_beat.py::test_ScheduleEntry::test_update PASSED          [  6%]
+t/unit/app/test_beat.py::test_Scheduler::test_custom_schedule_dict PASSED [  6%]
+t/unit/app/test_beat.py::test_Scheduler::test_apply_async_uses_registered_task_instances PASSED [  6%]
+t/unit/app/test_beat.py::test_Scheduler::test_apply_async_with_null_args PASSED [  6%]
+t/unit/app/test_beat.py::test_Scheduler::test_apply_async_with_null_args_set_to_none PASSED [  6%]
+t/unit/app/test_beat.py::test_Scheduler::test_apply_async_without_null_args PASSED [  6%]
+t/unit/app/test_beat.py::test_Scheduler::test_should_sync PASSED         [  6%]
+t/unit/app/test_beat.py::test_Scheduler::test_should_sync_increments_sync_every_counter PASSED [  6%]
+t/unit/app/test_beat.py::test_Scheduler::test_sync_task_counter_resets_on_do_sync PASSED [  6%]
+t/unit/app/test_beat.py::test_Scheduler::test_send_task PASSED           [  6%]
+t/unit/app/test_beat.py::test_Scheduler::test_info PASSED                [  6%]
+t/unit/app/test_beat.py::test_Scheduler::test_maybe_entry PASSED         [  6%]
+t/unit/app/test_beat.py::test_Scheduler::test_set_schedule PASSED        [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_ensure_connection_error_handler PASSED [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_install_default_entries PASSED [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_due_tick PASSED            [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_due_tick_SchedulingError PASSED [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_pending_tick PASSED        [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_honors_max_interval PASSED [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_ticks PASSED               [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_ticks_microseconds PASSED  [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_ticks_schedule_change PASSED [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_schedule_no_remain PASSED  [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_interface PASSED           [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_merge_inplace PASSED       [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_when PASSED                [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_populate_heap PASSED       [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_schedule_equal_schedule_vs_schedule_success PASSED [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_schedule_equal_schedule_vs_schedule_fail PASSED [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_schedule_equal_crontab_vs_crontab_success PASSED [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_schedule_equal_crontab_vs_crontab_fail PASSED [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_schedule_equal_crontab_vs_schedule_fail PASSED [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_schedule_equal_different_key_fail PASSED [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_schedule_equal_args_vs_args_success PASSED [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_schedule_equal_args_vs_args_fail PASSED [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_schedule_equal_kwargs_vs_kwargs_success PASSED [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_schedule_equal_kwargs_vs_kwargs_fail PASSED [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_schedule_equal_options_vs_options_success PASSED [  7%]
+t/unit/app/test_beat.py::test_Scheduler::test_schedule_equal_options_vs_options_fail PASSED [  8%]
+t/unit/app/test_beat.py::test_Scheduler::test_schedule_equal_task_vs_task_success PASSED [  8%]
+t/unit/app/test_beat.py::test_Scheduler::test_schedule_equal_task_vs_task_fail PASSED [  8%]
+t/unit/app/test_beat.py::test_Scheduler::test_schedule_equal_none_entry_vs_entry PASSED [  8%]
+t/unit/app/test_beat.py::test_Scheduler::test_schedule_equal_entry_vs_none_entry PASSED [  8%]
+t/unit/app/test_beat.py::test_Scheduler::test_schedule_equal_none_entry_vs_none_entry PASSED [  8%]
+t/unit/app/test_beat.py::test_PersistentScheduler::test_remove_db PASSED [  8%]
+t/unit/app/test_beat.py::test_PersistentScheduler::test_setup_schedule PASSED [  8%]
+t/unit/app/test_beat.py::test_PersistentScheduler::test_get_schedule PASSED [  8%]
+t/unit/app/test_beat.py::test_PersistentScheduler::test_run_all_due_tasks_after_restart PASSED [  8%]
+t/unit/app/test_beat.py::test_Service::test_pickleable PASSED            [  8%]
+t/unit/app/test_beat.py::test_Service::test_start PASSED                 [  8%]
+t/unit/app/test_beat.py::test_Service::test_start_embedded_process PASSED [  8%]
+t/unit/app/test_beat.py::test_Service::test_start_thread PASSED          [  8%]
+t/unit/app/test_beat.py::test_Service::test_start_tick_raises_exit_error PASSED [  8%]
+t/unit/app/test_beat.py::test_Service::test_start_manages_one_tick_before_shutdown PASSED [  8%]
+t/unit/app/test_beat.py::test_EmbeddedService::test_start_stop_threaded PASSED [  8%]
+t/unit/app/test_beat.py::test_schedule::test_maybe_make_aware PASSED     [  8%]
+t/unit/app/test_beat.py::test_schedule::test_to_local PASSED             [  8%]
+t/unit/app/test_builtins.py::test_backend_cleanup::test_run PASSED       [  8%]
+t/unit/app/test_builtins.py::test_accumulate::test_with_index PASSED     [  8%]
+t/unit/app/test_builtins.py::test_accumulate::test_no_index PASSED       [  8%]
+t/unit/app/test_builtins.py::test_map::test_run PASSED                   [  8%]
+t/unit/app/test_builtins.py::test_starmap::test_run PASSED               [  8%]
+t/unit/app/test_builtins.py::test_chunks::test_run PASSED                [  8%]
+t/unit/app/test_builtins.py::test_group::test_apply_async_eager PASSED   [  8%]
+t/unit/app/test_builtins.py::test_group::test_task PASSED                [  9%]
+t/unit/app/test_builtins.py::test_group::test_task__disable_add_to_parent PASSED [  9%]
+t/unit/app/test_builtins.py::test_chain::test_not_implemented PASSED     [  9%]
+t/unit/app/test_builtins.py::test_chord::test_apply_async PASSED         [  9%]
+t/unit/app/test_builtins.py::test_chord::test_run_header_not_group PASSED [  9%]
+t/unit/app/test_builtins.py::test_chord::test_forward_options PASSED     [  9%]
+t/unit/app/test_builtins.py::test_chord::test_apply_eager PASSED         [  9%]
+t/unit/app/test_builtins.py::test_chord::test_apply_eager_with_arguments PASSED [  9%]
+t/unit/app/test_celery.py::test_version PASSED                           [  9%]
+t/unit/app/test_celery.py::test_meta[__author__] PASSED                  [  9%]
+t/unit/app/test_celery.py::test_meta[__contact__] PASSED                 [  9%]
+t/unit/app/test_celery.py::test_meta[__homepage__] PASSED                [  9%]
+t/unit/app/test_celery.py::test_meta[__docformat__] PASSED               [  9%]
+t/unit/app/test_control.py::test_client_implements_all_commands PASSED   [  9%]
+t/unit/app/test_control.py::test_inspect_implements_all_commands PASSED  [  9%]
+t/unit/app/test_control.py::test_flatten_reply::test_flatten_reply PASSED [  9%]
+t/unit/app/test_control.py::test_inspect::test_prepare_reply PASSED      [  9%]
+t/unit/app/test_control.py::test_inspect::test_active PASSED             [  9%]
+t/unit/app/test_control.py::test_inspect::test_active_safe PASSED        [  9%]
+t/unit/app/test_control.py::test_inspect::test_clock PASSED              [  9%]
+t/unit/app/test_control.py::test_inspect::test_conf PASSED               [  9%]
+t/unit/app/test_control.py::test_inspect::test_conf__with_defaults PASSED [  9%]
+t/unit/app/test_control.py::test_inspect::test_hello PASSED              [  9%]
+t/unit/app/test_control.py::test_inspect::test_hello__with_revoked PASSED [  9%]
+t/unit/app/test_control.py::test_inspect::test_memsample PASSED          [  9%]
+t/unit/app/test_control.py::test_inspect::test_memdump PASSED            [  9%]
+t/unit/app/test_control.py::test_inspect::test_memdump__samples_specified PASSED [ 10%]
+t/unit/app/test_control.py::test_inspect::test_objgraph PASSED           [ 10%]
+t/unit/app/test_control.py::test_inspect::test_scheduled PASSED          [ 10%]
+t/unit/app/test_control.py::test_inspect::test_reserved PASSED           [ 10%]
+t/unit/app/test_control.py::test_inspect::test_stats PASSED              [ 10%]
+t/unit/app/test_control.py::test_inspect::test_revoked PASSED            [ 10%]
+t/unit/app/test_control.py::test_inspect::test_registered PASSED         [ 10%]
+t/unit/app/test_control.py::test_inspect::test_registered__taskinfoitems PASSED [ 10%]
+t/unit/app/test_control.py::test_inspect::test_ping PASSED               [ 10%]
+t/unit/app/test_control.py::test_inspect::test_ping_matcher_pattern PASSED [ 10%]
+t/unit/app/test_control.py::test_inspect::test_active_queues PASSED      [ 10%]
+t/unit/app/test_control.py::test_inspect::test_query_task PASSED         [ 10%]
+t/unit/app/test_control.py::test_inspect::test_query_task__compat_single_list_argument PASSED [ 10%]
+t/unit/app/test_control.py::test_inspect::test_query_task__scalar PASSED [ 10%]
+t/unit/app/test_control.py::test_inspect::test_report PASSED             [ 10%]
+t/unit/app/test_control.py::test_Control_broadcast::test_broadcast PASSED [ 10%]
+t/unit/app/test_control.py::test_Control_broadcast::test_broadcast_limit PASSED [ 10%]
+t/unit/app/test_control.py::test_Control::test_serializer PASSED         [ 10%]
+t/unit/app/test_control.py::test_Control::test_purge PASSED              [ 10%]
+t/unit/app/test_control.py::test_Control::test_rate_limit PASSED         [ 10%]
+t/unit/app/test_control.py::test_Control::test_rate_limit__with_destination PASSED [ 10%]
+t/unit/app/test_control.py::test_Control::test_time_limit PASSED         [ 10%]
+t/unit/app/test_control.py::test_Control::test_time_limit__with_destination PASSED [ 10%]
+t/unit/app/test_control.py::test_Control::test_add_consumer PASSED       [ 10%]
+t/unit/app/test_control.py::test_Control::test_add_consumer__with_options_and_dest PASSED [ 10%]
+t/unit/app/test_control.py::test_Control::test_cancel_consumer PASSED    [ 10%]
+t/unit/app/test_control.py::test_Control::test_cancel_consumer__with_destination PASSED [ 11%]
+t/unit/app/test_control.py::test_Control::test_shutdown PASSED           [ 11%]
+t/unit/app/test_control.py::test_Control::test_shutdown__with_destination PASSED [ 11%]
+t/unit/app/test_control.py::test_Control::test_heartbeat PASSED          [ 11%]
+t/unit/app/test_control.py::test_Control::test_heartbeat__with_destination PASSED [ 11%]
+t/unit/app/test_control.py::test_Control::test_pool_restart PASSED       [ 11%]
+t/unit/app/test_control.py::test_Control::test_terminate PASSED          [ 11%]
+t/unit/app/test_control.py::test_Control::test_enable_events PASSED      [ 11%]
+t/unit/app/test_control.py::test_Control::test_enable_events_with_destination PASSED [ 11%]
+t/unit/app/test_control.py::test_Control::test_disable_events PASSED     [ 11%]
+t/unit/app/test_control.py::test_Control::test_disable_events_with_destination PASSED [ 11%]
+t/unit/app/test_control.py::test_Control::test_ping PASSED               [ 11%]
+t/unit/app/test_control.py::test_Control::test_ping_with_destination PASSED [ 11%]
+t/unit/app/test_control.py::test_Control::test_revoke PASSED             [ 11%]
+t/unit/app/test_control.py::test_Control::test_revoke__with_options PASSED [ 11%]
+t/unit/app/test_control.py::test_Control::test_election PASSED           [ 11%]
+t/unit/app/test_control.py::test_Control::test_autoscale PASSED          [ 11%]
+t/unit/app/test_control.py::test_Control::test_autoscale__with_options PASSED [ 11%]
+t/unit/app/test_control.py::test_Control::test_pool_grow PASSED          [ 11%]
+t/unit/app/test_control.py::test_Control::test_pool_grow__with_options PASSED [ 11%]
+t/unit/app/test_control.py::test_Control::test_pool_shrink PASSED        [ 11%]
+t/unit/app/test_control.py::test_Control::test_pool_shrink__with_options PASSED [ 11%]
+t/unit/app/test_control.py::test_Control::test_revoke_from_result PASSED [ 11%]
+t/unit/app/test_control.py::test_Control::test_revoke_from_resultset PASSED [ 11%]
+t/unit/app/test_control.py::test_Control::test_after_fork_clears_mailbox_pool PASSED [ 11%]
+t/unit/app/test_control.py::test_Control::test_control_exchange__default PASSED [ 11%]
+t/unit/app/test_control.py::test_Control::test_control_exchange__setting PASSED [ 12%]
+t/unit/app/test_defaults.py::test_defaults::test_option_repr PASSED      [ 12%]
+t/unit/app/test_defaults.py::test_defaults::test_any PASSED              [ 12%]
+t/unit/app/test_defaults.py::test_defaults::test_compat_indices PASSED   [ 12%]
+t/unit/app/test_defaults.py::test_defaults::test_find PASSED             [ 12%]
+t/unit/app/test_exceptions.py::test_Retry::test_when_datetime PASSED     [ 12%]
+t/unit/app/test_exceptions.py::test_Retry::test_pickleable PASSED        [ 12%]
+t/unit/app/test_exceptions.py::test_Reject::test_attrs PASSED            [ 12%]
+t/unit/app/test_exceptions.py::test_Reject::test_repr PASSED             [ 12%]
+t/unit/app/test_exceptions.py::test_Reject::test_pickleable PASSED       [ 12%]
+t/unit/app/test_loaders.py::test_loaders::test_get_loader_cls PASSED     [ 12%]
+t/unit/app/test_loaders.py::test_LoaderBase::test_handlers_pass PASSED   [ 12%]
+t/unit/app/test_loaders.py::test_LoaderBase::test_now PASSED             [ 12%]
+t/unit/app/test_loaders.py::test_LoaderBase::test_read_configuration_no_env PASSED [ 12%]
+t/unit/app/test_loaders.py::test_LoaderBase::test_autodiscovery PASSED   [ 12%]
+t/unit/app/test_loaders.py::test_LoaderBase::test_import_task_module PASSED [ 12%]
+t/unit/app/test_loaders.py::test_LoaderBase::test_init_worker_process PASSED [ 12%]
+t/unit/app/test_loaders.py::test_LoaderBase::test_config_from_object_module PASSED [ 12%]
+t/unit/app/test_loaders.py::test_LoaderBase::test_conf_property PASSED   [ 12%]
+t/unit/app/test_loaders.py::test_LoaderBase::test_import_default_modules PASSED [ 12%]
+t/unit/app/test_loaders.py::test_LoaderBase::test_import_default_modules_with_exception PASSED [ 12%]
+t/unit/app/test_loaders.py::test_LoaderBase::test_import_from_cwd_custom_imp PASSED [ 12%]
+t/unit/app/test_loaders.py::test_LoaderBase::test_cmdline_config_ValueError PASSED [ 12%]
+t/unit/app/test_loaders.py::test_DefaultLoader::test_read_configuration_not_a_package PASSED [ 12%]
+t/unit/app/test_loaders.py::test_DefaultLoader::test_read_configuration_py_in_name PASSED [ 12%]
+t/unit/app/test_loaders.py::test_DefaultLoader::test_read_configuration_importerror PASSED [ 12%]
+t/unit/app/test_loaders.py::test_DefaultLoader::test_read_configuration PASSED [ 13%]
+t/unit/app/test_loaders.py::test_DefaultLoader::test_read_configuration_ImportError PASSED [ 13%]
+t/unit/app/test_loaders.py::test_DefaultLoader::test_import_from_cwd PASSED [ 13%]
+t/unit/app/test_loaders.py::test_DefaultLoader::test_unconfigured_settings PASSED [ 13%]
+t/unit/app/test_loaders.py::test_AppLoader::test_on_worker_init PASSED   [ 13%]
+t/unit/app/test_loaders.py::test_autodiscovery::test_autodiscover_tasks PASSED [ 13%]
+t/unit/app/test_loaders.py::test_autodiscovery::test_find_related_module PASSED [ 13%]
+t/unit/app/test_log.py::test_TaskFormatter::test_no_task PASSED          [ 13%]
+t/unit/app/test_log.py::test_logger_isa::test_isa PASSED                 [ 13%]
+t/unit/app/test_log.py::test_logger_isa::test_recursive PASSED           [ 13%]
+t/unit/app/test_log.py::test_ColorFormatter::test_formatException_not_string PASSED [ 13%]
+t/unit/app/test_log.py::test_ColorFormatter::test_formatException_bytes PASSED [ 13%]
+t/unit/app/test_log.py::test_ColorFormatter::test_format_object PASSED   [ 13%]
+t/unit/app/test_log.py::test_ColorFormatter::test_format_raises PASSED   [ 13%]
+t/unit/app/test_log.py::test_default_logger::test_get_logger_sets_parent PASSED [ 13%]
+t/unit/app/test_log.py::test_default_logger::test_get_logger_root PASSED [ 13%]
+t/unit/app/test_log.py::test_default_logger::test_setup_logging_subsystem_misc PASSED [ 13%]
+t/unit/app/test_log.py::test_default_logger::test_setup_logging_subsystem_misc2 PASSED [ 13%]
+t/unit/app/test_log.py::test_default_logger::test_get_default_logger PASSED [ 13%]
+t/unit/app/test_log.py::test_default_logger::test_configure_logger PASSED [ 13%]
+t/unit/app/test_log.py::test_default_logger::test_setup_logging_subsystem_colorize PASSED [ 13%]
+t/unit/app/test_log.py::test_default_logger::test_setup_logging_subsystem_no_mputil PASSED [ 13%]
+t/unit/app/test_log.py::test_default_logger::test_setup_logger PASSED    [ 13%]
+t/unit/app/test_log.py::test_default_logger::test_setup_logger_no_handlers_stream PASSED [ 13%]
+t/unit/app/test_log.py::test_default_logger::test_setup_logger_no_handlers_file PASSED [ 13%]
+t/unit/app/test_log.py::test_default_logger::test_redirect_stdouts PASSED [ 13%]
+t/unit/app/test_log.py::test_default_logger::test_logging_proxy PASSED   [ 14%]
+t/unit/app/test_log.py::test_default_logger::test_logging_proxy_bytes PASSED [ 14%]
+t/unit/app/test_log.py::test_default_logger::test_logging_proxy_recurse_protection PASSED [ 14%]
+t/unit/app/test_log.py::test_task_logger::test_get_logger_sets_parent PASSED [ 14%]
+t/unit/app/test_log.py::test_task_logger::test_get_logger_root PASSED    [ 14%]
+t/unit/app/test_log.py::test_task_logger::test_setup_logging_subsystem_misc PASSED [ 14%]
+t/unit/app/test_log.py::test_task_logger::test_setup_logging_subsystem_misc2 PASSED [ 14%]
+t/unit/app/test_log.py::test_task_logger::test_get_default_logger PASSED [ 14%]
+t/unit/app/test_log.py::test_task_logger::test_configure_logger PASSED   [ 14%]
+t/unit/app/test_log.py::test_task_logger::test_setup_logging_subsystem_colorize PASSED [ 14%]
+t/unit/app/test_log.py::test_task_logger::test_setup_logging_subsystem_no_mputil PASSED [ 14%]
+t/unit/app/test_log.py::test_task_logger::test_setup_logger PASSED       [ 14%]
+t/unit/app/test_log.py::test_task_logger::test_setup_logger_no_handlers_stream PASSED [ 14%]
+t/unit/app/test_log.py::test_task_logger::test_setup_logger_no_handlers_file PASSED [ 14%]
+t/unit/app/test_log.py::test_task_logger::test_redirect_stdouts PASSED   [ 14%]
+t/unit/app/test_log.py::test_task_logger::test_logging_proxy PASSED      [ 14%]
+t/unit/app/test_log.py::test_task_logger::test_logging_proxy_bytes PASSED [ 14%]
+t/unit/app/test_log.py::test_task_logger::test_logging_proxy_recurse_protection PASSED [ 14%]
+t/unit/app/test_log.py::test_task_logger::test_renaming_base_logger PASSED [ 14%]
+t/unit/app/test_log.py::test_task_logger::test_renaming_task_logger PASSED [ 14%]
+t/unit/app/test_registry.py::test_unpickle_task::test_unpickle_v1 PASSED [ 14%]
+t/unit/app/test_registry.py::test_unpickle_task::test_unpickle_v2 PASSED [ 14%]
+t/unit/app/test_registry.py::test_TaskRegistry::test_NotRegistered_str PASSED [ 14%]
+t/unit/app/test_registry.py::test_TaskRegistry::test_task_registry PASSED [ 14%]
+t/unit/app/test_registry.py::test_TaskRegistry::test_compat PASSED       [ 14%]
+t/unit/app/test_routes.py::test_MapRoute::test_route_for_task_expanded_route PASSED [ 14%]
+t/unit/app/test_routes.py::test_MapRoute::test_route_for_task PASSED     [ 15%]
+t/unit/app/test_routes.py::test_MapRoute::test_route_for_task__glob PASSED [ 15%]
+t/unit/app/test_routes.py::test_MapRoute::test_expand_route_not_found PASSED [ 15%]
+t/unit/app/test_routes.py::test_lookup_route::test_init_queues PASSED    [ 15%]
+t/unit/app/test_routes.py::test_lookup_route::test_lookup_takes_first PASSED [ 15%]
+t/unit/app/test_routes.py::test_lookup_route::test_expands_queue_in_options PASSED [ 15%]
+t/unit/app/test_routes.py::test_lookup_route::test_expand_destination_string PASSED [ 15%]
+t/unit/app/test_routes.py::test_lookup_route::test_expand_destination__Queue PASSED [ 15%]
+t/unit/app/test_routes.py::test_lookup_route::test_lookup_paths_traversed PASSED [ 15%]
+t/unit/app/test_routes.py::test_lookup_route::test_compat_router_class PASSED [ 15%]
+t/unit/app/test_routes.py::test_lookup_route::test_router_fun__called_with PASSED [ 15%]
+t/unit/app/test_routes.py::test_lookup_route::test_compat_router_classes__called_with PASSED [ 15%]
+t/unit/app/test_routes.py::test_prepare::test_prepare PASSED             [ 15%]
+t/unit/app/test_routes.py::test_prepare::test_prepare_item_is_dict PASSED [ 15%]
+t/unit/app/test_schedules.py::test_solar::test_reduce SKIPPED (could...) [ 15%]
+t/unit/app/test_schedules.py::test_solar::test_eq SKIPPED (could not...) [ 15%]
+t/unit/app/test_schedules.py::test_solar::test_repr SKIPPED (could n...) [ 15%]
+t/unit/app/test_schedules.py::test_solar::test_is_due SKIPPED (could...) [ 15%]
+t/unit/app/test_schedules.py::test_solar::test_is_due__not_due SKIPPED   [ 15%]
+t/unit/app/test_schedules.py::test_solar::test_remaining_estimate SKIPPED [ 15%]
+t/unit/app/test_schedules.py::test_solar::test_coordinates SKIPPED (...) [ 15%]
+t/unit/app/test_schedules.py::test_solar::test_invalid_event SKIPPED     [ 15%]
+t/unit/app/test_schedules.py::test_solar::test_event_uses_center SKIPPED [ 15%]
+t/unit/app/test_schedules.py::test_schedule::test_ne PASSED              [ 15%]
+t/unit/app/test_schedules.py::test_schedule::test_pickle PASSED          [ 15%]
+t/unit/app/test_schedules.py::test_crontab_parser::test_crontab_reduce PASSED [ 15%]
+t/unit/app/test_schedules.py::test_crontab_parser::test_range_steps_not_enough PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_parser::test_parse_star PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_parser::test_parse_range PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_parser::test_parse_range_wraps PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_parser::test_parse_groups PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_parser::test_parse_steps PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_parser::test_parse_composite PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_parser::test_parse_errors_on_empty_string PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_parser::test_parse_errors_on_empty_group PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_parser::test_parse_errors_on_empty_steps PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_parser::test_parse_errors_on_negative_number PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_parser::test_parse_errors_on_lt_min PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_parser::test_parse_errors_on_gt_max PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_parser::test_expand_cronspec_eats_iterables PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_parser::test_expand_cronspec_invalid_type PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_parser::test_repr PASSED      [ 16%]
+t/unit/app/test_schedules.py::test_crontab_parser::test_eq PASSED        [ 16%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_next_minute PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_not_next_minute PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_this_hour PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_not_this_hour PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_today PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_not_today PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_weekday PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_not_weekday PASSED [ 16%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_monthday PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_not_monthday PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_weekday_monthday PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_monthday_not_weekday PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_weekday_not_monthday PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_not_weekday_not_monthday PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_leapday PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_not_leapday PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_weekmonthdayyear PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_monthdayyear_not_week PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_weekdaymonthyear_not_monthday PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_weekmonthday_not_monthyear PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_weekday_not_monthdayyear PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_monthday_not_weekdaymonthyear PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_monthyear_not_weekmonthday PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_not_weekmonthdayyear PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_invalid_specification PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_leapyear PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_day_after_dst_end PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_remaining_estimate::test_day_after_dst_start PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_default_crontab_spec PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_simple_crontab_spec PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_minute_formats[30-expected0] PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_minute_formats[30-expected1] PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_minute_formats[minute2-expected2] PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_minute_formats[minute3-expected3] PASSED [ 17%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_invalid_minute[60] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_invalid_minute[0-100] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_hour_formats[6-expected0] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_hour_formats[5-expected1] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_hour_formats[hour2-expected2] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_invalid_hour[24] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_invalid_hour[0-30] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_dow_formats[5-expected0] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_dow_formats[5-expected1] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_dow_formats[fri-expected2] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_dow_formats[tuesday,sunday,fri-expected3] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_dow_formats[mon-fri-expected4] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_dow_formats[*/2-expected5] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_invalid_dow[fooday-barday] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_invalid_dow[1,4,foo] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_invalid_dow[7] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_invalid_dow[12] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_dom_formats[5-expected0] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_dom_formats[5-expected1] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_dom_formats[2,4,6-expected2] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_dom_formats[*/5-expected3] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_invalid_dom[0] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_invalid_dom[0-10] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_invalid_dom[32] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_invalid_dom[31,32] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_moy_formats[1-expected0] PASSED [ 18%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_moy_formats[1-expected1] PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_moy_formats[2,4,6-expected2] PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_moy_formats[*/2-expected3] PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_moy_formats[2-12/2-expected4] PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_invalid_moy[0] PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_invalid_moy[0-5] PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_invalid_moy[13] PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_crontab_spec_invalid_moy[12,13] PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_every_minute_execution_is_due PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_every_minute_execution_is_not_due PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_execution_is_due_on_saturday PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_execution_is_due_on_sunday PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_execution_is_due_on_monday PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_every_hour_execution_is_due PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_every_hour_execution_is_not_due PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_first_quarter_execution_is_due PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_second_quarter_execution_is_due PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_first_quarter_execution_is_not_due PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_second_quarter_execution_is_not_due PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_daily_execution_is_due PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_daily_execution_is_not_due PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_weekly_execution_is_due PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_weekly_execution_is_not_due PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_monthly_execution_is_due PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_monthly_execution_is_not_due PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_monthly_moy_execution_is_due PASSED [ 19%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_monthly_moy_execution_is_not_due SKIPPED [ 20%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_monthly_moy_execution_is_due2 PASSED [ 20%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_monthly_moy_execution_is_not_due2 PASSED [ 20%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_yearly_execution_is_due PASSED [ 20%]
+t/unit/app/test_schedules.py::test_crontab_is_due::test_yearly_execution_is_not_due PASSED [ 20%]
+t/unit/app/test_utils.py::test_Settings::test_is_mapping PASSED          [ 20%]
+t/unit/app/test_utils.py::test_Settings::test_is_mutable_mapping PASSED  [ 20%]
+t/unit/app/test_utils.py::test_Settings::test_find PASSED                [ 20%]
+t/unit/app/test_utils.py::test_Settings::test_get_by_parts PASSED        [ 20%]
+t/unit/app/test_utils.py::test_Settings::test_find_value_for_key PASSED  [ 20%]
+t/unit/app/test_utils.py::test_Settings::test_table PASSED               [ 20%]
+t/unit/app/test_utils.py::test_filter_hidden_settings::test_handles_non_string_keys PASSED [ 20%]
+t/unit/app/test_utils.py::test_bugreport::test_no_conn_driver_info PASSED [ 20%]
+t/unit/apps/test_multi.py::test_functions::test_parse_ns_range PASSED    [ 20%]
+t/unit/apps/test_multi.py::test_functions::test_format_opt PASSED        [ 20%]
+t/unit/apps/test_multi.py::test_NamespacedOptionParser::test_parse PASSED [ 20%]
+t/unit/apps/test_multi.py::test_multi_args::test_parse PASSED            [ 20%]
+t/unit/apps/test_multi.py::test_multi_args::test_optmerge PASSED         [ 20%]
+t/unit/apps/test_multi.py::test_Node::test_from_kwargs PASSED            [ 20%]
+t/unit/apps/test_multi.py::test_Node::test_send PASSED                   [ 20%]
+t/unit/apps/test_multi.py::test_Node::test_send__ESRCH PASSED            [ 20%]
+t/unit/apps/test_multi.py::test_Node::test_send__error PASSED            [ 20%]
+t/unit/apps/test_multi.py::test_Node::test_alive PASSED                  [ 20%]
+t/unit/apps/test_multi.py::test_Node::test_start PASSED                  [ 20%]
+t/unit/apps/test_multi.py::test_Node::test_waitexec PASSED               [ 20%]
+t/unit/apps/test_multi.py::test_Node::test_handle_process_exit PASSED    [ 20%]
+t/unit/apps/test_multi.py::test_Node::test_handle_process_exit__failure PASSED [ 21%]
+t/unit/apps/test_multi.py::test_Node::test_handle_process_exit__signalled PASSED [ 21%]
+t/unit/apps/test_multi.py::test_Node::test_logfile PASSED                [ 21%]
+t/unit/apps/test_multi.py::test_Node::test_pidfile_default PASSED        [ 21%]
+t/unit/apps/test_multi.py::test_Node::test_pidfile_custom PASSED         [ 21%]
+t/unit/apps/test_multi.py::test_Cluster::test_len PASSED                 [ 21%]
+t/unit/apps/test_multi.py::test_Cluster::test_getitem PASSED             [ 21%]
+t/unit/apps/test_multi.py::test_Cluster::test_start PASSED               [ 21%]
+t/unit/apps/test_multi.py::test_Cluster::test_start_node PASSED          [ 21%]
+t/unit/apps/test_multi.py::test_Cluster::test__start_node PASSED         [ 21%]
+t/unit/apps/test_multi.py::test_Cluster::test_send_all PASSED            [ 21%]
+t/unit/apps/test_multi.py::test_Cluster::test_kill PASSED                [ 21%]
+t/unit/apps/test_multi.py::test_Cluster::test_getpids PASSED             [ 21%]
+t/unit/backends/test_arangodb.py::test_ArangoDbBackend::test_init_no_arangodb PASSED [ 21%]
+t/unit/backends/test_arangodb.py::test_ArangoDbBackend::test_init_no_settings PASSED [ 21%]
+t/unit/backends/test_arangodb.py::test_ArangoDbBackend::test_init_settings_is_None PASSED [ 21%]
+t/unit/backends/test_arangodb.py::test_ArangoDbBackend::test_get_connection_connection_exists PASSED [ 21%]
+t/unit/backends/test_arangodb.py::test_ArangoDbBackend::test_get PASSED  [ 21%]
+t/unit/backends/test_arangodb.py::test_ArangoDbBackend::test_delete PASSED [ 21%]
+t/unit/backends/test_arangodb.py::test_ArangoDbBackend::test_config_params PASSED [ 21%]
+t/unit/backends/test_arangodb.py::test_ArangoDbBackend::test_backend_by_url PASSED [ 21%]
+t/unit/backends/test_arangodb.py::test_ArangoDbBackend::test_backend_params_by_url PASSED [ 21%]
+t/unit/backends/test_arangodb.py::test_ArangoDbBackend::test_backend_cleanup PASSED [ 21%]
+t/unit/backends/test_azureblockblob.py::test_AzureBlockBlobBackend::test_missing_third_party_sdk PASSED [ 21%]
+t/unit/backends/test_azureblockblob.py::test_AzureBlockBlobBackend::test_bad_connection_url PASSED [ 21%]
+t/unit/backends/test_azureblockblob.py::test_AzureBlockBlobBackend::test_create_client PASSED [ 21%]
+t/unit/backends/test_azureblockblob.py::test_AzureBlockBlobBackend::test_configure_client PASSED [ 22%]
+t/unit/backends/test_azureblockblob.py::test_AzureBlockBlobBackend::test_get[] PASSED [ 22%]
+t/unit/backends/test_azureblockblob.py::test_AzureBlockBlobBackend::test_get[my_folder/] PASSED [ 22%]
+t/unit/backends/test_azureblockblob.py::test_AzureBlockBlobBackend::test_get_missing PASSED [ 22%]
+t/unit/backends/test_azureblockblob.py::test_AzureBlockBlobBackend::test_set[] PASSED [ 22%]
+t/unit/backends/test_azureblockblob.py::test_AzureBlockBlobBackend::test_set[my_folder/] PASSED [ 22%]
+t/unit/backends/test_azureblockblob.py::test_AzureBlockBlobBackend::test_mget[] PASSED [ 22%]
+t/unit/backends/test_azureblockblob.py::test_AzureBlockBlobBackend::test_mget[my_folder/] PASSED [ 22%]
+t/unit/backends/test_azureblockblob.py::test_AzureBlockBlobBackend::test_delete[] PASSED [ 22%]
+t/unit/backends/test_azureblockblob.py::test_AzureBlockBlobBackend::test_delete[my_folder/] PASSED [ 22%]
+t/unit/backends/test_azureblockblob.py::test_AzureBlockBlobBackend::test_base_path_conf[] PASSED [ 22%]
+t/unit/backends/test_azureblockblob.py::test_AzureBlockBlobBackend::test_base_path_conf[my_folder/] PASSED [ 22%]
+t/unit/backends/test_azureblockblob.py::test_AzureBlockBlobBackend::test_base_path_conf_default PASSED [ 22%]
+t/unit/backends/test_azureblockblob.py::test_as_uri::test_as_uri_include_password PASSED [ 22%]
+t/unit/backends/test_azureblockblob.py::test_as_uri::test_as_uri_exclude_password PASSED [ 22%]
+t/unit/backends/test_base.py::test_nulldict::test_nulldict PASSED        [ 22%]
+t/unit/backends/test_base.py::test_serialization::test_create_exception_cls PASSED [ 22%]
+t/unit/backends/test_base.py::test_Backend_interface::test_accept_precedence PASSED [ 22%]
+t/unit/backends/test_base.py::test_Backend_interface::test_get_result_meta PASSED [ 22%]
+t/unit/backends/test_base.py::test_Backend_interface::test_get_result_meta_encoded PASSED [ 22%]
+t/unit/backends/test_base.py::test_Backend_interface::test_get_result_meta_with_none PASSED [ 22%]
+t/unit/backends/test_base.py::test_BaseBackend_interface::test__forget PASSED [ 22%]
+t/unit/backends/test_base.py::test_BaseBackend_interface::test_forget PASSED [ 22%]
+t/unit/backends/test_base.py::test_BaseBackend_interface::test_on_chord_part_return PASSED [ 22%]
+t/unit/backends/test_base.py::test_BaseBackend_interface::test_apply_chord PASSED [ 22%]
+t/unit/backends/test_base.py::test_BaseBackend_interface::test_chord_unlock_queue PASSED [ 22%]
+t/unit/backends/test_base.py::test_exception_pickle::test_BaseException PASSED [ 23%]
+t/unit/backends/test_base.py::test_exception_pickle::test_get_pickleable_exception PASSED [ 23%]
+t/unit/backends/test_base.py::test_exception_pickle::test_unpickleable PASSED [ 23%]
+t/unit/backends/test_base.py::test_prepare_exception::test_unpickleable PASSED [ 23%]
+t/unit/backends/test_base.py::test_prepare_exception::test_json_exception_arguments PASSED [ 23%]
+t/unit/backends/test_base.py::test_prepare_exception::test_json_exception_nested PASSED [ 23%]
+t/unit/backends/test_base.py::test_prepare_exception::test_impossible PASSED [ 23%]
+t/unit/backends/test_base.py::test_prepare_exception::test_regular PASSED [ 23%]
+t/unit/backends/test_base.py::test_prepare_exception::test_unicode_message PASSED [ 23%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_delete_group PASSED [ 23%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_prepare_exception_json PASSED [ 23%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_save_group PASSED [ 23%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_add_to_chord_interface PASSED [ 23%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_forget_interface PASSED [ 23%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_restore_group PASSED [ 23%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_reload_group_result PASSED [ 23%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_reload_task_result PASSED [ 23%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_fail_from_current_stack PASSED [ 23%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_prepare_value_serializes_group_result PASSED [ 23%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_is_cached PASSED [ 23%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_mark_as_done__chord PASSED [ 23%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_mark_as_failure__bound_errback_eager PASSED [ 23%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_mark_as_failure__bound_errback PASSED [ 23%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_mark_as_failure__errback PASSED [ 23%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_class_based_task_can_be_used_as_error_callback PASSED [ 23%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_unregistered_task_can_be_used_as_error_callback PASSED [ 23%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_mark_as_failure__chord PASSED [ 24%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_mark_as_revoked__chord PASSED [ 24%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_chord_error_from_stack_raises PASSED [ 24%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_exception_to_python_when_None PASSED [ 24%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_not_an_actual_exc_info PASSED [ 24%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_not_an_exception_but_a_callable FAILED [ 24%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_not_an_exception_but_another_object FAILED [ 24%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_exception_to_python_when_attribute_exception PASSED [ 24%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_exception_to_python_when_type_error PASSED [ 24%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_wait_for__on_interval PASSED [ 24%]
+t/unit/backends/test_base.py::test_BaseBackend_dict::test_get_children PASSED [ 24%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_on_chord_part_return PASSED [ 24%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_get_store_delete_result PASSED [ 24%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_store_result_parent_id[json] PASSED [ 24%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_store_result_parent_id[pickle] PASSED [ 24%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_store_result_parent_id[yaml] PASSED [ 24%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_store_result_parent_id[msgpack] FAILED [ 24%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_store_result_group_id PASSED [ 24%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_store_result_race_second_write_should_ignore_if_previous_success PASSED [ 24%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_strip_prefix PASSED [ 24%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_get_many PASSED [ 24%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_get_many_times_out PASSED [ 24%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_get_many_passes_ready_states PASSED [ 24%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_chord_part_return_no_gid PASSED [ 24%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_chord_part_return_restore_raises PASSED [ 24%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_chord_part_return_restore_empty PASSED [ 24%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_filter_ready PASSED [ 25%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_chord_part_return_timeout PASSED [ 25%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_chord_part_return_propagate_set PASSED [ 25%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_chord_part_return_propagate_default PASSED [ 25%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_chord_part_return_join_raises_internal PASSED [ 25%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_chord_part_return_join_raises_task PASSED [ 25%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_restore_group_from_json PASSED [ 25%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_restore_group_from_pickle PASSED [ 25%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_chord_apply_fallback PASSED [ 25%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_get_missing_meta PASSED [ 25%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_save_restore_delete_group PASSED [ 25%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_restore_missing_group PASSED [ 25%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend_interface::test_get PASSED [ 25%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend_interface::test_set PASSED [ 25%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend_interface::test_incr PASSED [ 25%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend_interface::test_cleanup PASSED [ 25%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend_interface::test_delete PASSED [ 25%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend_interface::test_mget PASSED [ 25%]
+t/unit/backends/test_base.py::test_KeyValueStoreBackend_interface::test_forget PASSED [ 25%]
+t/unit/backends/test_base.py::test_DisabledBackend::test_store_result PASSED [ 25%]
+t/unit/backends/test_base.py::test_DisabledBackend::test_is_disabled PASSED [ 25%]
+t/unit/backends/test_base.py::test_DisabledBackend::test_as_uri PASSED   [ 25%]
+t/unit/backends/test_base.py::test_DisabledBackend::test_chord_raises_error PASSED [ 25%]
+t/unit/backends/test_base.py::test_DisabledBackend::test_chain_with_chord_raises_error PASSED [ 25%]
+t/unit/backends/test_base.py::test_as_uri::test_as_uri_include_password PASSED [ 25%]
+t/unit/backends/test_base.py::test_as_uri::test_as_uri_exclude_password PASSED [ 25%]
+t/unit/backends/test_base.py::test_backend_retries::test_should_retry_exception PASSED [ 26%]
+t/unit/backends/test_base.py::test_backend_retries::test_get_failed_never_retries PASSED [ 26%]
+t/unit/backends/test_base.py::test_backend_retries::test_get_with_retries PASSED [ 26%]
+t/unit/backends/test_base.py::test_backend_retries::test_get_reaching_max_retries PASSED [ 26%]
+t/unit/backends/test_base.py::test_backend_retries::test_get_unsafe_exception PASSED [ 26%]
+t/unit/backends/test_base.py::test_backend_retries::test_store_result_never_retries PASSED [ 26%]
+t/unit/backends/test_base.py::test_backend_retries::test_store_result_with_retries PASSED [ 26%]
+t/unit/backends/test_base.py::test_backend_retries::test_store_result_reaching_max_retries PASSED [ 26%]
+t/unit/backends/test_cache.py::test_CacheBackend::test_no_backend PASSED [ 26%]
+t/unit/backends/test_cache.py::test_CacheBackend::test_memory_client_is_shared PASSED [ 26%]
+t/unit/backends/test_cache.py::test_CacheBackend::test_mark_as_done PASSED [ 26%]
+t/unit/backends/test_cache.py::test_CacheBackend::test_is_pickled PASSED [ 26%]
+t/unit/backends/test_cache.py::test_CacheBackend::test_mark_as_failure PASSED [ 26%]
+t/unit/backends/test_cache.py::test_CacheBackend::test_apply_chord PASSED [ 26%]
+t/unit/backends/test_cache.py::test_CacheBackend::test_on_chord_part_return PASSED [ 26%]
+t/unit/backends/test_cache.py::test_CacheBackend::test_mget PASSED       [ 26%]
+t/unit/backends/test_cache.py::test_CacheBackend::test_forget PASSED     [ 26%]
+t/unit/backends/test_cache.py::test_CacheBackend::test_process_cleanup PASSED [ 26%]
+t/unit/backends/test_cache.py::test_CacheBackend::test_expires_as_int PASSED [ 26%]
+t/unit/backends/test_cache.py::test_CacheBackend::test_unknown_backend_raises_ImproperlyConfigured PASSED [ 26%]
+t/unit/backends/test_cache.py::test_CacheBackend::test_as_uri_no_servers PASSED [ 26%]
+t/unit/backends/test_cache.py::test_CacheBackend::test_as_uri_one_server PASSED [ 26%]
+t/unit/backends/test_cache.py::test_CacheBackend::test_as_uri_multiple_servers PASSED [ 26%]
+t/unit/backends/test_cache.py::test_CacheBackend::test_regression_worker_startup_info SKIPPED [ 26%]
+t/unit/backends/test_cache.py::test_get_best_memcache::test_pylibmc PASSED [ 26%]
+t/unit/backends/test_cache.py::test_get_best_memcache::test_memcache PASSED [ 26%]
+t/unit/backends/test_cache.py::test_get_best_memcache::test_no_implementations PASSED [ 27%]
+t/unit/backends/test_cache.py::test_get_best_memcache::test_cached PASSED [ 27%]
+t/unit/backends/test_cache.py::test_get_best_memcache::test_backends PASSED [ 27%]
+t/unit/backends/test_cache.py::test_memcache_key::test_memcache_unicode_key PASSED [ 27%]
+t/unit/backends/test_cache.py::test_memcache_key::test_memcache_bytes_key PASSED [ 27%]
+t/unit/backends/test_cache.py::test_memcache_key::test_pylibmc_unicode_key PASSED [ 27%]
+t/unit/backends/test_cache.py::test_memcache_key::test_pylibmc_bytes_key PASSED [ 27%]
+t/unit/backends/test_cassandra.py::test_CassandraBackend::test_init_no_cassandra PASSED [ 27%]
+t/unit/backends/test_cassandra.py::test_CassandraBackend::test_init_with_and_without_LOCAL_QUROM PASSED [ 27%]
+t/unit/backends/test_cassandra.py::test_CassandraBackend::test_reduce PASSED [ 27%]
+t/unit/backends/test_cassandra.py::test_CassandraBackend::test_get_task_meta_for PASSED [ 27%]
+t/unit/backends/test_cassandra.py::test_CassandraBackend::test_as_uri PASSED [ 27%]
+t/unit/backends/test_cassandra.py::test_CassandraBackend::test_store_result FAILED [ 27%]
+t/unit/backends/test_cassandra.py::test_CassandraBackend::test_timeouting_cluster PASSED [ 27%]
+t/unit/backends/test_cassandra.py::test_CassandraBackend::test_create_result_table PASSED [ 27%]
+t/unit/backends/test_cassandra.py::test_CassandraBackend::test_init_session PASSED [ 27%]
+t/unit/backends/test_cassandra.py::test_CassandraBackend::test_auth_provider PASSED [ 27%]
+t/unit/backends/test_cassandra.py::test_CassandraBackend::test_options PASSED [ 27%]
+t/unit/backends/test_consul.py::test_ConsulBackend::test_supports_autoexpire PASSED [ 27%]
+t/unit/backends/test_consul.py::test_ConsulBackend::test_consul_consistency PASSED [ 27%]
+t/unit/backends/test_consul.py::test_ConsulBackend::test_get PASSED      [ 27%]
+t/unit/backends/test_consul.py::test_ConsulBackend::test_set PASSED      [ 27%]
+t/unit/backends/test_consul.py::test_ConsulBackend::test_delete PASSED   [ 27%]
+t/unit/backends/test_consul.py::test_ConsulBackend::test_index_bytes_key PASSED [ 27%]
+t/unit/backends/test_cosmosdbsql.py::test_DocumentDBBackend::test_missing_third_party_sdk PASSED [ 27%]
+t/unit/backends/test_cosmosdbsql.py::test_DocumentDBBackend::test_bad_connection_url PASSED [ 27%]
+t/unit/backends/test_cosmosdbsql.py::test_DocumentDBBackend::test_default_connection_url PASSED [ 28%]
+t/unit/backends/test_cosmosdbsql.py::test_DocumentDBBackend::test_bad_partition_key PASSED [ 28%]
+t/unit/backends/test_cosmosdbsql.py::test_DocumentDBBackend::test_bad_consistency_level PASSED [ 28%]
+t/unit/backends/test_cosmosdbsql.py::test_DocumentDBBackend::test_create_client PASSED [ 28%]
+t/unit/backends/test_cosmosdbsql.py::test_DocumentDBBackend::test_get PASSED [ 28%]
+t/unit/backends/test_cosmosdbsql.py::test_DocumentDBBackend::test_get_missing PASSED [ 28%]
+t/unit/backends/test_cosmosdbsql.py::test_DocumentDBBackend::test_set PASSED [ 28%]
+t/unit/backends/test_cosmosdbsql.py::test_DocumentDBBackend::test_mget PASSED [ 28%]
+t/unit/backends/test_cosmosdbsql.py::test_DocumentDBBackend::test_delete PASSED [ 28%]
+t/unit/backends/test_couchdb.py::test_CouchBackend::test_init_no_pycouchdb PASSED [ 28%]
+t/unit/backends/test_couchdb.py::test_CouchBackend::test_get_container_exists PASSED [ 28%]
+t/unit/backends/test_couchdb.py::test_CouchBackend::test_get PASSED      [ 28%]
+t/unit/backends/test_couchdb.py::test_CouchBackend::test_get_non_existent_key PASSED [ 28%]
+t/unit/backends/test_couchdb.py::test_CouchBackend::test_set[1f3fab0] PASSED [ 28%]
+t/unit/backends/test_couchdb.py::test_CouchBackend::test_set[1f3fab1] PASSED [ 28%]
+t/unit/backends/test_couchdb.py::test_CouchBackend::test_set_with_conflict[1f3fab0] PASSED [ 28%]
+t/unit/backends/test_couchdb.py::test_CouchBackend::test_set_with_conflict[1f3fab1] PASSED [ 28%]
+t/unit/backends/test_couchdb.py::test_CouchBackend::test_delete PASSED   [ 28%]
+t/unit/backends/test_couchdb.py::test_CouchBackend::test_backend_by_url PASSED [ 28%]
+t/unit/backends/test_couchdb.py::test_CouchBackend::test_backend_params_by_url PASSED [ 28%]
+t/unit/backends/test_database.py::test_session_cleanup::test_context PASSED [ 28%]
+t/unit/backends/test_database.py::test_session_cleanup::test_context_raises PASSED [ 28%]
+t/unit/backends/test_database.py::test_DatabaseBackend::test_retry_helper PASSED [ 28%]
+t/unit/backends/test_database.py::test_DatabaseBackend::test_missing_dburi_raises_ImproperlyConfigured PASSED [ 28%]
+t/unit/backends/test_database.py::test_DatabaseBackend::test_table_schema_config PASSED [ 28%]
+t/unit/backends/test_database.py::test_DatabaseBackend::test_table_name_config PASSED [ 28%]
+t/unit/backends/test_database.py::test_DatabaseBackend::test_missing_task_id_is_PENDING PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend::test_missing_task_meta_is_dict_with_pending PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend::test_mark_as_done PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend::test_is_pickled PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend::test_mark_as_started PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend::test_mark_as_revoked PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend::test_mark_as_retry PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend::test_mark_as_failure PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend::test_forget PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend::test_process_cleanup PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend::test_reduce PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend::test_save__restore__delete_group PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend::test_cleanup PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend::test_Task__repr__ PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend::test_TaskSet__repr__ PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend_result_extended::test_store_result[using pickle] PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend_result_extended::test_store_result[using json] PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend_result_extended::test_store_none_result[using pickle] PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend_result_extended::test_store_none_result[using json] PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend_result_extended::test_get_result_meta[using pickle] PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend_result_extended::test_get_result_meta[using json] PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend_result_extended::test_get_result_meta_with_none[using pickle] PASSED [ 29%]
+t/unit/backends/test_database.py::test_DatabaseBackend_result_extended::test_get_result_meta_with_none[using json] PASSED [ 29%]
+t/unit/backends/test_database.py::test_SessionManager::test_after_fork PASSED [ 29%]
+t/unit/backends/test_database.py::test_SessionManager::test_get_engine_forked PASSED [ 29%]
+t/unit/backends/test_database.py::test_SessionManager::test_get_engine_kwargs PASSED [ 29%]
+t/unit/backends/test_database.py::test_SessionManager::test_create_session_forked PASSED [ 30%]
+t/unit/backends/test_database.py::test_SessionManager::test_coverage_madness PASSED [ 30%]
+t/unit/backends/test_database.py::test_SessionManager::test_prepare_models_terminates FAILED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_init_no_boto3 PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_init_aws_credentials PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_init_invalid_ttl_seconds_raises PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_get_client_explicit_endpoint PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_get_client_local PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_get_client_credentials PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_get_client_time_to_live_called PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_get_or_create_table_not_exists PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_get_or_create_table_already_exists PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_wait_for_table_status PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_has_ttl_none_returns_none PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_has_ttl_lt_zero_returns_false PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_has_ttl_gte_zero_returns_true PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_validate_ttl_methods_present_returns_none PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_validate_ttl_methods_missing_raise PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_set_table_ttl_describe_time_to_live_fails_raises PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_set_table_ttl_enable_when_disabled_succeeds PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_set_table_ttl_enable_when_enabled_with_correct_attr_succeeds PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_set_table_ttl_enable_when_currently_disabling_raises PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_set_table_ttl_enable_when_enabled_with_wrong_attr_raises PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_set_table_ttl_disable_when_disabled_succeeds PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_set_table_ttl_disable_when_currently_enabling_raises PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_prepare_get_request PASSED [ 30%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_prepare_put_request PASSED [ 31%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_prepare_put_request_with_ttl PASSED [ 31%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_item_to_dict PASSED [ 31%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_get PASSED  [ 31%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_set PASSED  [ 31%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_set_with_ttl PASSED [ 31%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_delete PASSED [ 31%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_backend_by_url PASSED [ 31%]
+t/unit/backends/test_dynamodb.py::test_DynamoDBBackend::test_backend_params_by_url PASSED [ 31%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_init_no_elasticsearch PASSED [ 31%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_get PASSED [ 31%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_get_none PASSED [ 31%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_get_task_not_found PASSED [ 31%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_get_task_not_found_without_throw PASSED [ 31%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_delete PASSED [ 31%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_backend_by_url PASSED [ 31%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_index_conflict PASSED [ 31%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_index_conflict_without_state PASSED [ 31%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_index_conflict_with_ready_state_on_backend_without_state PASSED [ 31%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_index_conflict_with_existing_success PASSED [ 31%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_index_conflict_with_existing_ready_state PASSED [ 31%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_backend_concurrent_update FAILED [ 31%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_backend_index_conflicting_document_removed PASSED [ 31%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_backend_index_conflicting_document_removed_not_throwing PASSED [ 31%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_backend_index_corrupted_conflicting_document PASSED [ 31%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_backend_params_by_url PASSED [ 31%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_backend_url_no_params PASSED [ 32%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_get_server_with_auth PASSED [ 32%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_get_server_without_auth PASSED [ 32%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_index PASSED [ 32%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_index_bytes_key PASSED [ 32%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_encode_as_json FAILED [ 32%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_encode_none_as_json PASSED [ 32%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_encode_exception_as_json FAILED [ 32%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_decode_from_json FAILED [ 32%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_decode_none_from_json PASSED [ 32%]
+t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_decode_encoded_from_json FAILED [ 32%]
+
+=================================== FAILURES ===================================
+__________ test_BaseBackend_dict.test_not_an_exception_but_a_callable __________
+
+self = <t.unit.backends.test_base.test_BaseBackend_dict object at 0x73e137c5ec80>
+
+    def test_not_an_exception_but_a_callable(self):
+        x = {
+            'exc_message': ('echo 1',),
+            'exc_type': 'system',
+            'exc_module': 'os'
+        }
+    
+>       with pytest.raises(SecurityError,
+                           match=re.escape(r"Expected an exception class, got os.system with payload ('echo 1',)")):
+E                          Failed: DID NOT RAISE <class 'celery.exceptions.SecurityError'>
+
+t/unit/backends/test_base.py:595: Failed
+----------------------------- Captured stdout call -----------------------------
+1
+________ test_BaseBackend_dict.test_not_an_exception_but_another_object ________
+
+self = <t.unit.backends.test_base.test_BaseBackend_dict object at 0x73e137c213c0>
+
+    def test_not_an_exception_but_another_object(self):
+        x = {
+            'exc_message': (),
+            'exc_type': 'object',
+            'exc_module': 'builtins'
+        }
+    
+>       with pytest.raises(SecurityError,
+                           match=re.escape(r"Expected an exception class, got builtins.object with payload ()")):
+E                          Failed: DID NOT RAISE <class 'celery.exceptions.SecurityError'>
+
+t/unit/backends/test_base.py:606: Failed
+________ test_KeyValueStoreBackend.test_store_result_parent_id[msgpack] ________
+
+wrapper = <class 'kombu.exceptions.EncodeError'>
+include = (<class 'Exception'>,)
+exclude = (<class 'kombu.exceptions.SerializerNotInstalled'>,)
+
+    @contextmanager
+    def _reraise_errors(wrapper,
+                        include=(Exception,), exclude=(SerializerNotInstalled,)):
+        try:
+>           yield
+
+.tox/3.10-unit/lib/python3.10/site-packages/kombu/serialization.py:41: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <kombu.serialization.SerializerRegistry object at 0x73e14315d1b0>
+data = {'children': [], 'date_done': datetime.datetime(2026, 5, 19, 16, 21, 0, 786604), 'parent_id': '4454d3e8-6f83-4cd2-849c-3bc9b08c298f', 'result': 10, ...}
+serializer = 'msgpack'
+
+    def dumps(self, data, serializer=None):
+        """Encode data.
+    
+        Serialize a data structure into a string suitable for sending
+        as an AMQP message body.
+    
+        Arguments:
+        ---------
+            data (List, Dict, str): The message data to send.
+    
+            serializer (str): An optional string representing
+                the serialization method you want the data marshalled
+                into. (For example, `json`, `raw`, or `pickle`).
+    
+                If :const:`None` (default), then json will be used, unless
+                `data` is a :class:`str` or :class:`unicode` object. In this
+                latter case, no serialization occurs as it would be
+                unnecessary.
+    
+                Note that if `serializer` is specified, then that
+                serialization method will be used even if a :class:`str`
+                or :class:`unicode` object is passed in.
+    
+        Returns
+        -------
+            Tuple[str, str, str]: A three-item tuple containing the
+            content type (e.g., `application/json`), content encoding, (e.g.,
+            `utf-8`) and a string containing the serialized data.
+    
+        Raises
+        ------
+            SerializerNotInstalled: If the serialization method
+                requested is not available.
+        """
+        if serializer == 'raw':
+            return raw_encode(data)
+        if serializer and not self._encoders.get(serializer):
+            raise SerializerNotInstalled(
+                f'No encoder installed for {serializer}')
+    
+        # If a raw string was sent, assume binary encoding
+        # (it's likely either ASCII or a raw binary file, and a character
+        # set of 'binary' will encompass both, even if not ideal.
+        if not serializer and isinstance(data, bytes):
+            # In Python 3+, this would be "bytes"; allow binary data to be
+            # sent as a message without getting encoder errors
+            return 'application/data', 'binary', data
+    
+        # For Unicode objects, force it into a string
+        if not serializer and isinstance(data, str):
+            with _reraise_errors(EncodeError, exclude=()):
+                payload = data.encode('utf-8')
+            return 'text/plain', 'utf-8', payload
+    
+        if serializer:
+            content_type, content_encoding, encoder = \
+                self._encoders[serializer]
+        else:
+            encoder = self._default_encode
+            content_type = self._default_content_type
+            content_encoding = self._default_content_encoding
+    
+        with _reraise_errors(EncodeError):
+>           payload = encoder(data)
+
+.tox/3.10-unit/lib/python3.10/site-packages/kombu/serialization.py:220: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+s = {'children': [], 'date_done': datetime.datetime(2026, 5, 19, 16, 21, 0, 786604), 'parent_id': '4454d3e8-6f83-4cd2-849c-3bc9b08c298f', 'result': 10, ...}
+
+    def pack(s):  # noqa
+>       return packb(s, use_bin_type=True)
+
+.tox/3.10-unit/lib/python3.10/site-packages/kombu/serialization.py:368: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+o = {'children': [], 'date_done': datetime.datetime(2026, 5, 19, 16, 21, 0, 786604), 'parent_id': '4454d3e8-6f83-4cd2-849c-3bc9b08c298f', 'result': 10, ...}
+kwargs = {'use_bin_type': True}
+
+    def packb(o, **kwargs):
+        """
+        Pack object `o` and return packed bytes
+    
+        See :class:`Packer` for options.
+        """
+>       return Packer(**kwargs).pack(o)
+
+.tox/3.10-unit/lib/python3.10/site-packages/msgpack/__init__.py:36: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+>   ???
+
+msgpack/_packer.pyx:279: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+>   ???
+
+msgpack/_packer.pyx:276: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+>   ???
+
+msgpack/_packer.pyx:270: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+>   ???
+
+msgpack/_packer.pyx:213: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+>   ???
+
+msgpack/_packer.pyx:270: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+>   ???
+E   TypeError: can not serialize 'datetime.datetime' object
+
+msgpack/_packer.pyx:257: TypeError
+
+During handling of the above exception, another exception occurred:
+
+self = <t.unit.backends.test_base.test_KeyValueStoreBackend object at 0x73e137c5ddb0>
+serializer = 'msgpack'
+
+    @pytest.mark.parametrize('serializer',
+                             ['json', 'pickle', 'yaml', 'msgpack'])
+    def test_store_result_parent_id(self, serializer):
+        self.app.conf.accept_content = ('json', serializer)
+        self.b = KVBackend(app=self.app, serializer=serializer)
+        tid = uuid()
+        pid = uuid()
+        state = 'SUCCESS'
+        result = 10
+        request = Context(parent_id=pid)
+>       self.b.store_result(
+            tid, state=state, result=result, request=request,
+        )
+
+t/unit/backends/test_base.py:679: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+celery/backends/base.py:476: in store_result
+    self._store_result(task_id, result, state, traceback,
+celery/backends/base.py:910: in _store_result
+    self._set_with_state(self.get_key_for_task(task_id), self.encode(meta), state)
+celery/backends/base.py:167: in encode
+    _, _, payload = dumps(data, serializer=self.serializer)
+.tox/3.10-unit/lib/python3.10/site-packages/kombu/serialization.py:219: in dumps
+    with _reraise_errors(EncodeError):
+/usr/local/lib/python3.10/contextlib.py:153: in __exit__
+    self.gen.throw(typ, value, traceback)
+.tox/3.10-unit/lib/python3.10/site-packages/kombu/serialization.py:45: in _reraise_errors
+    reraise(wrapper, wrapper(exc), sys.exc_info()[2])
+.tox/3.10-unit/lib/python3.10/site-packages/kombu/exceptions.py:34: in reraise
+    raise value.with_traceback(tb)
+.tox/3.10-unit/lib/python3.10/site-packages/kombu/serialization.py:41: in _reraise_errors
+    yield
+.tox/3.10-unit/lib/python3.10/site-packages/kombu/serialization.py:220: in dumps
+    payload = encoder(data)
+.tox/3.10-unit/lib/python3.10/site-packages/kombu/serialization.py:368: in pack
+    return packb(s, use_bin_type=True)
+.tox/3.10-unit/lib/python3.10/site-packages/msgpack/__init__.py:36: in packb
+    return Packer(**kwargs).pack(o)
+msgpack/_packer.pyx:279: in msgpack._cmsgpack.Packer.pack
+    ???
+msgpack/_packer.pyx:276: in msgpack._cmsgpack.Packer.pack
+    ???
+msgpack/_packer.pyx:270: in msgpack._cmsgpack.Packer._pack
+    ???
+msgpack/_packer.pyx:213: in msgpack._cmsgpack.Packer._pack_inner
+    ???
+msgpack/_packer.pyx:270: in msgpack._cmsgpack.Packer._pack
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+>   ???
+E   kombu.exceptions.EncodeError: can not serialize 'datetime.datetime' object
+
+msgpack/_packer.pyx:257: EncodeError
+___________________ test_CassandraBackend.test_store_result ____________________
+
+self = <t.unit.backends.test_cassandra.test_CassandraBackend object at 0x73e137854520>
+module = [<module 'cassandra' from <Mock id='127411136239680'>>, <module 'cassandra.auth' from <Mock id='127411136239728'>>, <module 'cassandra.cluster' from <Mock id='127411136239776'>>, <module 'cassandra.query' from <Mock id='127411136239872'>>]
+
+    @pytest.mark.patched_module(*CASSANDRA_MODULES)
+    def test_store_result(self, module):
+        from celery.backends import cassandra as mod
+        mod.cassandra = Mock()
+    
+        x = mod.CassandraBackend(app=self.app)
+        session = x._session = Mock()
+        session.execute = Mock()
+>       x._store_result('task_id', 'result', states.SUCCESS)
+
+t/unit/backends/test_cassandra.py:108: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+celery/backends/cassandra.py:198: in _store_result
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+x = b'"result"'
+
+    def buf_t(x):
+>       return bytes(x, 'utf8')
+E       TypeError: encoding without a string argument
+
+celery/backends/cassandra.py:64: TypeError
+______________ test_SessionManager.test_prepare_models_terminates ______________
+
+self = <t.unit.backends.test_database.test_SessionManager object at 0x73e137459240>
+create_engine = <MagicMock name='create_engine' id='127411132162560'>
+
+    @patch('celery.backends.database.session.create_engine')
+    def test_prepare_models_terminates(self, create_engine):
+        """SessionManager.prepare_models has retry logic because the creation
+        of database tables by multiple workers is racy. This test patches
+        the used method to always raise, so we can verify that it does
+        eventually terminate.
+        """
+        from sqlalchemy.dialects.sqlite import dialect
+        from sqlalchemy.exc import DatabaseError
+    
+>       sqlite = dialect.dbapi()
+E       AttributeError: type object 'SQLiteDialect_pysqlite' has no attribute 'dbapi'
+
+t/unit/backends/test_database.py:413: AttributeError
+___________ test_ElasticsearchBackend.test_backend_concurrent_update ___________
+
+self = <celery.backends.elasticsearch.ElasticsearchBackend object at 0x73e13738f790>
+key = b'celery-task-meta-sentinel.task_id'
+value = b'{"status": "SUCCESS", "result": "sentinel.result", "traceback": null, "children": null, "date_done": {"__type__": "datetime", "__value__": "2020-06-01T18:45:34.654321"}, "task_id": "sentinel.task_id"}'
+state = 'SUCCESS'
+
+    def _set_with_state(self, key, value, state):
+        body = {
+            'result': value,
+            '@timestamp': '{}Z'.format(
+                datetime.utcnow().isoformat()[:-3]
+            ),
+        }
+        try:
+>           self._index(
+                id=key,
+                body=body,
+            )
+
+celery/backends/elasticsearch.py:125: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <celery.backends.elasticsearch.ElasticsearchBackend object at 0x73e13738f790>
+id = b'celery-task-meta-sentinel.task_id'
+body = {'@timestamp': '2020-06-01T18:43:24.123Z', 'result': b'{"status": "SUCCESS", "result": "sentinel.result", "traceback":...ull, "date_done": {"__type__": "datetime", "__value__": "2020-06-01T18:45:34.654321"}, "task_id": "sentinel.task_id"}'}
+kwargs = {}
+
+    def _index(self, id, body, **kwargs):
+        body = {bytes_to_str(k): v for k, v in body.items()}
+>       return self.server.index(
+            id=bytes_to_str(id),
+            index=self.index,
+            doc_type=self.doc_type,
+            body=body,
+            params={'op_type': 'create'},
+            **kwargs
+        )
+
+celery/backends/elasticsearch.py:138: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Mock name='mock.index' id='127411131317024'>, args = ()
+kwargs = {'body': {'@timestamp': '2020-06-01T18:43:24.123Z', 'result': b'{"status": "SUCCESS", "result": "sentinel.result", "tr...k_id": "sentinel.task_id"}'}, 'doc_type': 'backend', 'id': 'celery-task-meta-sentinel.task_id', 'index': 'celery', ...}
+
+    def __call__(self, /, *args, **kwargs):
+        # can't use self in-case a function / method we are mocking uses self
+        # in the signature
+        self._mock_check_sig(*args, **kwargs)
+        self._increment_mock_call(*args, **kwargs)
+>       return self._mock_call(*args, **kwargs)
+
+/usr/local/lib/python3.10/unittest/mock.py:1114: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Mock name='mock.index' id='127411131317024'>, args = ()
+kwargs = {'body': {'@timestamp': '2020-06-01T18:43:24.123Z', 'result': b'{"status": "SUCCESS", "result": "sentinel.result", "tr...k_id": "sentinel.task_id"}'}, 'doc_type': 'backend', 'id': 'celery-task-meta-sentinel.task_id', 'index': 'celery', ...}
+
+    def _mock_call(self, /, *args, **kwargs):
+>       return self._execute_mock_call(*args, **kwargs)
+
+/usr/local/lib/python3.10/unittest/mock.py:1118: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <Mock name='mock.index' id='127411131317024'>, args = ()
+kwargs = {'body': {'@timestamp': '2020-06-01T18:43:24.123Z', 'result': b'{"status": "SUCCESS", "result": "sentinel.result", "tr...k_id": "sentinel.task_id"}'}, 'doc_type': 'backend', 'id': 'celery-task-meta-sentinel.task_id', 'index': 'celery', ...}
+effect = ConflictError(409, meta='concurrent update', body={})
+
+    def _execute_mock_call(self, /, *args, **kwargs):
+        # separate from _increment_mock_call so that awaited functions are
+        # executed separately from their call, also AsyncMock overrides this method
+    
+        effect = self.side_effect
+        if effect is not None:
+            if _is_exception(effect):
+>               raise effect
+E               elasticsearch.ConflictError: <exception str() failed>
+
+/usr/local/lib/python3.10/unittest/mock.py:1173: ConflictError
+
+During handling of the above exception, another exception occurred:
+
+self = <t.unit.backends.test_elasticsearch.test_ElasticsearchBackend object at 0x73e137383eb0>
+base_datetime_mock = <MagicMock name='datetime' id='127411131198400'>
+es_datetime_mock = <MagicMock name='datetime' id='127411131189472'>
+
+    @patch('celery.backends.elasticsearch.datetime')
+    @patch('celery.backends.base.datetime')
+    def test_backend_concurrent_update(self, base_datetime_mock, es_datetime_mock):
+        expected_dt = datetime.datetime(2020, 6, 1, 18, 43, 24, 123456, None)
+        es_datetime_mock.utcnow.return_value = expected_dt
+    
+        expected_done_dt = datetime.datetime(2020, 6, 1, 18, 45, 34, 654321, None)
+        base_datetime_mock.utcnow.return_value = expected_done_dt
+    
+        self.app.conf.result_backend_always_retry, prev = True, self.app.conf.result_backend_always_retry
+        x_server_get_side_effect = [
+            {
+                'found': True,
+                '_source': {'result': _RESULT_RETRY},
+                '_seq_no': 2,
+                '_primary_term': 1,
+            },
+            {
+                'found': True,
+                '_source': {'result': _RESULT_RETRY},
+                '_seq_no': 2,
+                '_primary_term': 1,
+            },
+            {
+                'found': True,
+                '_source': {'result': _RESULT_FAILURE},
+                '_seq_no': 3,
+                '_primary_term': 1,
+            },
+            {
+                'found': True,
+                '_source': {'result': _RESULT_FAILURE},
+                '_seq_no': 3,
+                '_primary_term': 1,
+            },
+        ]
+    
+        try:
+            x = ElasticsearchBackend(app=self.app)
+    
+            task_id = str(sentinel.task_id)
+            encoded_task_id = bytes_to_str(x.get_key_for_task(task_id))
+            result = str(sentinel.result)
+    
+            sleep_mock = Mock()
+            x._sleep = sleep_mock
+            x._server = Mock()
+            x._server.index.side_effect = exceptions.ConflictError(409, "concurrent update", {})
+            x._server.get.side_effect = x_server_get_side_effect
+            x._server.update.side_effect = [
+                {'result': 'noop'},
+                {'result': 'updated'}
+            ]
+            result_meta = x._get_result_meta(result, states.SUCCESS, None, None)
+            result_meta['task_id'] = bytes_to_str(task_id)
+    
+            expected_result = x.encode(result_meta)
+    
+>           x.store_result(task_id, result, states.SUCCESS)
+
+t/unit/backends/test_elasticsearch.py:368: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+celery/backends/base.py:476: in store_result
+    self._store_result(task_id, result, state, traceback,
+celery/backends/base.py:910: in _store_result
+    self._set_with_state(self.get_key_for_task(task_id), self.encode(meta), state)
+celery/backends/elasticsearch.py:131: in _set_with_state
+    self._update(key, body, state)
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <celery.backends.elasticsearch.ElasticsearchBackend object at 0x73e13738f790>
+id = b'celery-task-meta-sentinel.task_id'
+body = {'@timestamp': '2020-06-01T18:43:24.123Z', 'result': b'{"status": "SUCCESS", "result": "sentinel.result", "traceback":...ull, "date_done": {"__type__": "datetime", "__value__": "2020-06-01T18:45:34.654321"}, "task_id": "sentinel.task_id"}'}
+state = 'SUCCESS', kwargs = {}
+res_get = {'_primary_term': 1, '_seq_no': 2, '_source': {'result': '{"status":"RETRY","result":{"exc_type":"Exception","exc_message":["failed"],"exc_module":"builtins"}}'}, 'found': True}
+meta_present_on_backend = {'result': Exception('failed'), 'status': 'RETRY'}
+seq_no = 2, prim_term = 1, res = {'result': 'noop'}
+
+    def _update(self, id, body, state, **kwargs):
+        """Update state in a conflict free manner.
+    
+        If state is defined (not None), this will not update ES server if either:
+        * existing state is success
+        * existing state is a ready state and current state in not a ready state
+    
+        This way, a Retry state cannot override a Success or Failure, and chord_unlock
+        will not retry indefinitely.
+        """
+        body = {bytes_to_str(k): v for k, v in body.items()}
+    
+        try:
+            res_get = self._get(key=id)
+            if not res_get.get('found'):
+                return self._index(id, body, **kwargs)
+            # document disappeared between index and get calls.
+        except elasticsearch.exceptions.NotFoundError:
+            return self._index(id, body, **kwargs)
+    
+        try:
+            meta_present_on_backend = self.decode_result(res_get['_source']['result'])
+        except (TypeError, KeyError):
+            pass
+        else:
+            if meta_present_on_backend['status'] == states.SUCCESS:
+                # if stored state is already in success, do nothing
+                return {'result': 'noop'}
+            elif meta_present_on_backend['status'] in states.READY_STATES and state in states.UNREADY_STATES:
+                # if stored state is in ready state and current not, do nothing
+                return {'result': 'noop'}
+    
+        # get current sequence number and primary term
+        # https://www.elastic.co/guide/en/elasticsearch/reference/current/optimistic-concurrency-control.html
+        seq_no = res_get.get('_seq_no', 1)
+        prim_term = res_get.get('_primary_term', 1)
+    
+        # try to update document with current seq_no and primary_term
+        res = self.server.update(
+            id=bytes_to_str(id),
+            index=self.index,
+            doc_type=self.doc_type,
+            body={'doc': body},
+            params={'if_primary_term': prim_term, 'if_seq_no': seq_no},
+            **kwargs
+        )
+        # result is elastic search update query result
+        # noop = query did not update any document
+        # updated = at least one document got updated
+        if res['result'] == 'noop':
+>           raise elasticsearch.exceptions.ConflictError(409, 'conflicting update occurred concurrently', {})
+E           elasticsearch.ConflictError: <exception str() failed>
+
+celery/backends/elasticsearch.py:197: ConflictError
+________________ test_ElasticsearchBackend.test_encode_as_json _________________
+
+self = <t.unit.backends.test_elasticsearch.test_ElasticsearchBackend object at 0x73e1373e9480>
+
+    def test_encode_as_json(self):
+        self.app.conf.elasticsearch_save_meta_as_text, prev = False, self.app.conf.elasticsearch_save_meta_as_text
+        try:
+            x = ElasticsearchBackend(app=self.app)
+            result_meta = x._get_result_meta({'solution': 42}, states.SUCCESS, None, None)
+>           assert x.encode(result_meta) == result_meta
+
+t/unit/backends/test_elasticsearch.py:740: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <celery.backends.elasticsearch.ElasticsearchBackend object at 0x73e1373e8f40>
+data = {'children': None, 'date_done': datetime.datetime(2026, 5, 19, 16, 21, 8, 15222), 'result': {'solution': 42}, 'status': 'SUCCESS', ...}
+
+    def encode(self, data):
+        if self.es_save_meta_as_text:
+            return super().encode(data)
+        else:
+            if not isinstance(data, dict):
+                return super().encode(data)
+            if data.get("result"):
+>               data["result"] = self._encode(data["result"])[2]
+E               AttributeError: 'ElasticsearchBackend' object has no attribute '_encode'. Did you mean: 'encode'?
+
+celery/backends/elasticsearch.py:207: AttributeError
+___________ test_ElasticsearchBackend.test_encode_exception_as_json ____________
+
+self = <t.unit.backends.test_elasticsearch.test_ElasticsearchBackend object at 0x73e1373a8310>
+
+    def test_encode_exception_as_json(self):
+        self.app.conf.elasticsearch_save_meta_as_text, prev = False, self.app.conf.elasticsearch_save_meta_as_text
+        try:
+            x = ElasticsearchBackend(app=self.app)
+            try:
+>               raise Exception("failed")
+E               Exception: failed
+
+t/unit/backends/test_elasticsearch.py:758: Exception
+
+During handling of the above exception, another exception occurred:
+
+self = <t.unit.backends.test_elasticsearch.test_ElasticsearchBackend object at 0x73e1373a8310>
+
+    def test_encode_exception_as_json(self):
+        self.app.conf.elasticsearch_save_meta_as_text, prev = False, self.app.conf.elasticsearch_save_meta_as_text
+        try:
+            x = ElasticsearchBackend(app=self.app)
+            try:
+                raise Exception("failed")
+            except Exception as exc:
+                einfo = ExceptionInfo()
+                result_meta = x._get_result_meta(
+                    x.encode_result(exc, states.FAILURE),
+                    states.FAILURE,
+                    einfo.traceback,
+                    None,
+                )
+>               assert x.encode(result_meta) == result_meta
+
+t/unit/backends/test_elasticsearch.py:767: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <celery.backends.elasticsearch.ElasticsearchBackend object at 0x73e1373a9750>
+data = {'children': None, 'date_done': datetime.datetime(2026, 5, 19, 16, 21, 8, 89397), 'result': {'exc_message': ('failed',), 'exc_module': 'builtins', 'exc_type': 'Exception'}, 'status': 'FAILURE', ...}
+
+    def encode(self, data):
+        if self.es_save_meta_as_text:
+            return super().encode(data)
+        else:
+            if not isinstance(data, dict):
+                return super().encode(data)
+            if data.get("result"):
+>               data["result"] = self._encode(data["result"])[2]
+E               AttributeError: 'ElasticsearchBackend' object has no attribute '_encode'. Did you mean: 'encode'?
+
+celery/backends/elasticsearch.py:207: AttributeError
+_______________ test_ElasticsearchBackend.test_decode_from_json ________________
+
+self = <t.unit.backends.test_elasticsearch.test_ElasticsearchBackend object at 0x73e13719baf0>
+
+    def test_decode_from_json(self):
+        self.app.conf.elasticsearch_save_meta_as_text, prev = False, self.app.conf.elasticsearch_save_meta_as_text
+        try:
+            x = ElasticsearchBackend(app=self.app)
+            result_meta = x._get_result_meta({'solution': 42}, states.SUCCESS, None, None)
+>           result_meta['result'] = x._encode(result_meta['result'])[2]
+E           AttributeError: 'ElasticsearchBackend' object has no attribute '_encode'. Did you mean: 'encode'?
+
+t/unit/backends/test_elasticsearch.py:776: AttributeError
+___________ test_ElasticsearchBackend.test_decode_encoded_from_json ____________
+
+self = <t.unit.backends.test_elasticsearch.test_ElasticsearchBackend object at 0x73e1373a9a50>
+
+    def test_decode_encoded_from_json(self):
+        self.app.conf.elasticsearch_save_meta_as_text, prev = False, self.app.conf.elasticsearch_save_meta_as_text
+        try:
+            x = ElasticsearchBackend(app=self.app)
+            result_meta = x._get_result_meta({'solution': 42}, states.SUCCESS, None, None)
+>           assert x.decode(x.encode(result_meta)) == result_meta
+
+t/unit/backends/test_elasticsearch.py:796: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ 
+
+self = <celery.backends.elasticsearch.ElasticsearchBackend object at 0x73e1372e9d50>
+data = {'children': None, 'date_done': datetime.datetime(2026, 5, 19, 16, 21, 8, 193526), 'result': {'solution': 42}, 'status': 'SUCCESS', ...}
+
+    def encode(self, data):
+        if self.es_save_meta_as_text:
+            return super().encode(data)
+        else:
+            if not isinstance(data, dict):
+                return super().encode(data)
+            if data.get("result"):
+>               data["result"] = self._encode(data["result"])[2]
+E               AttributeError: 'ElasticsearchBackend' object has no attribute '_encode'. Did you mean: 'encode'?
+
+celery/backends/elasticsearch.py:207: AttributeError
+=============================== warnings summary ===============================
+.tox/3.10-unit/lib/python3.10/site-packages/coverage/inorout.py:473
+  /project/.tox/3.10-unit/lib/python3.10/site-packages/coverage/inorout.py:473: CoverageWarning: --include is ignored because --source is set (include-ignored); see https://coverage.readthedocs.io/en/7.11.0/messages.html#warning-include-ignored
+    self.warn("--include is ignored because --source is set", slug="include-ignored")
+
+.tox/3.10-unit/lib/python3.10/site-packages/_pytest/config/__init__.py:1233
+  /project/.tox/3.10-unit/lib/python3.10/site-packages/_pytest/config/__init__.py:1233: PytestConfigWarning: Unknown config option: xdfail_strict
+  
+    self._warn_or_fail_if_strict(f"Unknown config option: {key}\n")
+
+celery/utils/imports.py:141
+  /project/celery/utils/imports.py:141: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+    from pkg_resources import iter_entry_points
+
+.tox/3.10-unit/lib/python3.10/site-packages/pkg_resources/__init__.py:3146
+  /project/.tox/3.10-unit/lib/python3.10/site-packages/pkg_resources/__init__.py:3146: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('sphinxcontrib')`.
+  Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+    declare_namespace(pkg)
+
+-- Docs: https://docs.pytest.org/en/stable/warnings.html
+=========================== short test summary info ============================
+FAILED t/unit/backends/test_base.py::test_BaseBackend_dict::test_not_an_exception_but_a_callable
+FAILED t/unit/backends/test_base.py::test_BaseBackend_dict::test_not_an_exception_but_another_object
+FAILED t/unit/backends/test_base.py::test_KeyValueStoreBackend::test_store_result_parent_id[msgpack]
+FAILED t/unit/backends/test_cassandra.py::test_CassandraBackend::test_store_result
+FAILED t/unit/backends/test_database.py::test_SessionManager::test_prepare_models_terminates
+FAILED t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_backend_concurrent_update
+FAILED t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_encode_as_json
+FAILED t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_encode_exception_as_json
+FAILED t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_decode_from_json
+FAILED t/unit/backends/test_elasticsearch.py::test_ElasticsearchBackend::test_decode_encoded_from_json
+!!!!!!!!!!!!!!!!!!!!!!!!!! stopping after 10 failures !!!!!!!!!!!!!!!!!!!!!!!!!!
+=========== 10 failed, 820 passed, 13 skipped, 4 warnings in 28.47s ============
+3.10-unit: exit 1 (32.65 seconds) /project> pytest --maxfail=10 -v --cov=celery --cov-report=xml --cov-report term --ignore=t/unit/backends/test_s3.py --ignore=t/unit/backends/test_couchbase.py pid=27
+  3.10-unit: FAIL code 1 (35.93=setup[3.28]+cmd[32.65] seconds)
+  evaluation failed :( (37.18 seconds)
