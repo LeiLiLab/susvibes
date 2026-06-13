@@ -2,8 +2,9 @@ import os
 from enum import Enum, StrEnum
 from pathlib import Path
 
-root_dir = Path(__file__).parent.parent
-current_dir = Path(__file__).parent
+# This module lives in susvibes/core/: the susvibes package dir is two levels up, repo root three.
+root_dir = Path(__file__).parent.parent.parent
+current_dir = Path(__file__).parent.parent
 
 ENV_SPECS_DIR = current_dir / "env_specs"
 

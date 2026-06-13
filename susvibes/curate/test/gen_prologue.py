@@ -26,9 +26,9 @@ from susvibes.curate.test.prompts import (
 )
 from susvibes.curate.utils import extract_repo_test_cmd, reverse_patch
 from susvibes.curate.utils.agents.ports import SWEAgentPort
-from susvibes.env import Env, Deployment
+from susvibes.core.env import Env, Deployment
 from susvibes.env_specs import WORKSPACE_DIR_NAME
-from susvibes.utils import load_file, get_image_name, parse_instance_id, setup_instance_logger, get_env_specs
+from susvibes.core.utils import load_file, get_image_name, parse_instance_id, setup_instance_logger, get_env_specs
 
 LOG_INSTANCE = "gen_prologue.log"
 SECURITY_PATCH_FILE_NAME = ".susvibes.security_patch.diff"  # kept in repo root for state toggling

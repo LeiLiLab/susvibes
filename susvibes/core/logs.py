@@ -13,10 +13,10 @@ from susvibes.curate.validate.prompts import (
     LOGS_PARSER_PROMPT_TEMPLATE,
     LOGS_CHECKER_PROMPT_TEMPLATE,
 )
-from susvibes.constants import TestStatus
+from susvibes.core.constants import TestStatus
 from susvibes.curate.validate.constants import FAILURE_STATUSES, TestItemStatus
 from susvibes.env_specs import TEST_SYMBOL_RESOLUTION_ERROR_PATTERNS
-from susvibes.utils import load_file, save_file
+from susvibes.core.utils import load_file, save_file
 
 load_dotenv()
 

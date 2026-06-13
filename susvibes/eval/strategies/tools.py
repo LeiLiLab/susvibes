@@ -2,9 +2,9 @@ import json
 from pathlib import Path
 from jinja2 import Template
 
-from susvibes.constants import *
-from susvibes.strategies.prompts import *
-from susvibes.utils import load_file
+from susvibes.core.constants import *
+from susvibes.eval.strategies.prompts import *
+from susvibes.core.utils import load_file
 
 LOG_TEST_OUTPUT = "test_outputs/{}.txt"
 LOG_REPORT = "report.json"

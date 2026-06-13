@@ -6,7 +6,7 @@ from tqdm import tqdm
 
 from susvibes.curate.constants import get_dataset_path
 from susvibes.curate.mine.constants import GITHUB_HEADERS
-from susvibes.utils import load_file, save_file
+from susvibes.core.utils import load_file, save_file
 
 RECENT_YR_CUTOFF = 2014
 

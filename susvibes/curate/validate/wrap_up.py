@@ -10,9 +10,9 @@ import argparse
 from tqdm import tqdm
 from typing import TypedDict
 
-from susvibes.constants import HF_DATASET_REPO, HF_DATASET_FILE_NAME
+from susvibes.core.constants import HF_DATASET_REPO, HF_DATASET_FILE_NAME
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_dataset_path
-from susvibes.utils import load_file
+from susvibes.core.utils import load_file
 from susvibes.curate.utils import (
     get_repo_dir,
     reset_to_commit,

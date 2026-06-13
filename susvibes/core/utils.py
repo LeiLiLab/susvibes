@@ -6,7 +6,7 @@ import logging
 from tqdm import tqdm
 from pathlib import Path
 
-from susvibes.constants import ARCH, DOCKERHUB_USERNAME, ENV_SPECS_DIR, ENV_SPEC_FILE_NAMES
+from susvibes.core.constants import ARCH, DOCKERHUB_USERNAME, ENV_SPECS_DIR, ENV_SPEC_FILE_NAMES
 from susvibes.env_specs import GEN_SEC_TEST_CMD
 
 

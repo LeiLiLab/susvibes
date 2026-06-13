@@ -11,12 +11,12 @@ import re
 from pathlib import Path
 from jinja2 import Template
 
-from susvibes.constants import *
+from susvibes.core.constants import *
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_dataset_path
 from susvibes.env_specs import DEV_TOOL_VERSIONS
 from susvibes.curate.env_setup.prompts import DEV_TOOLS_PROMPT_TEMPLATE
 from susvibes.curate.utils.agents.ports import SWEAgentPort
-from susvibes.utils import load_file, setup_logger, parse_instance_id, touched_files, get_env_specs, save_env_specs
+from susvibes.core.utils import load_file, setup_logger, parse_instance_id, touched_files, get_env_specs, save_env_specs
 from susvibes.curate.utils import (
     get_repo_dir,
     reset_to_commit,

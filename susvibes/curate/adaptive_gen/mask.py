@@ -8,7 +8,7 @@ from susvibes.curate.constants import LOCAL_REPOS_DIR
 from susvibes.curate.adaptive_gen.prompts import MASK_GEN_PROMPT_TEMPLATE
 from susvibes.curate.utils.agents.ports import SWEAgentPort
 from susvibes.curate.adaptive_gen.utils import module_setup_logger
-from susvibes.utils import load_file, save_file, touched_files, filter_target_files
+from susvibes.core.utils import load_file, save_file, touched_files, filter_target_files
 from susvibes.curate.utils import (
     get_repo_dir,
     apply_patch,

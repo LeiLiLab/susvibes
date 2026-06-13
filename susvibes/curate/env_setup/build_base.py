@@ -24,12 +24,12 @@ from pathlib import Path
 import docker.errors
 from tqdm import tqdm
 
-from susvibes.env import Deployment
-from susvibes.constants import ImageLoc
+from susvibes.core.env import Deployment
+from susvibes.core.constants import ImageLoc
 from susvibes.curate.constants import get_log_dir
 from susvibes.env_specs import DEV_TOOL_VERSIONS
 from susvibes.env_specs.dockerfiles import DOCKERFILE_BASE_PY, DOCKERFILE_DIND_PY, DOCKERFILE_COV_PY
-from susvibes.utils import get_image_name, setup_logger
+from susvibes.core.utils import get_image_name, setup_logger
 
 DEV_TOOL_NAME = "python"
 IMAGE_NAMES = ("base_py", "dind_py", "cov_py")

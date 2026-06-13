@@ -14,10 +14,10 @@ import requests
 from docker.models.containers import Container
 from docker.models.images import Image
 
-from susvibes.constants import ContainerLimits, ImageLoc
+from susvibes.core.constants import ContainerLimits, ImageLoc
 from susvibes.env_specs import *
-from susvibes.utils import get_image_name, get_instance_id, save_file
-from susvibes.logs import LogsHandler, PassFailure
+from susvibes.core.utils import get_image_name, get_instance_id, save_file
+from susvibes.core.logs import LogsHandler, PassFailure
 
 docker_client = docker.from_env()
 

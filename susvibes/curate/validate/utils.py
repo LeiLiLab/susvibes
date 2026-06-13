@@ -2,7 +2,7 @@ import logging
 import tempfile
 from pathlib import Path
 
-from susvibes.env import Deployment
+from susvibes.core.env import Deployment
 from susvibes.env_specs import WORKSPACE_DIR_NAME
 
 

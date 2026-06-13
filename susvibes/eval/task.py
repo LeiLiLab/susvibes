@@ -4,11 +4,11 @@ from tqdm import tqdm
 from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from susvibes.constants import *
-from susvibes.env import Env
-from susvibes.logs import PassFailure
-from susvibes.strategies.tools import eval_selected_cwes, get_cwe_selection_stats
-from susvibes.utils import (
+from susvibes.core.constants import *
+from susvibes.core.env import Env
+from susvibes.core.logs import PassFailure
+from susvibes.eval.strategies.tools import eval_selected_cwes, get_cwe_selection_stats
+from susvibes.core.utils import (
     load_file,
     save_file,
     touched_files,

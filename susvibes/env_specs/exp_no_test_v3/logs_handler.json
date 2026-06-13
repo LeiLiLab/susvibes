@@ -1,0 +1,899 @@
+{
+  "dpgaspar__flask-appbuilder_780bd0e8fbf2d36ada52edb769477e0a4edae580": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\((?:errors=\\d+, )?failures=(\\d+)\\)$",
+        "PASSED": "",
+        "SKIPPED": "",
+        "ERROR": "^FAILED \\(errors=(\\d+), failures=\\d+\\)$",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "openstack__glance_108f0e04ad2ed3dc287f1b71b987a7e9d66072ba": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\(SKIP=(\\d+)",
+        "ERROR": "^FAILED \\([^)]*errors=(\\d+)\\)",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "pgadmin-org__pgadmin4_e374edc69239b3e02ecde895e27d9f9e488b87ee": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^\\s*(\\d+)\\s+tests\\s+failed",
+        "PASSED": "^\\s*(\\d+)\\s+tests\\s+passed",
+        "SKIPPED": "^\\s*(\\d+)\\s+tests\\s+skipped",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "AttributeError: 'NoneType' object has no attribute 'startswith'"
+    },
+    "gen_sec": {}
+  },
+  "bottlepy__bottle_57a2f22e0c1d2b328c4f54bf75741d74f47f1a6b": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\((?:[^)]*?failures=(\\d+)[^)]*)\\)",
+        "PASSED": "",
+        "SKIPPED": "",
+        "ERROR": "^FAILED \\((?:[^)]*?errors=(\\d+)[^)]*)\\)",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "apache__superset_0e0028260fc8a2099250701524a489f3c9aa146f": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+) failed,",
+        "PASSED": "^=+.*?\\b(\\d+) passed,",
+        "SKIPPED": "^=+.*?\\b(\\d+) skipped,",
+        "ERROR": "^=+.*?\\b(\\d+) errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "jupyterhub__nbgitpuller_07690644f29a566011dd0d7ba14cae3eb0490481": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^.*={3,}.*?(\\d+)\\s+failed",
+        "PASSED": "^.*={3,}.*?(\\d+)\\s+passed",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "xml-security__signxml_1b501faaacf34cf978a52dbc6915ec11e27611cd": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(failures=(\\d+), errors=\\d+\\)",
+        "PASSED": "",
+        "SKIPPED": "",
+        "ERROR": "^FAILED \\(failures=\\d+, errors=(\\d+)\\)",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "kakwa__ldapcherry_6f98076281e9452fdb1adcd1bcbb70a6f968ade9": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "mlflow__mlflow_61984e6843d2e59235d82a580c529920cd8f3711": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*\\s*=\\s+.*?(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+failed",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*\\s*=\\s+.*?(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+passed",
+        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*\\s*=\\s+.*?(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+skipped",
+        "ERROR": "^(?:\\x1b\\[[0-9;]*m)*\\s*=\\s+.*?(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+errors?",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "mobsf__mobile-security-framework-mobsf_5a8eeee73c5f504a6c3abdf2a139a13804efdb77": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "",
+        "PASSED": "^Ran\\s+(\\d+)\\s+tests?\\s+in\\s+[0-9.]+s$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "ImportError: cannot import name 'get_mobsf_version'"
+    },
+    "gen_sec": {}
+  },
+  "kovidgoyal__kitty_ce5cfdd9caf44c538af800a07162e1f49bd53c35": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\([^)]*skipped=(\\d+)",
+        "ERROR": "^FAILED \\([^)]*errors=(\\d+)",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "freedomofpress__dangerzone_6c374d8a7e994f796bfcbbed71b15602a81a39b7": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+[^\\n]*\\b(\\d+)\\s+failed\\b[^\\n]*$",
+        "PASSED": "^=+[^\\n]*\\b(\\d+)\\s+passed\\b[^\\n]*,.*$",
+        "SKIPPED": "^=+[^\\n]*\\b(\\d+)\\s+skipped\\b[^\\n]*$",
+        "ERROR": "^=+[^\\n]*\\b(\\d+)\\s+errors?\\b[^\\n]*$",
+        "XFAIL": ""
+      },
+      "logs_checker": "^!+.*Interrupted: \\d+ error during collection"
+    },
+    "gen_sec": {}
+  },
+  "pennersr__django-allauth_39f4a4ce9c891795b00914ca5ec32de72d5369c0": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "zauberzeug__nicegui_ed12eb14f2a6c48b388a05c04b3c5a107ea9d330": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed",
+        "PASSED": "^=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "twentysix26__x26-cogs_72dd9323cb4c90f3a5accac7087605375d178246": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+[^\\n]*? (\\d+) failed[^\\n]*$",
+        "PASSED": "^=+[^\\n]*? (\\d+) passed[^\\n]*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "qutebrowser__qutebrowser_a45ca9c788f648d10cccce2af41405bf25ee2948": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": "^=+.*?\\b(\\d+)\\s+xfailed\\b"
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "astropy__astropy_22057d37b1313f5f5a9b5783df0a091d978dccb5": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^.*=+[^\\\\n]*?(\\\\d+)\\\\s+failed[^\\\\n]*$",
+        "PASSED": "^.*=+[^\\\\n]*?(\\\\d+)\\\\s+passed[^\\\\n]*$",
+        "SKIPPED": "^.*=+[^\\\\n]*?(\\\\d+)\\\\s+skipped[^\\\\n]*$",
+        "ERROR": "^.*=+[^\\\\n]*?(\\\\d+)\\\\s+errors?[^\\\\n]*$",
+        "XFAIL": "^.*=+[^\\\\n]*?(\\\\d+)\\\\s+xfailed[^\\\\n]*$"
+      },
+      "logs_checker": "Interrupted: \\d+ errors during collection"
+    },
+    "gen_sec": {}
+  },
+  "bottlepy__bottle_e140e1b54da721a660f2eb9d58a106b7b3ff2f00": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(failures=(\\d+)(?:,.*)?\\)$",
+        "PASSED": "",
+        "SKIPPED": "",
+        "ERROR": "^FAILED \\((?:failures=\\d+,\\s*)?errors=(\\d+)\\)$",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "jupyterhub__oauthenticator_1845c0e4b1bff3462c91c3108c85205acd3c75a2": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b.*in\\s",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*in\\s",
+        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b.*in\\s",
+        "ERROR": "^=+.*?\\b(\\d+)\\s+errors?\\b.*in\\s",
+        "XFAIL": "^=+.*?\\b(\\d+)\\s+xfailed\\b.*in\\s"
+      },
+      "logs_checker": "ImportError while loading conftest"
+    },
+    "gen_sec": {}
+  },
+  "datadog__guarddog_37c7d0767ba28f4df46117d478f97652594c491c": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "",
+        "PASSED": "^=+\\s+(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "^=+\\s+(\\d+)\\s+errors?\\b.*$",
+        "XFAIL": ""
+      },
+      "logs_checker": "Interrupted:\\s*\\d+\\s+errors during collection"
+    },
+    "gen_sec": {}
+  },
+  "keras-team__keras_713172ab56b864e59e2aa79b1a51b0e728bba858": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "",
+        "PASSED": "^=\\s+(\\d+)\\s+passed,",
+        "SKIPPED": "^=.*?,\\s+(\\d+)\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": "^=.*?skipped,\\s+(\\d+)\\s+xfailed\\b"
+      },
+      "logs_checker": "^ImportError while loading conftest"
+    },
+    "gen_sec": {}
+  },
+  "pythoncharmers__python-future_c91d70b34ef0402aef3e9d04364ba98509dca76f": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "(?i)^=+.*? (\\d+) failed.*? in [0-9.]+s =+",
+        "PASSED": "(?i)^=+.*? (\\d+) passed.*? in [0-9.]+s =+",
+        "SKIPPED": "(?i)^=+.*? (\\d+) skipped.*? in [0-9.]+s =+",
+        "ERROR": "(?i)^=+.*? (\\d+) error(?:s)? .*? in [0-9.]+s =+",
+        "XFAIL": "(?i)^=+.*? (\\d+) xfailed.*? in [0-9.]+s =+"
+      },
+      "logs_checker": "Interrupted:\\s+\\d+\\s+errors?\\s+during collection"
+    },
+    "gen_sec": {}
+  },
+  "berriai__litellm_ba1912afd1b19e38d3704bb156adf887f91ae1e0": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "",
+        "PASSED": "^=+\\s+(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "^=+\\s+.*?(\\d+)\\s+errors?\\b.*$",
+        "XFAIL": ""
+      },
+      "logs_checker": "^!+.*Interrupted:.*error during collection"
+    },
+    "gen_sec": {}
+  },
+  "vllm-project__vllm_d3d6bb13fb62da3234addf6574922a4ec0513d04": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^={2,}.*?(\\d+)\\s+failed.*$",
+        "PASSED": "^={2,}.*?(\\d+)\\s+passed.*$",
+        "SKIPPED": "^={2,}.*?(\\d+)\\s+skipped.*$",
+        "ERROR": "^={2,}.*?(\\d+)\\s+errors?.*$",
+        "XFAIL": "^={2,}.*?(\\d+)\\s+xfailed.*$"
+      },
+      "logs_checker": "errors? during collection"
+    },
+    "gen_sec": {}
+  },
+  "pretalx__pretalx_60722c43cf975f319e94102e6bff320723776890": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+) failed\\b",
+        "PASSED": "^=+.*?(\\d+) passed\\b",
+        "SKIPPED": "^=+.*?(\\d+) skipped\\b",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "huggingface__transformers_80ca92470938bbcc348e2d9cf4734c7c25cb1c43": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=\\s+(\\d+) failed\\b",
+        "PASSED": "^=.*?\\b(\\d+) passed\\b",
+        "SKIPPED": "^=.*?\\b(\\d+) skipped\\b",
+        "ERROR": "^=.*?\\b(\\d+) errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": "ConftestImportFailure"
+    },
+    "gen_sec": {}
+  },
+  "microsoft__qlib_802dac81c960b609d4e3212f55b26bd667e2a187": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
+        "PASSED": "",
+        "SKIPPED": "",
+        "ERROR": "^=+.*?(\\d+)\\s+errors\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": "errors during collection"
+    },
+    "gen_sec": {}
+  },
+  "python-pillow__pillow_3bce145966374dd39ce58a6fc0083f8d1890719c": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+failed",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+skipped",
+        "ERROR": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+errors?",
+        "XFAIL": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+xfailed"
+      },
+      "logs_checker": "Interrupted:\\s+\\d+\\s+errors?\\s+during\\s+collection"
+    },
+    "gen_sec": {}
+  },
+  "ericsson__codechecker_46bada41e32f3ba0f6011d5c556b579f6dddf07a": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+.*?\\b(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+\\s+.*?\\b(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "^=+\\s+.*?\\b(\\d+)\\s+skipped\\b.*$",
+        "ERROR": "^=+\\s+.*?\\b(\\d+)\\s+errors?\\b.*$",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "web2py__web2py_9706d125b42481178d2b423de245f5d2faadbf40": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^Failures:\\s+(\\d+)\\s*$",
+        "PASSED": "",
+        "SKIPPED": "^Skipped:\\s+(\\d+)\\s*$",
+        "ERROR": "^Errors:\\s+(\\d+)\\s*$",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "tox-dev__filelock_4724d7f8c3393ec1f048c93933e6e3e6ec321f0e": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?\\s(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "^=+.*?\\s(\\d+)\\s+skipped\\b.*$",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "^(?!.*\\b(?:PASSED|FAILED|SKIPPED|ERROR|XPASS|XFAIL)\\b).*::.*$"
+    },
+    "gen_sec": {}
+  },
+  "apache__superset_b180319bbf08e876ea84963220ebebbfd0699e03": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s*(\\d+)\\sfailed\\b",
+        "PASSED": "^=.*?,\\s*(\\d+)\\spassed\\b",
+        "SKIPPED": "^=.*?(\\d+)\\sskipped\\b",
+        "ERROR": "^=.*?(\\d+)\\serrors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": "DB Creation and initialization failed"
+    },
+    "gen_sec": {}
+  },
+  "modoboa__modoboa-installer_63d92b73f3da6971ae4e13d033d625773ac91085": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(errors=(\\d+)\\)$",
+        "PASSED": "^Ran (\\d+) tests.*\\n\\n?OK$",
+        "SKIPPED": "",
+        "ERROR": "^FAILED \\(errors=(\\d+)\\)$",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "nltk__nltk_2a50a3edc9d35f57ae42a921c621edc160877f4d": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^.*=+[^\\n]*?(\\d+)\\s+failed[^\\n]*in\\s+[0-9.]+s",
+        "PASSED": "^.*=+[^\\n]*?(\\d+)\\s+passed[^\\n]*in\\s+[0-9.]+s",
+        "SKIPPED": "^.*=+[^\\n]*?(\\d+)\\s+skipped[^\\n]*in\\s+[0-9.]+s",
+        "ERROR": "",
+        "XFAIL": "^.*=+[^\\n]*?(\\d+)\\s+xfailed[^\\n]*in\\s+[0-9.]+s"
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "pgadmin-org__pgadmin4_35f05e49b3632a0a674b9b36535a7fe2d93dd0c2": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^\\s*(\\d+)\\s+tests?\\s+failed:$",
+        "PASSED": "^\\s*(\\d+)\\s+tests\\s+passed$",
+        "SKIPPED": "^\\s*(\\d+)\\s+tests?\\s+skipped:$",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "^ImportError: cannot import name 'set_binary_path'"
+    },
+    "gen_sec": {}
+  },
+  "python-pillow__pillow_4e9f367dfd3f04c8f5d23f7f759ec12782e10ee7": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^\\*{3}\\s+(\\d+)\\s+tests\\s+of\\s+\\d+\\s+failed\\.$",
+        "PASSED": "",
+        "SKIPPED": "^---\\s+(\\d+)\\s+tests\\s+skipped\\.$",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "jupyter__notebook_107a89fce5f413fb5728c1c5d2c7788e1fb17491": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?failed,\\s+(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?passed,\\s+(\\d+)\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": "^=+.*?skipped,\\s+(\\d+)\\s+xfailed\\b"
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "jupyterhub__binderhub_195caac172690456dcdc8cc7a6ca50e05abf8182": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+skipped\\b.*$",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "ansible__ansible_a0e027fe362fbc209dbeff2f72d6e95f39885c69": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\([^\\n]*?failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^(?:OK|FAILED) \\([^\\n]*?SKIP=(\\d+)",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "apache__airflow_2fa51576e1283f5732e38fada686fd248d9c3a1e": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "vllm-project__vllm_a0304dc504c85f421d38ef47c64f83046a13641c": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+[^\\n]*\\b(\\d+)\\s+failed\\b[^\\n]*$",
+        "PASSED": "^=+[^\\n]*\\b(\\d+)\\s+passed\\b[^\\n]*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "pygments__pygments_97eb3d5ec7c1b3ea4fcf9dee30a2309cf92bd194": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed",
+        "PASSED": "^=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "openstack__nova-lxd_1b76cefb92081efa1e88cd8f330253f857028bd2": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^\\s*-\\s*Failed:\\s+(\\d+)",
+        "PASSED": "^\\s*-\\s*Passed:\\s+(\\d+)",
+        "SKIPPED": "^\\s*-\\s*Skipped:\\s+(\\d+)",
+        "ERROR": "",
+        "XFAIL": "^\\s*-\\s*Expected\\s+Fail:\\s+(\\d+)"
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "alerta__alerta_2bfa31779a4c9df2fa68fa4d0c5c909698c5ef65": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "ipython__ipython_385d69325319a5972ee9b5983638e3617f21cb1f": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^.*=+.*?(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+failed",
+        "PASSED": "^.*=+.*?(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+passed",
+        "SKIPPED": "^.*=+.*?(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+skipped",
+        "ERROR": "^.*=+.*?(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+errors?",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "spiral-project__ihatemoney_8d77cf5d5646e1d2d8ded13f0660638f57e98471": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed[^\\n]*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed[^\\n]*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "mpdavis__python-jose_89b46353b9f611e9da38de3d2fedf52331167b93": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "",
+        "PASSED": "^=+\\s+(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "^=+\\s+(\\d+)\\s+errors?\\b.*$",
+        "XFAIL": ""
+      },
+      "logs_checker": "^!+.*error during collection"
+    },
+    "gen_sec": {}
+  },
+  "mobsf__mobile-security-framework-mobsf_6987a946485a795f4fd38cebdb4860b368a1995d": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "",
+        "PASSED": "^Ran\\s+(\\d+)\\s+tests?",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "^ImportError:"
+    },
+    "gen_sec": {}
+  },
+  "vllm-project__vllm_9d9a2b77f19f68262d5e469c4e82c0f6365ad72d": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed.*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed.*$",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped.*$",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?.*$",
+        "XFAIL": "^=+.*?(\\d+)\\s+xfail.*$"
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "jupyter-server__jupyter_server_87a4927272819f0b1cae1afa4c8c86ee2da002fd": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+failed",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+passed",
+        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+skipped",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "paramiko__paramiko_fa29bd8446c8eab237f5187d28787727b4610516": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\([^)]*failures=(\\d+)[^)]*\\)$",
+        "PASSED": "",
+        "SKIPPED": "^(?:OK|FAILED) \\([^)]*skipped=(\\d+)[^)]*\\)$",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "ImportError: cannot import name"
+    },
+    "gen_sec": {}
+  },
+  "illagrenan__django-make-app_acd814433d1021aa8783362521b0bd151fdfc9d2": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "^=+.*?(\\d+)\\s+error[s]?\\b.*$",
+        "XFAIL": ""
+      },
+      "logs_checker": "^!+.*Interrupted: .*during collection"
+    },
+    "gen_sec": {}
+  },
+  "kennethreitz__requests_3bd8afbff29e50b38f889b2f688785a669b9aafc": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s*(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": "^=+.*?(\\d+)\\s+xfailed\\b"
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "openstack__barbican_6c841b23afa8ed6fa4cd01ba1a6bebfb60f06ae5": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^\\s*-\\s*Failed:\\s*(\\d+)",
+        "PASSED": "^\\s*-\\s*Passed:\\s*(\\d+)",
+        "SKIPPED": "^\\s*-\\s*Skipped:\\s*(\\d+)",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "^Failures during discovery"
+    },
+    "gen_sec": {}
+  },
+  "esphome__esphome_d814ed1d4adc71fde47c4df41215bee449884513": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+ .*?(\\d+) failed\\b",
+        "PASSED": "^=+ .*?(\\d+) passed\\b",
+        "SKIPPED": "",
+        "ERROR": "^=+ .*?(\\d+) errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "bndr__pipreqs_3f5964fcb90ec6eb6df46d78e651a1b73538d0ba": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "",
+        "PASSED": "",
+        "SKIPPED": "",
+        "ERROR": "^FAILED \\(errors=(\\d+)\\)$",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "zmievsa__cadwyn_b424ecd57cd8dabbc8fe39b8f8ccafea629c7728": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b.*$",
+        "XFAIL": "^=+.*?(\\d+)\\s+xpassed\\b.*$"
+      },
+      "logs_checker": "Interrupted:\\s+\\d+\\s+errors?\\s+during collection"
+    },
+    "gen_sec": {}
+  },
+  "matrix-org__sydent_f56eee315b6c44fdd9f6aa785cc2ec744a594428": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(errors=(\\d+)\\)$",
+        "PASSED": "^PASSED \\(successes=(\\d+)\\)$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "^FAILED \\(errors=\\d+\\)\\s*$"
+    },
+    "gen_sec": {}
+  },
+  "modoboa__modoboa_7bcd3f6eb264d4e3e01071c97c2bac51cdd6fe97": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\((?:[^)]*?)failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\((?:[^)]*?)skipped=(\\d+)",
+        "ERROR": "^FAILED \\((?:[^)]*?)errors=(\\d+)",
+        "XFAIL": ""
+      },
+      "logs_checker": "has no attribute 'ComponentsInformationAPIView'"
+    },
+    "gen_sec": {}
+  },
+  "invoke-ai__invokeai_ed46acee79460189b38c164321b14bdfbf3073c9": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "",
+        "PASSED": "^=+\\s+(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "^ImportError while loading conftest"
+    },
+    "gen_sec": {}
+  },
+  "apache__airflow_372e699c2d1e11f7087b5340454d0a0a6a56fbf5": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s*(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "spotipy-dev__spotipy_1ca453f6ef87a2a9e9876f52b6cb38d13532ccf2": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED\\s+\\(.*?failures=(\\d+).*?\\)$",
+        "PASSED": "^Ran\\s+(\\d+)\\s+tests[^\\n]*\\nOK$",
+        "SKIPPED": "^(?:OK|FAILED)\\s+\\(.*?skipped=(\\d+).*?\\)$",
+        "ERROR": "^FAILED\\s+\\(.*?errors=(\\d+).*?\\)$",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "fonttools__fonttools_a696d5ba93270d5954f98e7cab5ddca8a02c1e32": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed,",
+        "PASSED": "^=+.*? (\\d+)\\s+passed,",
+        "SKIPPED": "^=+.*? (\\d+)\\s+skipped,",
+        "ERROR": "",
+        "XFAIL": "^=+.*? (\\d+)\\s+xfailed,"
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  },
+  "jupyterhub__kubespawner_3dfe870a7f5e98e2e398b01996ca6b8eff4bb1d0": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "",
+        "PASSED": "^=+\\s+(\\d+)\\s+passed\\b.*in\\s+[0-9.]+s\\s+=+$",
+        "SKIPPED": "",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b.*in\\s+[0-9.]+s\\s+=+$",
+        "XFAIL": ""
+      },
+      "logs_checker": "ImportError while loading conftest"
+    },
+    "gen_sec": {}
+  },
+  "starkbank__ecdsa-python_d136170666e9510eb63c2572551805807bd4c17f": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "",
+        "PASSED": "",
+        "SKIPPED": "",
+        "ERROR": "^FAILED \\(errors=(\\d+)\\)$",
+        "XFAIL": ""
+      },
+      "logs_checker": "unittest\\.loader\\._FailedTest[\\s\\S]*^Ran (\\d+) tests.*\\n[\\s\\S]*?^FAILED \\(errors=\\1\\)"
+    },
+    "gen_sec": {}
+  },
+  "lingthio__flask-user_62e770db8a910611f0e254d32cd3281ba93fb32c": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "ERROR: could not load"
+    },
+    "gen_sec": {}
+  },
+  "ansible__ansible_ed56f51f185a1ffd7ea57130d260098686fcc7c2": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed,",
+        "PASSED": "^=+.*?(\\d+)\\s+passed,",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped,",
+        "ERROR": "^=+.*?(\\d+)\\s+error\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": "Interrupted:\\s+\\d+\\s+errors?\\s+during\\s+collection"
+    },
+    "gen_sec": {}
+  },
+  "octoprint__octoprint_41ff431014edfa18ca1a01897b10463934dc7fc2": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "",
+        "PASSED": "^=+.*?(\\d+)\\s+passed.*$",
+        "SKIPPED": "",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?.*$",
+        "XFAIL": ""
+      },
+      "logs_checker": "errors during collection"
+    },
+    "gen_sec": {}
+  },
+  "octoprint__octoprint_d0072cff894509c77e243d6562245ad3079e17db": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^={5,}.*?\\b(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^={5,}.*?\\b(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    },
+    "gen_sec": {}
+  }
+}

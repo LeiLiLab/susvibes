@@ -1,4 +1,4 @@
-from susvibes.utils import setup_logger
+from susvibes.core.utils import setup_logger
 
 # Set by the pipeline (set_log_dir) before any logging; run_id is unknown at import.
 _log_dir = None

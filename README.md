@@ -93,7 +93,7 @@ For an example guideline on how to run Kimi CLI on SusVibes, see [tutorial](eval
 Run the evaluation pipeline from the `susvibes/` directory:
 
 ```bash
-python -m susvibes.run_evaluation \
+python -m susvibes.eval.core \
   --run_id <unique_run_identifier> \
   --predictions_path <path_to_predictions_jsonl> \
   --max_workers 5 \
@@ -113,7 +113,7 @@ The evaluation summary is written automatically to `logs/run_evaluation/<run_id>
 You can use our provided `datasets/examples/sample_predictions.json` to verify your setup. This should give you a summary in `logs/run_evaluation/test/generic/summary.json`.
 
 ```bash
-python -m susvibes.run_evaluation \
+python -m susvibes.eval.core \
   --run_id test \
   --predictions_path datasets/examples/sample_predictions.json \
   --max_workers 5 \
@@ -128,7 +128,7 @@ See the subfolder's [README](susvibes/curate/README.md) for more details.
 
 ### 🛡️ Advanced Strategies
 
-SusVibes supports advanced strategies for security-enhanced evaluation (`generic`, `self-selection`, `oracle`, `feedback-driven`, `sec-test`). See the subfolder's [README](susvibes/strategies/README.md) for more details.
+SusVibes supports advanced strategies for security-enhanced evaluation (`generic`, `self-selection`, `oracle`, `feedback-driven`, `sec-test`). See the subfolder's [README](susvibes/eval/strategies/README.md) for more details.
 
 ## ❓ Troubleshooting
 

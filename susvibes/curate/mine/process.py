@@ -8,7 +8,7 @@ from typing import TypedDict
 
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir
 from susvibes.curate.constants import get_dataset_path
-from susvibes.utils import load_file, save_file, get_instance_id, setup_logger
+from susvibes.core.utils import load_file, save_file, get_instance_id, setup_logger
 from susvibes.curate.utils import (
     get_repo_dir,
     clone_github_repo,

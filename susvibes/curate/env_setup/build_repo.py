@@ -25,14 +25,14 @@ import re
 import docker.errors
 from docker.models.images import Image
 
-from susvibes.constants import *
+from susvibes.core.constants import *
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_dataset_path
-from susvibes.env import Deployment
+from susvibes.core.env import Deployment
 from susvibes.env_specs import dockerfiles, DOCKERFILE_PATTERN, GIT_AUTHOR_CONFIGS, WORKSPACE_DIR_NAME
 from susvibes.curate.env_setup.prompts import INSTALL_TEST_PROMPT_TEMPLATE
 from susvibes.curate.mine.check_cov.engine.constants import CoverageLabel
 from susvibes.curate.utils.agents.ports import EnvAgentPort
-from susvibes.utils import load_file, save_file, filter_target_files, get_image_name, setup_instance_logger, parse_instance_id, touched_files, get_env_specs, save_env_specs
+from susvibes.core.utils import load_file, save_file, filter_target_files, get_image_name, setup_instance_logger, parse_instance_id, touched_files, get_env_specs, save_env_specs
 from susvibes.curate.utils import (
     RepoLocks,
     reset_to_commit,

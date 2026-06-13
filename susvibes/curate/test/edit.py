@@ -27,8 +27,8 @@ from susvibes.curate.constants import (
     PATCH_TEMPLATE,
 )
 from susvibes.curate.utils import extract_repo_test_cmd, reverse_patch
-from susvibes.env import Env, Deployment
-from susvibes.utils import (
+from susvibes.core.env import Env, Deployment
+from susvibes.core.utils import (
     get_image_name, load_file, parse_instance_id, save_file, setup_instance_logger, get_env_specs,
 )
 

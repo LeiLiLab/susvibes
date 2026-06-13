@@ -7,11 +7,11 @@ from susvibes.curate.constants import get_dataset_path, get_log_dir
 from susvibes.curate.adaptive_gen import mask, problem_gen, verifier
 from susvibes.curate.adaptive_gen import utils as module_utils
 from susvibes.curate.adaptive_gen.utils import set_log_dir, module_setup_logger
-from susvibes.utils import load_file, save_file, confirm_overwrite_logs
+from susvibes.core.utils import load_file, save_file, confirm_overwrite_logs
 from susvibes.curate.utils import len_patch, dump_task
 from susvibes.curate.mine.check_cov.engine.constants import CoverageLabel
 
-LENGTH_RATIO_FUNC = [1, 2, 5, 15, 30, 50, 100]
+LENGTH_RATIO_FUNC = [1, 2, 5, 15, 30, 50]
 TASK_MAX_LENGTH = 2000
 MASK_RATIO_TOLERANCE = 0.5
 

@@ -113,7 +113,7 @@ python -m susvibes.curate.validate.with_test \
   [--from_existing_specs]  # Optional: reuse the cached logs_parser in env_specs instead of re-synthesizing it via LLM
 ```
 
-This requires an LLM API for generating test-suite output parsers: configure the model in [`constants.py`](constants.py), set the API key in your `.env`, and set your Docker Hub namespace in [`susvibes/constants.py`](../constants.py).
+This requires an LLM API for generating test-suite output parsers: configure the model in [`constants.py`](constants.py), set the API key in your `.env`, and set your Docker Hub namespace in [`susvibes/core/constants.py`](../core/constants.py).
 
 If you want to publish the dataset, finalize it and publish to it Hugging Face:
 
@@ -122,7 +122,7 @@ python -m susvibes.curate.validate.wrap_up \
   --run_id playground
 ```
 
-This filters to validated instances, computes each golden patch, strips records to the released schema, and uploads `susvibes_dataset.jsonl` to the Hugging Face dataset repo set by `HF_DATASET_REPO` in [`susvibes/constants.py`](../constants.py) — it does **not** write the local dataset. Set `HF_TOKEN` (with write access) in your `.env` first.
+This filters to validated instances, computes each golden patch, strips records to the released schema, and uploads `susvibes_dataset.jsonl` to the Hugging Face dataset repo set by `HF_DATASET_REPO` in [`susvibes/core/constants.py`](../core/constants.py) — it does **not** write the local dataset. Set `HF_TOKEN` (with write access) in your `.env` first.
 
 ## Two Curation Pipelines
 

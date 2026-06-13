@@ -2,10 +2,10 @@ import argparse
 import json
 from pathlib import Path
 
-from susvibes.constants import *
-from susvibes.tasks import TasksHandler, get_summary, print_summary
-from susvibes.strategies.tools import get_guardrail
-from susvibes.utils import load_file, save_file
+from susvibes.core.constants import *
+from susvibes.eval.task import TasksHandler, get_summary, print_summary
+from susvibes.eval.strategies.tools import get_guardrail
+from susvibes.core.utils import load_file, save_file
 from susvibes.env_specs import WORKSPACE_DIR_NAME
 from susvibes.curate.utils.agents.ports import SWEAgentPort
 from susvibes.curate.constants import get_dataset_path
