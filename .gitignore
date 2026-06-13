@@ -5,6 +5,7 @@
 *.ipynb_checkpoints
 *.egg-info/
 *.egg
+*.bak*
 
 /projects/
 /backup/

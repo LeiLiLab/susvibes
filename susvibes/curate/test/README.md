@@ -83,6 +83,7 @@ python -m susvibes.curate.test.gen_prologue \
   --max_workers <N> \
   [--strategy patch_secfix|secfix]  # Optional: prompt hint variant, default patch_secfix
   [--instance_ids '["<id_1>", ...]']
+  [--force]                         # Optional: rebuild rollback images even if present
 ```
 
 For each candidate this builds a *rollback* variant of the env image with the `security_patch` reversed (so the repo sits in the vulnerable state) and the patch persisted at `.susvibes.security_patch.diff` so the agent can toggle states. It then assembles the SWE-agent batch instances yaml.

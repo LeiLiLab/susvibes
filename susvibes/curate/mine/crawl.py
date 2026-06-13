@@ -4,13 +4,13 @@ import requests
 
 from tqdm import tqdm
 
-from susvibes.curate.constants import get_path
+from susvibes.curate.constants import get_dataset_path
 from susvibes.curate.mine.constants import GITHUB_HEADERS
 from susvibes.utils import load_file, save_file
 
 RECENT_YR_CUTOFF = 2014
 
-RAW_MOREFIXES_DIR = get_path('cve_records') / 'Morefixes'
+RAW_MOREFIXES_DIR = get_dataset_path('cve_records') / 'Morefixes'
 URL_DATASET_FILE_NAME = "dataset_url.jsonl"
 DATASET_FILE_NAME = "dataset.jsonl"
 

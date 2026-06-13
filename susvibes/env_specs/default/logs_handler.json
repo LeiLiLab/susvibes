@@ -1,0 +1,2234 @@
+{
+  "bottlepy__bottle_6d7e13da0f998820800ecb3fe9ccee4189aefb54": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(failures=(\\d+)\\)$",
+        "PASSED": "",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:\\A\\s*Traceback)"
+    }
+  },
+  "ghantoos__lshell_e72dfcd1f258193f9aaea3591ecbdaed207661a0": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\([^)]*failures=(\\d+)[^)]*\\)$",
+        "PASSED": "",
+        "SKIPPED": "",
+        "ERROR": "^FAILED \\([^)]*errors=(\\d+)[^)]*\\)$",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "django__django_c5544d289233f501917e25970c03ed444abbd4f0": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\([^\\)]*?failures=(\\d+)[^\\)]*\\)$",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\([^\\)]*?skipped=(\\d+)[^\\)]*\\)$",
+        "ERROR": "^FAILED \\([^\\)]*?errors=(\\d+)[^\\)]*\\)$",
+        "XFAIL": "^FAILED \\([^\\)]*?expected failures=(\\d+)[^\\)]*\\)$"
+      },
+      "logs_checker": "(?:\\A\\s*Traceback)"
+    }
+  },
+  "pylons__waitress_11d9e138125ad46e951027184b13242a3c1de017": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED\\s*\\(.*?failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^(?:OK|FAILED)\\s*\\(.*?SKIP=(\\d+)",
+        "ERROR": "^FAILED\\s*\\(.*?errors=(\\d+)",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:\\AE\\r?\\n)"
+    }
+  },
+  "pylons__waitress_575994cd42e83fd772a5f7ec98b2c56751bd3f65": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED\\s*\\(.*?\\bfailures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^(?:OK|FAILED)\\s*\\(.*?\\bSKIP=(\\d+)",
+        "ERROR": "^FAILED\\s*\\(.*?\\berrors=(\\d+)",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "twisted__twisted_6c61fc4503ae39ab8ecee52d10f10ee2c371d7e2": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(skips=(?:\\d+),\\s+failures=(\\d+),\\s+errors=(?:\\d+),\\s+successes=(?:\\d+)\\)",
+        "PASSED": "^FAILED \\(skips=(?:\\d+),\\s+failures=(?:\\d+),\\s+errors=(?:\\d+),\\s+successes=(\\d+)\\)",
+        "SKIPPED": "^FAILED \\(skips=(\\d+),\\s+failures=(?:\\d+),\\s+errors=(?:\\d+),\\s+successes=(?:\\d+)\\)",
+        "ERROR": "^FAILED \\(skips=(?:\\d+),\\s+failures=(?:\\d+),\\s+errors=(\\d+),\\s+successes=(?:\\d+)\\)",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "labd__wagtail-2fa_ac23550d33b7436e90e3beea904647907eba5b74": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed",
+        "PASSED": "^=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "urllib3__urllib3_a74c9cfbaed9f811e7563cfc3dce894928e0221a": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+ .*?(\\d+) failed\\b",
+        "PASSED": "^=+ .*?(\\d+) passed\\b",
+        "SKIPPED": "^=+ .*?(\\d+) skipped\\b",
+        "ERROR": "^=+ .*?(\\d+) error(?:s)?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "identitypython__pysaml2_5e9d5acbcd8ae45c4e736ac521fd2df5b1c62e25": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^\\s*=+.*?(\\d+)\\s+failed\\b",
+        "PASSED": "^\\s*=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "^\\s*=+.*?(\\d+)\\s+skipped\\b",
+        "ERROR": "^\\s*=+.*?(\\d+)\\s+errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "wagtail__wagtail_d9a41e7f24d08c024acc9a3094940199df94db34": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^(?:OK|FAILED).*?skipped=(\\d+)",
+        "ERROR": "",
+        "XFAIL": "^(?:OK|FAILED).*?expected failures=(\\d+)"
+      },
+      "logs_checker": "(?:\\A\\s*Traceback)"
+    }
+  },
+  "jupyter__notebook_3cec4bbe21756de9f0c4bccf18cf61d840314d74": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b.*$",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "jupyterhub__oauthenticator_a4aac191c16cf6281f3d346615aefa75702b02d7": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)?=+.*?(\\d+)\\s+failed\\b",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)?=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "urllib3__urllib3_8d65ea1ecf6e2cdc27d42124e587c1b83a3118b0": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "zopefoundation__products.genericsetup_700319512b3615b3871a1f24e096cf66dc488c57": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^Total:\\s+\\d+\\s+tests,\\s+(\\d+)\\s+failures\\b",
+        "PASSED": "",
+        "SKIPPED": "^Total:\\s+\\d+\\s+tests,\\s+\\d+\\s+failures,\\s+\\d+\\s+errors\\s+and\\s+(\\d+)\\s+skipped\\b",
+        "ERROR": "^Total:\\s+\\d+\\s+tests,\\s+\\d+\\s+failures,\\s+(\\d+)\\s+errors\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:Test-module import failures?)"
+    }
+  },
+  "ansible__ansible_0cdc410dce6658e93c06fa27e0100ddbb11e7015": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^\\s*[^\\s][^:]*\\s*:.*?ok=\\d+.*?failed=(\\d+)",
+        "PASSED": "^\\s*[^\\s][^:]*\\s*:.*?ok=(\\d+)",
+        "SKIPPED": "^\\s*[^\\s][^:]*\\s*:.*?ok=\\d+.*?skipped=(\\d+)",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "identitypython__pysaml2_46578df0695269a16f1c94171f1429873f90ed99": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^\\s*(\\d+)\\s+failed\\b",
+        "PASSED": "^.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "^.*?(\\d+)\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "matrix-org__synapse_03318a766cac9f8b053db2214d9c332a977d226c": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED\\s*\\([^)]*failures=(\\d+)",
+        "PASSED": "^(?:PASSED|FAILED)\\s*\\([^)]*successes=(\\d+)",
+        "SKIPPED": "",
+        "ERROR": "^FAILED\\s*\\([^)]*errors=(\\d+)",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "tiangolo__fastapi_fa7e3c996edf2d5482fff8f9d890ac2390dede4d": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "plone__products.isurlinportal_d4fd34990d18adf05a10dc5e2bb4b066798280ba": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^\\s*Ran\\s+\\d+\\s+tests\\s+with\\s+(\\d+)\\s+failure[s]?,",
+        "PASSED": "",
+        "SKIPPED": "^\\s*Ran\\s+\\d+\\s+tests\\s+with\\s+\\d+\\s+failure[s]?,\\s+\\d+\\s+error[s]?\\s+and\\s+(\\d+)\\s+skipped\\b",
+        "ERROR": "^\\s*Ran\\s+\\d+\\s+tests\\s+with\\s+\\d+\\s+failure[s]?,\\s+(\\d+)\\s+error[s]?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "scrapy__scrapy_b01d69a1bf48060daec8f751368622352d8b85a6": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+ .*?(\\d+) failed",
+        "PASSED": "^=+ .*?(\\d+) passed",
+        "SKIPPED": "^=+ .*?(\\d+) skipped",
+        "ERROR": "^=+ .*?(\\d+) errors?",
+        "XFAIL": "^=+ .*?(\\d+) xfailed"
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "lxml__lxml_f2330237440df7e8f39c3ad1b1aa8852be3b27c0": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED\\s*\\(failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "",
+        "ERROR": "^FAILED.*errors=(\\d+)",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "jupyterhub__jupyter-server-proxy_fd31930bacd12188c448c886e0783529436b99eb": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+failed\\b",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+passed\\b",
+        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "lxml__lxml_12fa9669007180a7bb87d990c375cf91ca5b664a": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "",
+        "ERROR": "^FAILED \\(.*?errors=(\\d+)",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "wagtail__wagtail_5fe901e5d86ed02dbbb63039a897582951266afd": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(.*?failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\(.*?skipped=(\\d+)",
+        "ERROR": "^FAILED \\(.*?(?:errors=(\\d+))",
+        "XFAIL": "^FAILED \\(.*?expected failures=(\\d+)"
+      },
+      "logs_checker": null
+    }
+  },
+  "tensorflow__tensorflow_afac8158d43691661ad083f6dd9e56f327c1dcb7": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^Executed .*?: (\\d+) fails? locally\\.",
+        "PASSED": "^Executed .*?: (\\d+) test passes\\.",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "xi__django-mfa3_32f656e22df120b84bdf010e014bb19bd97971de": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED\\s+\\(.*?failures=(\\d+)\\)\\s*$",
+        "PASSED": "^Ran\\s+(\\d+)\\s+tests.*\\n\\nOK\\s*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:\\A\\s*Traceback)"
+    }
+  },
+  "vyperlang__vyper_049dbdc647b2ce838fae7c188e6bb09cf16e470b": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed.*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:ImportError while loading)"
+    }
+  },
+  "vyperlang__vyper_2c73f8352635c0a433423a5b94740de1a118e508": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": "^=+.*?(\\d+)\\s+xfailed\\b.*$"
+      },
+      "logs_checker": "(?:ImportError while loading)"
+    }
+  },
+  "tensorflow__tensorflow_dbdd98c37bc25249e8f288bd30d01e118a7b4498": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^INFO: Build completed,\\s+(\\d+)\\s+tests\\s+FAILED,.*$",
+        "PASSED": "^Executed\\b.*:\\s+(\\d+)\\s+tests?\\s+pass\\.$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "encode__django-rest-framework_4bb9a3c48427867ef1e46f7dee945a4c25a4f9b8": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^.*?(\\d+)\\s+failed\\b.*in\\s+\\d+(?:\\.\\d+)?\\s+seconds",
+        "PASSED": "^.*?(\\d+)\\s+passed\\b.*in\\s+\\d+(?:\\.\\d+)?\\s+seconds",
+        "SKIPPED": "^.*?(\\d+)\\s+skipped\\b.*in\\s+\\d+(?:\\.\\d+)?\\s+seconds",
+        "ERROR": "^.*?(\\d+)\\s+errors?\\b.*in\\s+\\d+(?:\\.\\d+)?\\s+seconds",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "streamlit__streamlit_80d9979d5f4a00217743d607078a1d867fad8acf": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed.*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "ikus060__rdiffweb_b62c479ff6979563c7c23e7182942bc4f460a2c7": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b.*$",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "ikus060__rdiffweb_2406780831618405a13113377a784f3102465f40": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b.*$",
+        "ERROR": "^=+.*?\\b(\\d+)\\s+errors?\\b.*$",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "ikus060__rdiffweb_626cca1b75b6c587afd4241a9692e8929b1921a5": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed",
+        "PASSED": "^=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "ikus060__rdiffweb_667657c6fe2b336c90be37f37fb92f65df4feee3": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed",
+        "PASSED": "^=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "ikus060__rdiffweb_20fc0d304412cc569b21f31e52cb8b94094d6314": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+[^\\n]*\\b(\\d+)\\s+failed\\b",
+        "PASSED": "^=+\\s+[^\\n]*\\b(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+\\s+[^\\n]*\\b(\\d+)\\s+skipped\\b",
+        "ERROR": "^=+\\s+[^\\n]*\\b(\\d+)\\s+errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "ikus060__rdiffweb_5ac38b2a75becbab9f948bd5e37ecbcd9f0b362e": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b.*$",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "ikus060__rdiffweb_ac334dd27ceadac0661b1e2e059a8423433c3fee": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b",
+        "ERROR": "^=+.*?\\b(\\d+)\\s+errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "ikus060__rdiffweb_18a5aabd48fa6d2d2771a25f95610c28a1a097ca": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\sfailed",
+        "PASSED": "^=+.*?(\\d+)\\spassed",
+        "SKIPPED": "^=+.*?(\\d+)\\sskipped",
+        "ERROR": "^=+.*?(\\d+)\\serrors?",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "sqlalchemy__mako_925760291d6efec64fda6e9dd1fd9cfbd5be068c": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "(?i)^=+[^\n]*?(\\d+)\\s+failed",
+        "PASSED": "(?i)^=+[^\n]*?(\\d+)\\s+passed",
+        "SKIPPED": "(?i)^=+[^\n]*?(\\d+)\\s+skipped",
+        "ERROR": "(?i)^=+[^\n]*?(\\d+)\\s+errors?",
+        "XFAIL": "(?i)^=+[^\n]*?(\\d+)\\s+xfailed"
+      },
+      "logs_checker": null
+    }
+  },
+  "ikus060__rdiffweb_422791ea45713aaaa865bdca74addb9fffd93a71": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+.*?(\\d+)\\s+failed\\b",
+        "PASSED": "^=+\\s+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+\\s+.*?(\\d+)\\s+skipped\\b",
+        "ERROR": "^=+\\s+.*?(\\d+)\\s+errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "ikus060__rdiffweb_7294bb7466532762c93d711211e5958940c1b428": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+ .*?(\\d+) failed",
+        "PASSED": "^=+ .*?(\\d+) passed",
+        "SKIPPED": "^=+ .*?(\\d+) skipped",
+        "ERROR": "^=+ .*?(\\d+) errors?",
+        "XFAIL": "^=+ .*?(\\d+) xfailed"
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "jupyter__jupyter_core_1118c8ce01800cb689d51f655f5ccef19516e283": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*([0-9]+)\\s+failed\\b.*$",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*([0-9]+)\\s+passed\\b.*$",
+        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*([0-9]+)\\s+skipped\\b.*$",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "ikus060__rdiffweb_233befc33bdc45d4838c773d5aed4408720504c5": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b.*$",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b.*$",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "ikus060__rdiffweb_f2a32f2a9f3fb8be1a9432ac3d81d3aacdb13095": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed",
+        "PASSED": "^=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?",
+        "XFAIL": "^=+.*?(\\d+)\\s+xfailed"
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "ikus060__rdiffweb_b78ec09f4582e363f6f449df6f987127e126c311": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+) failed",
+        "PASSED": "^=+.*?(\\d+) passed",
+        "SKIPPED": "^=+.*?(\\d+) skipped",
+        "ERROR": "^=+.*?(\\d+) errors?",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "ikus060__rdiffweb_4d464b467f14b8eb9103d7f5f0774e49995527c7": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "ikus060__rdiffweb_b5e3bb0a98268d18ceead36ab9b2b7eaacd659a8": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b.*$",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "ikus060__rdiffweb_323383d1db656f1b1291be529947bd943a6b0e99": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "ikus060__rdiffweb_2ffc2af65c8f8113b06e0b89929c604bcdf844b9": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed,",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed,",
+        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped,",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "openedx__xblock-drag-and-drop-v2_68887d1b4a44325d2de7573d450e41129ba98b1a": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(.*?failures=(\\d+)",
+        "PASSED": "^Ran (\\d+) tests.*\\n(?:.*\\n)*?OK$",
+        "SKIPPED": "",
+        "ERROR": "^FAILED \\(.*?errors=(\\d+)",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:\\A\\s*Traceback)"
+    }
+  },
+  "python-pillow__pillow_2444cddab2f83f28687c7c20871574acbb6dbcf3": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+failed\\b",
+        "PASSED": "^.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+passed\\b",
+        "SKIPPED": "^.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": "^.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+xfailed\\b"
+      },
+      "logs_checker": null
+    }
+  },
+  "cyface__django-termsandconditions_03396a1c2e0af95e12a45c5faef7e47a4b513e1a": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED\\s+\\(failures=(\\d+)\\)",
+        "PASSED": "(?s)^Ran\\s+(\\d+)\\s+tests?\\s+in[^\\n]*\\s*\\n\\s*OK",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:^Destroying test database for alias 'default'.*\\.\\.\\.\\s*\\r?\\nTraceback)"
+    }
+  },
+  "ikus060__rdiffweb_bc4bed89affcba71251fe54ed10639da9d392c1d": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "healthchecks__healthchecks_359edbd2709e27b60687061a32e19322bc971c1f": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^(?:OK|FAILED) \\((?:failures=\\d+, )?skipped=(\\d+)\\)",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:Admin Command Error)"
+    }
+  },
+  "python-mechanize__mechanize_dd05334448e9f39814bab044d2eaa5ef69b410d6": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "",
+        "PASSED": "",
+        "SKIPPED": "",
+        "ERROR": "^FAILED \\(.*?errors=(\\d+)",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "mozilla__bleach_1334134d34397966a7f7cfebd38639e9ba2c680e": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b.*$",
+        "XFAIL": "^=+.*?(\\d+)\\s+xfailed\\b.*$"
+      },
+      "logs_checker": null
+    }
+  },
+  "mozilla__bleach_d6018f2539d271963c3e7f54f36ef11900363c69": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": "^=+.*?\\b(\\d+)\\s+xfailed\\b.*$"
+      },
+      "logs_checker": null
+    }
+  },
+  "django__django_0dc9c016fadb71a067e5a42be30164e3f96c0492": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(.*?failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\(.*?skipped=(\\d+)",
+        "ERROR": "^FAILED \\(.*?errors=(\\d+)",
+        "XFAIL": "^FAILED \\(.*?expected failures=(\\d+)"
+      },
+      "logs_checker": null
+    }
+  },
+  "django__django_8c660fb59239828583f17cdede3b64f208b8752c": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(.*?failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\(.*?skipped=(\\d+)",
+        "ERROR": "^FAILED \\(.*?errors=(\\d+)",
+        "XFAIL": "^FAILED \\(.*?expected failures=(\\d+)"
+      },
+      "logs_checker": "(?:\\A\\s*Traceback)"
+    }
+  },
+  "canonical__cloud-init_a378b7e4f47375458651c0972e7cd813f6fe0a6b": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "ckan__ckan_4c22c135fa486afa13855d1cdb9765eaf418d2aa": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s*(\\d+)\\s+failed[^\\n]*$",
+        "PASSED": "^=+[^\\n]*?\\s(\\d+)\\s+passed[^\\n]*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "vyperlang__vyper_851f7a1b3aa2a36fd041e3d0ed38f9355a58c8ae": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^= +(\\d+) failed",
+        "PASSED": "^=.*? (\\d+) passed",
+        "SKIPPED": "^=.*? (\\d+) skipped",
+        "ERROR": "^=.*? (\\d+) error(?:s)?",
+        "XFAIL": "^=.*? (\\d+) xfailed"
+      },
+      "logs_checker": null
+    }
+  },
+  "streamlit__streamlit_afcf880c60e5d7538936cc2d9721b9e1bc02b075": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed",
+        "PASSED": "^=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "psf__requests_74ea7cf7a6a27a4eeb2ae24e162bcc942a6706d5": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+ [^\\n]*?(\\d+) failed",
+        "PASSED": "^=+ [^\\n]*?(\\d+) passed",
+        "SKIPPED": "^=+ [^\\n]*?(\\d+) skipped",
+        "ERROR": "",
+        "XFAIL": "^=+ [^\\n]*?(\\d+) xfailed"
+      },
+      "logs_checker": null
+    }
+  },
+  "wagtail__wagtail_5be2b1ed55fd7259dfdf2c82e7701dba407b8b62": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\([^)]*?failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\([^)]*?skipped=(\\d+)",
+        "ERROR": "^FAILED \\([^)]*?errors=(\\d+)",
+        "XFAIL": "^FAILED \\([^)]*?expected failures=(\\d+)"
+      },
+      "logs_checker": "(?:^Destroying test database for alias 'default'.*\\.\\.\\.\\s*\\r?\\nTraceback)"
+    }
+  },
+  "wagtail__wagtail_ff806ab173a504395fdfb3139eb0a29444ab4b91": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED\\s+\\(failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED[^\\n]*skipped=(\\d+)",
+        "ERROR": "^FAILED[^\\n]*errors=(\\d+)",
+        "XFAIL": "^FAILED[^\\n]*expected failures=(\\d+)"
+      },
+      "logs_checker": "(?:^Destroying test database for alias 'default'.*\\.\\.\\.\\s*\\r?\\nTraceback)"
+    }
+  },
+  "planetlabs__planet-client-python_d71415a83119c5e89d7b80d5f940d162376ee3b7": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:ImportError while loading)"
+    }
+  },
+  "vyperlang__vyper_4f8289a81206f767df1900ac48f485d90fc87edb": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=\\s*([0-9]+) failed\\b",
+        "PASSED": "^=.*?([0-9]+) passed\\b",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": "^=.*?([0-9]+) xfailed\\b"
+      },
+      "logs_checker": "(?:ImportError while loading)"
+    }
+  },
+  "mlflow__mlflow_fae77a525dd908c56d6204a4cef1c1c75b4e9857": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*={3,}[^\\n]*?(?:\\x1b\\[[0-9;]*m)*([0-9]+)\\s+failed",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*={3,}[^\\n]*?(?:\\x1b\\[[0-9;]*m)*([0-9]+)\\s+passed",
+        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*={3,}[^\\n]*?(?:\\x1b\\[[0-9;]*m)*([0-9]+)\\s+skipped",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:ImportError while loading)"
+    }
+  },
+  "pallets__flask_afd63b16170b7c047f5758eb910c416511e9c965": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+.*?(\\d+) failed",
+        "PASSED": "^=+\\s+.*?(\\d+) passed",
+        "SKIPPED": "^=+\\s+.*?(\\d+) skipped",
+        "ERROR": "^=+\\s+.*?(\\d+) errors?",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "pallets__flask_70f906c51ce49c485f1d355703e9cc3386b1cc2b": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^\\s*([0-9]+)\\s+failed\\b.*in\\s+[0-9.]+s$",
+        "PASSED": "^\\s*[0-9]+\\s+failed,\\s+([0-9]+)\\s+passed\\b.*in\\s+[0-9.]+s$",
+        "SKIPPED": "^\\s*[0-9]+\\s+failed,\\s+[0-9]+\\s+passed,\\s+([0-9]+)\\s+skipped\\b.*in\\s+[0-9.]+s$",
+        "ERROR": "^\\s*[0-9]+\\s+failed,\\s+[0-9]+\\s+passed,\\s+[0-9]+\\s+skipped,\\s+([0-9]+)\\s+errors?\\b.*in\\s+[0-9.]+s$",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "vyperlang__vyper_0bb7203b584e771b23536ba065a6efda457161bb": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s*(\\d+)\\sfailed\\b",
+        "PASSED": "^=+.*?\\b(\\d+)\\spassed\\b",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": "^=+.*?\\b(\\d+)\\sxfailed\\b"
+      },
+      "logs_checker": "(?:ImportError while loading)"
+    }
+  },
+  "vyperlang__vyper_3de1415ee77a9244eb04bdb695e249d3ec9ed868": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^= +(\\d+) failed",
+        "PASSED": "^=.*? (\\d+) passed",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": "^=.*? (\\d+) xfailed"
+      },
+      "logs_checker": null
+    }
+  },
+  "vyperlang__vyper_019a37ab98ff53f04fecfadf602b6cd5ac748f7f": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:ImportError while loading)"
+    }
+  },
+  "zopefoundation__restrictedpython_c8eca66ae49081f0016d2e1f094c3d72095ef531": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*\\b(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*\\b(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*\\b(\\d+)\\s+skipped\\b",
+        "ERROR": "^=+.*\\b(\\d+)\\s+errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "django__django_ad0410ec4f458aa39803e5f6b9a3736527062dcd": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED\\s*\\(.*?failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED\\s*\\(.*?skipped=(\\d+)",
+        "ERROR": "^FAILED\\s*\\(.*?errors=(\\d+)",
+        "XFAIL": "^FAILED\\s*\\(.*?expected failures=(\\d+)"
+      },
+      "logs_checker": "(?:\\A\\s*Traceback)"
+    }
+  },
+  "goauthentik__authentik_aa874dd92a770d5f8cd8f265b7cdd31cd73a4599": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(?:\\d+ \\w+,\\s+)*?(\\d+) failed\\b.*$",
+        "PASSED": "^=+\\s+(?:\\d+ \\w+,\\s+)*?(\\d+) passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "dgilland__pydash_6ff0831ad285fff937cafd2a853f20cc9ae92021": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed,.*$",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b.*$",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "gitpython-developers__gitpython_ca965ecc81853bca7675261729143f54e5bf4cdd": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^\\s*(\\d+)\\s+failed\\b",
+        "PASSED": "^\\s*(\\d+)\\s+passed\\b",
+        "SKIPPED": "^\\s*(\\d+)\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "apache__airflow_6724eeb6210d5965937eaf9dae3e476eb30f8268": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed",
+        "PASSED": "^=+\\s+(?:\\d+\\s+failed,\\s+)?(\\d+)\\s+passed",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "zopefoundation__zope_603b0a12881c90a072a7a65e32d47ed898ce37cb": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^Total: [^\\n]*?,\\s+(\\d+)\\s+failures?\\b",
+        "PASSED": "",
+        "SKIPPED": "^Total: [^\\n]*? (\\d+)\\s+skipped\\b",
+        "ERROR": "^Total: [^\\n]*? (\\d+)\\s+errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:Test-module import failures?)"
+    }
+  },
+  "plone__plone.namedfile_188f66a4577021cf8f2bf7c0f5150f9b9573f167": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^.*Total:.*?tests,\\s*(?:\\x1b\\[[0-9;]*m)?(\\d+)(?:\\x1b\\[[0-9;]*m)?\\s*failures",
+        "PASSED": "",
+        "SKIPPED": "^.*Total:.*?errors,\\s*(?:\\x1b\\[[0-9;]*m)?(\\d+)(?:\\x1b\\[[0-9;]*m)?\\s*skipped",
+        "ERROR": "^.*Total:.*?failures,\\s*(?:\\x1b\\[[0-9;]*m)?(\\d+)(?:\\x1b\\[[0-9;]*m)?\\s*errors",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:Test-module import failures?)"
+    }
+  },
+  "plone__plone.namedfile_f0f911f2a72b2e5c923dc2ab9179319cc47788f9": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^Total:\\s+\\d+\\s+tests,\\s+(\\d+)\\s+failures,",
+        "PASSED": "",
+        "SKIPPED": "^Total:\\s+\\d+\\s+tests,\\s+\\d+\\s+failures,\\s+\\d+\\s+errors\\s+and\\s+(\\d+)\\s+skipped\\b",
+        "ERROR": "^Total:\\s+\\d+\\s+tests,\\s+\\d+\\s+failures,\\s+(\\d+)\\s+errors\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:Test-module import failures?)"
+    }
+  },
+  "plone__plone.rest_43b4a7e86206e237e1de5ca3817ed071575882f7": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^Total:\\s*\\d+\\s+tests,\\s*(\\d+)\\s+failures?",
+        "PASSED": "",
+        "SKIPPED": "^Total:\\s*\\d+\\s+tests,\\s*\\d+\\s+failures?,\\s*\\d+\\s+errors?\\s+and\\s*(\\d+)\\s+skipped",
+        "ERROR": "^Total:\\s*\\d+\\s+tests,\\s*\\d+\\s+failures?,\\s*(\\d+)\\s+errors?",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "yt-dlp__yt-dlp_f04b5bedad7b281bee9814686bba1762bae092eb": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+) failed\\b",
+        "PASSED": "^=+.*?\\s(\\d+) passed\\b",
+        "SKIPPED": "^=+.*?\\s(\\d+) skipped\\b",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:ImportError while loading)"
+    }
+  },
+  "apache__superset_ccf73b2608f3f3d1f3d31b927e094fcf50b86a03": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\sfailed",
+        "PASSED": "^=+.*?failed,\\s+(\\d+)\\spassed",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "piccolo-orm__piccolo_82679eb8cd1449cf31d87c9914a072e70168b6eb": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "aio-libs__aiohttp_f016f0680e4ace6742b03a70cb0382ce86abe371": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s*(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
+        "XFAIL": "^=+.*?(\\d+)\\s+xfailed\\b"
+      },
+      "logs_checker": null
+    }
+  },
+  "rohe__pysaml2_6e09a25d9b4b7aa7a506853210a9a14100b8bc9b": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(\\d+)\\s+failed\\b.*in\\s+\\d+(?:\\.\\d+)?\\s+seconds$",
+        "PASSED": "^.*?(\\d+)\\s+passed\\b.*in\\s+\\d+(?:\\.\\d+)?\\s+seconds$",
+        "SKIPPED": "",
+        "ERROR": "^.*?(\\d+)\\s+errors?\\b.*in\\s+\\d+(?:\\.\\d+)?\\s+seconds$",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "openstack__aodh_149d3ad2193b4d17df801f82a0a6be62dba564db": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^\\s*-\\s*Failed:\\s*(\\d+)",
+        "PASSED": "^\\s*-\\s*Passed:\\s*(\\d+)",
+        "SKIPPED": "^\\s*-\\s*Skipped:\\s*(\\d+)",
+        "ERROR": "",
+        "XFAIL": "^\\s*-\\s*Expected\\s+Fail:\\s*(\\d+)"
+      },
+      "logs_checker": null
+    }
+  },
+  "aio-libs__aiohttp-session_1b356f01bbab57d041c9a75bacd72fbbf8524728": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?(\\d+)\\s+deselected\\b",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "numpy__numpy_49bcb1aba1ca32a38696ce5239392529430b2cc4": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b.*in [\\d\\.]+s =+$",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*in [\\d\\.]+s =+$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "flask-admin__flask-admin_8af10e0b022464fdcb2da3d0ea5bbd2f11c0acd1": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED\\s*\\(.*?failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^(?:OK|FAILED)\\s*\\(.*?SKIP=(\\d+)",
+        "ERROR": "^FAILED\\s*\\(.*?errors=(\\d+)",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "home-assistant__core_598f093bf0fecdefaa3d95d1ddae71317a05321e": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "zopefoundation__zope_26a55dbc301db417f47cafda6fe0f983b5690088": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m\\s*)*Total:.*?,\\s*(?:\\x1b\\[[0-9;]*m)?(\\d+)(?:\\x1b\\[[0-9;]*m)?\\s+failures",
+        "PASSED": "",
+        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m\\s*)*Total:.*?errors,\\s*(?:\\x1b\\[[0-9;]*m)?(\\d+)(?:\\x1b\\[[0-9;]*m)?\\s+skipped",
+        "ERROR": "^(?:\\x1b\\[[0-9;]*m\\s*)*Total:.*?failures,\\s*(?:\\x1b\\[[0-9;]*m)?(\\d+)(?:\\x1b\\[[0-9;]*m)?\\s+errors",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "jakubroztocil__httpie_df36d6255df5793129b02ac82f1010171bd8a0a8": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b",
+        "ERROR": "^=+.*?\\b(\\d+)\\s+errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "apragacz__django-rest-registration_26d094fab65ea8c2694fdfb6a3ab95a7808b62d5": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+) failed,",
+        "PASSED": "^=+.*? (\\d+) passed,",
+        "SKIPPED": "^=+.*? (\\d+) skipped,",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "ierror__django-js-reverse_78d6aff2276f2d341f643b095515f8aaba5e67c2": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "",
+        "ERROR": "^FAILED \\(.*errors=(\\d+)",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "buildbot__buildbot_e781f110933e05ecdb30abc64327a2c7c9ff9c5a": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED[^\\n]*?failures=(\\d+)",
+        "PASSED": "^(?:PASSED|FAILED)[^\\n]*?successes=(\\d+)",
+        "SKIPPED": "^(?:PASSED|FAILED)[^\\n]*?skips=(\\d+)",
+        "ERROR": "^FAILED[^\\n]*?errors=(\\d+)",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "saltstack__salt_cce7abad9c22d9d50ccee2813acabff8deca35dd": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(?:OK|FAILED) \\(total=[0-9]+,.*?failures=(\\d+)",
+        "PASSED": "^(?:OK|FAILED) \\(total=[0-9]+,.*?passed=(\\d+)",
+        "SKIPPED": "^(?:OK|FAILED) \\(total=[0-9]+,.*?skipped=(\\d+)",
+        "ERROR": "^(?:OK|FAILED) \\(total=[0-9]+,.*?errors=(\\d+)",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "openstack__neutron_8c213e45902e21d2fe00639ef7d92b35304bde82": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(.*?failures=(\\d+).*?\\)$",
+        "PASSED": "^Ran (\\d+) tests.*\\nOK$",
+        "SKIPPED": "",
+        "ERROR": "^FAILED \\(.*?errors=(\\d+).*?\\)$",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "sybrenstuvel__python-rsa_3283b1284475cf6c79a7329aee8bd7443cc72672": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+\\s+(?:\\d+\\s+failed,\\s+)?(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "^=+\\s+(\\d+)\\s+errors?\\b.*$",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "ceph__ceph_0443e40c11280ba3b7efcba61522afa70c4f8158": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "apache__airflow_4e32546faf227a6497ce8b282fff7450cae6f665": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "^=+.*?\\b(\\d+)\\s+error(?:s)?\\b.*$",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "django__django_1f2dd37f6fcefdd10ed44cb233b2e62b520afb38": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\(.*?skipped=(\\d+)",
+        "ERROR": "",
+        "XFAIL": "^FAILED \\(.*?expected failures=(\\d+)"
+      },
+      "logs_checker": null
+    }
+  },
+  "mozilla__bleach_f77e0f6392177a06e46a49abd61a4d9f035e57fd": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s*(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "mozilla__bleach_175f67740e7951e1d80cefb7831e6c3e4efeb986": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed,.*?in\\s+[0-9.]+s\\s+=+$",
+        "PASSED": "^=+\\s+.*?(\\d+)\\s+passed,.*?in\\s+[0-9.]+s\\s+=+$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "marshmallow-code__webargs_b9ee8b0aa668207a363d9fd21d967eeadb975c3e": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^\\s*(\\d+)\\s+failed\\b",
+        "PASSED": "^\\s*(?:\\d+\\s+\\w+,\\s+)*(\\d+)\\s+passed\\b",
+        "SKIPPED": "^\\s*(?:\\d+\\s+\\w+,\\s+)*(\\d+)\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "ubernostrum__django-registration_2db0bb7ec35636ea46b07b146328b87b2cb13ca5": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(failures=(\\d+)\\)$",
+        "PASSED": "",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "celery__celery_1f7ad7e6df1e02039b6ab9eec617d283598cad6b": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": "^=+.*?(\\d+)\\s+xfailed\\b"
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "django__django_1853724acaf17ed7414d54c7d2b5563a25025a71": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED .*skipped=(\\d+)",
+        "ERROR": "^FAILED .*errors=(\\d+)",
+        "XFAIL": "^FAILED .*expected failures=(\\d+)"
+      },
+      "logs_checker": null
+    }
+  },
+  "fredrik-johansson__mpmath_46d44c3c8f3244017fe1eb102d564eb4ab8ef750": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*\\b(\\d+)\\sfailed\\b",
+        "PASSED": "^=+.*\\b(\\d+)\\spassed\\b",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": "^=+.*\\b(\\d+)\\sxfailed\\b"
+      },
+      "logs_checker": null
+    }
+  },
+  "wagtail__wagtail_5c7a60977cba478f6a35390ba98cffc2bd41c8a4": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\([^)]*failures=(\\d+)[^)]*\\)$",
+        "PASSED": "",
+        "SKIPPED": "^(?:OK|FAILED) \\([^)]*skipped=(\\d+)[^)]*\\)$",
+        "ERROR": "",
+        "XFAIL": "^(?:OK|FAILED) \\([^)]*expected failures=(\\d+)[^)]*\\)$"
+      },
+      "logs_checker": "(?:^Destroying test database for alias 'default'.*\\.\\.\\.\\s*\\r?\\nTraceback)"
+    }
+  },
+  "sabnzbd__sabnzbd_3766ba54026eaa520dbee5b57a2f33d4954fb98b": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
+        "XFAIL": "^=+.*?(\\d+)\\s+xfailed\\b"
+      },
+      "logs_checker": "(?:ImportError while loading)"
+    }
+  },
+  "jupyterhub__firstuseauthenticator_953418e2450dbc2d854e332350849533b0ebc7ba": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*=+$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*=+$",
+        "SKIPPED": "",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b.*=+$",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "python-babel__babel_3a700b5b8b53606fd98ef8294a56f9510f7290f8": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b",
+        "ERROR": "^=+.*?(\\d+)\\s+error(?:s)?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "dask__distributed_afce4be8e05fb180e50a9d9e38465f1a82295e1b": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)(?:\\x1b\\[[0-9;]*m)* failed\\b",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)(?:\\x1b\\[[0-9;]*m)* passed\\b",
+        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)(?:\\x1b\\[[0-9;]*m)* skipped\\b",
+        "ERROR": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)(?:\\x1b\\[[0-9;]*m)* error(?:s)?\\b",
+        "XFAIL": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)(?:\\x1b\\[[0-9;]*m)* xfailed\\b"
+      },
+      "logs_checker": null
+    }
+  },
+  "paramiko__paramiko_4c491e299c9b800358b16fa4886d8d94f45abe2e": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+\\s+(\\d+)\\s+failed\\b",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?,\\s+(\\d+)\\s+passed\\b",
+        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?\\b(\\d+)\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "saltstack__salt_2f612bd81ddf80145a9984396a7fd789f4c8ffec": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "savon-noir__python-libnmap_c36fecde90017befeb4853396d0e2aac93c95b64": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "openstack__neutron_01fc2b9195f999df4d810df4ee63f77ecbc81f7e": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^\\s*-\\s*Failed:\\s*(\\d+)\\s*$",
+        "PASSED": "^\\s*-\\s*Passed:\\s*(\\d+)\\s*$",
+        "SKIPPED": "^\\s*-\\s*Skipped:\\s*(\\d+)\\s*$",
+        "ERROR": "",
+        "XFAIL": "^\\s*-\\s*Expected Fail:\\s*(\\d+)\\s*$"
+      },
+      "logs_checker": null
+    }
+  },
+  "jupyter-server__jupyter_server_3485007abbb459585357212dcaa20521989272e8": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^\\s*(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+failed",
+        "PASSED": "^\\s*(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "^\\s*(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+skipped",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "django__django_2044dac5c6968441be6f534c4139bcf48c5c7e48": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED .*?failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED .*?skipped=(\\d+)",
+        "ERROR": "^FAILED .*?errors=(\\d+)",
+        "XFAIL": "^FAILED .*?expected failures=(\\d+)"
+      },
+      "logs_checker": "(?:\\A\\s*Traceback)"
+    }
+  },
+  "apache__airflow_150dd927c3297daccab507bc5a5f2c3a32f24d5f": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "ikus060__rdiffweb_c4a19cf67d575c4886171b8efcbf4675d51f3929": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?\\b(\\d+) failed\\b",
+        "PASSED": "^=+.*?\\b(\\d+) passed\\b",
+        "SKIPPED": "^=+.*?\\b(\\d+) skipped\\b",
+        "ERROR": "^=+.*?\\b(\\d+) errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "django__django_00b0fc50e1738c7174c495464a5ef069408a4402": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED .*skipped=(\\d+)",
+        "ERROR": "^FAILED .*errors=(\\d+)",
+        "XFAIL": "^FAILED .*expected failures=(\\d+)"
+      },
+      "logs_checker": null
+    }
+  },
+  "executablebooks__markdown-it-py_53ca3e9c2b9e9b295f6abf7f4ad2730a9b70f68c": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "encode__starlette_1797de464124b090f10cf570441e8292936d63e3": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+) failed\\b",
+        "PASSED": "^=+.*? (\\d+) passed\\b",
+        "SKIPPED": "",
+        "ERROR": "^=+.*? (\\d+) errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "apache__airflow_d9dea5ce17f0c5859dc705bba8e6ef22e5659955": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+ .*?(\\d+) +failed.*$",
+        "PASSED": "^=+ .*?(\\d+) +passed.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "django__django_454f2fb93437f98917283336201b4048293f7582": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\(.*?skipped=(\\d+)",
+        "ERROR": "^FAILED \\(.*?errors=(\\d+)",
+        "XFAIL": "^FAILED \\(.*?expected failures=(\\d+)"
+      },
+      "logs_checker": "(?:\\A\\s*Traceback)"
+    }
+  },
+  "py-pdf__pypdf_c6c56f550bb384e05f0139c796ba1308837d6373": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
+        "XFAIL": "^=+.*?(\\d+)\\s+xfailed\\b"
+      },
+      "logs_checker": null
+    }
+  },
+  "gradio-app__gradio_37967617bd97615fb6f3b44e7750c0e0be58479a": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s.*?(\\d+)\\s+failed",
+        "PASSED": "^=+\\s.*?(\\d+)\\s+passed",
+        "SKIPPED": "",
+        "ERROR": "^=+\\s.*?(\\d+)\\s+errors?",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "gventuri__pandas-ai_3aac79be8fc1d18b53d66a566adddbbdd2b38ad5": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed",
+        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "borgbackup__borg_3eb070191da10c2d3f7bc6484cf3d51c3045f884": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(\\d+)\\s+failed,",
+        "PASSED": "^\\d+\\s+failed,\\s+(\\d+)\\s+passed,",
+        "SKIPPED": "^\\d+\\s+failed,\\s+\\d+\\s+passed,\\s+(\\d+)\\s+skipped",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:ImportError while loading)"
+    }
+  },
+  "apache__airflow_ac65b82eeeeaa670e09a83c7da65cbac7e89f8db": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s*(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+\\s*(?:\\d+\\s+\\w+,?\\s*)*(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "jtesta__ssh-audit_8e972c5e94b460379fe0c7d20209c16df81538a5": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "home-assistant__core_dbfc5ea8f96bde6cd165892f5a6a6f9a65731c76": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "home-assistant__home-assistant_dbfc5ea8f96bde6cd165892f5a6a6f9a65731c76": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+ .*?(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+ .*?(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "django__django_048a9ebb6ea468426cb4e57c71572cbbd975517f": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(.*?failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\(.*?skipped=(\\d+)",
+        "ERROR": "^FAILED \\(.*?errors=(\\d+)",
+        "XFAIL": "^FAILED \\(.*?expected failures=(\\d+)"
+      },
+      "logs_checker": null
+    }
+  },
+  "langchain-ai__langchain_bf0b3cc0b5ade1fb95a5b1b6fa260e99064c2e22": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "mlflow__mlflow_1da75dfcecd4d169e34809ade55748384e8af6c1": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)?=+.*?(\\d+)\\s+failed",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)?=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)?=+.*?(\\d+)\\s+skipped",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:ImportError while loading)"
+    }
+  },
+  "mlflow__mlflow_b9ab9ed77e1deda9697fe472fb1079fd428149ee": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+failed(?:\\x1b\\[[0-9;]*m)*.*$",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+passed(?:\\x1b\\[[0-9;]*m)*.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "psf__black_f00093672628d212b8965a8993cee8bedf5fe9b8": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "",
+        "PASSED": "^=+\\s+(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "^=+\\s+(\\d+)\\s+errors?\\b.*$",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "nonebot__nonebot2_b65b3b438c95894654fd9081139989c757bdc6c1": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*in\\s+[0-9.]+s\\s+=+$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*in\\s+[0-9.]+s\\s+=+$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": "^=+.*?(\\d+)\\s+xfailed\\b.*in\\s+[0-9.]+s\\s+=+$"
+      },
+      "logs_checker": "(?:ImportError while loading)"
+    }
+  },
+  "mlflow__mlflow_4bd7f27c810ba7487d53ed5ef1038fca0f8dc28c": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^.*=+.*?(\\d+)\\s+failed.*in\\s+[0-9.]+s",
+        "PASSED": "^.*=+.*?(\\d+)\\s+passed.*in\\s+[0-9.]+s",
+        "SKIPPED": "^.*=+.*?(\\d+)\\s+skipped.*in\\s+[0-9.]+s",
+        "ERROR": "^.*=+.*?(\\d+)\\s+error(?:s)?[^\\n]*in\\s+[0-9.]+s",
+        "XFAIL": "^.*=+.*?(\\d+)\\s+xfailed.*in\\s+[0-9.]+s"
+      },
+      "logs_checker": "(?:errors? during collection)|(?:ImportError while loading)"
+    }
+  },
+  "pallets__jinja_716795349a41d4983a9a4771f7d883c96ea17be7": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed.*in\\s+\\d+\\.\\d+s\\s+=+$",
+        "PASSED": "^=+\\s+.*?(\\d+)\\s+passed.*in\\s+\\d+\\.\\d+s\\s+=+$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:ImportError while loading)"
+    }
+  },
+  "mlflow__mlflow_400c226953b4568f4361bc0a0c223511652c2b9d": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^.*=+.*?(\\d+)\\s+failed",
+        "PASSED": "^.*=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "latchset__jwcrypto_90477a3b6e73da69740e00b8161f53fea19b831f": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*? (\\d+) failed[^\\n]*$",
+        "PASSED": "^=+.*? (\\d+) passed[^\\n]*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "lektor__lektor_7393d87bd354e43120937789956175064e4610a0": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed",
+        "PASSED": "^=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped",
+        "ERROR": "^=+.*?(\\d+)\\s+errors",
+        "XFAIL": "^=+.*?(\\d+)\\s+xfailed"
+      },
+      "logs_checker": "(?:ImportError while loading)"
+    }
+  },
+  "jupyterhub__oauthenticator_5246b09675501b09fb6ed64022099b7644812f60": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+failed",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+passed",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "pallets__jinja_0668239dc6b44ef38e7a6c9f91f312fd4ca581cb": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "wagtail__wagtail_284f75a6f91f7ab18cc304d7d34f33b559ae37b1": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\([^\\n]*?failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\([^\\n]*?skipped=(\\d+)",
+        "ERROR": "^FAILED \\([^\\n]*?errors=(\\d+)",
+        "XFAIL": "^FAILED \\([^\\n]*?expected failures=(\\d+)"
+      },
+      "logs_checker": "(?:\\A\\s*Traceback)"
+    }
+  },
+  "langchain-ai__langchain_aad3d8bd47d7f5598156ff2bdcc8f736f24a7412": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "psf__requests_a58d7f2ffb4d00b46dca2d70a3932a0b37e22fac": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=\\s*(\\d+)\\s+failed,",
+        "PASSED": "^=.*?\\b(\\d+)\\s+passed,",
+        "SKIPPED": "^=.*?\\b(\\d+)\\s+skipped,",
+        "ERROR": "",
+        "XFAIL": "^=.*?\\b(\\d+)\\s+xfailed,"
+      },
+      "logs_checker": null
+    }
+  },
+  "apache__airflow_89e7f3e7bdf2126bbbcd959dc10d65ef92773cca": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?\\b(\\d+) failed\\b.* in .*$",
+        "PASSED": "^=+.*?\\b(\\d+) passed\\b.* in .*$",
+        "SKIPPED": "",
+        "ERROR": "^=+.*?\\b(\\d+) errors?\\b.* in .*$",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "mlflow__mlflow_438a450714a3ca06285eeea34bdc6cf79d7f6cbc": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)?=+.*?(\\d+)\\s+failed\\b",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)?=+.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)?=+.*?(\\d+)\\s+skipped\\b",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:ImportError while loading)"
+    }
+  },
+  "django__django_07cefdee4a9d1fcd9a3a631cbd07c78defd1923b": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\([^\\n]*?failures=(\\d+)[^\\n]*\\)$",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\([^\\n]*?skipped=(\\d+)[^\\n]*\\)$",
+        "ERROR": "^FAILED \\([^\\n]*?errors=(\\d+)[^\\n]*\\)$",
+        "XFAIL": "^FAILED \\([^\\n]*?expected failures=(\\d+)[^\\n]*\\)$"
+      },
+      "logs_checker": null
+    }
+  },
+  "mlflow__mlflow_f8d51e21523238280ebcfdb378612afd7844eca8": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^[^\\n]*=+[^\\n]*(\\d+)\\s+failed",
+        "PASSED": "^[^\\n]*=+[^\\n]*(\\d+)\\s+passed",
+        "SKIPPED": "",
+        "ERROR": "^[^\\n]*=+[^\\n]*(\\d+)\\s+errors?",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  },
+  "canonical__operator_fea6d2072435a62170d4c01272572f1a7e916e61": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+failed",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+skipped",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "apache__airflow_f18f48492dc69f392e45567580b6ddb0c070ea58": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "openstack__oslo.utils_6e17ae1f7959c64dfd20a5f67edf422e702426aa": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^\\s*-\\s*Failed:\\s*(\\d+)",
+        "PASSED": "^\\s*-\\s*Passed:\\s*(\\d+)",
+        "SKIPPED": "^\\s*-\\s*Skipped:\\s*(\\d+)",
+        "ERROR": "",
+        "XFAIL": "^\\s*-\\s*Expected Fail:\\s*(\\d+)"
+      },
+      "logs_checker": null
+    }
+  },
+  "plone__plone.namedfile_ff5269fb4c79f4eb91dd934561b8824a49a03b60": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^Total:\\s+\\d+\\s+tests,\\s+(\\d+)\\s+failures?",
+        "PASSED": "",
+        "SKIPPED": "^Total:.*?and\\s+(\\d+)\\s+skipped\\b",
+        "ERROR": "^Total:\\s+\\d+\\s+tests,\\s+\\d+\\s+failures?,\\s+(\\d+)\\s+errors?",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:Test-module import failures?)"
+    }
+  },
+  "wagtail__wagtail_bc96aed6ac53f998b2f4c4bf97e2d4f5fe337e5b": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED.*skipped=(\\d+)",
+        "ERROR": "",
+        "XFAIL": "^FAILED.*expected failures=(\\d+)"
+      },
+      "logs_checker": "(?:^Creating test database for alias 'default'.*\\.\\.\\.\\s*\\r?\\nTraceback)"
+    }
+  },
+  "urllib3__urllib3_01220354d389cd05474713f8c982d05c9b17aafb": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b",
+        "PASSED": "^=+[^\\n]*?\\s(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+[^\\n]*?\\s(\\d+)\\s+skipped\\b",
+        "ERROR": "^=+[^\\n]*?\\s(\\d+)\\s+errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "tryton__trytond_30e978593733385db3144f8c583eeb4679575cf0": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(failures=(\\d+),",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\(failures=\\d+, errors=\\d+, skipped=(\\d+)\\)",
+        "ERROR": "^FAILED \\(failures=\\d+, errors=(\\d+),",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:error: File not found : None)"
+    }
+  },
+  "horazont__aioxmpp_29ff0838a40f58efe30a4bbcea95aa8dab7da475": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED\\s+\\([^)]*?failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED\\s+\\([^)]*?SKIP=(\\d+)",
+        "ERROR": "^FAILED\\s+\\([^)]*?errors=(\\d+)",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:\\AE\\r?\\n)"
+    }
+  },
+  "django__django_0bd57a879a0d54920bb9038a732645fb917040e9": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(failures=(\\d+), errors=\\d+, skipped=\\d+, expected failures=\\d+\\)$",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\(failures=\\d+, errors=\\d+, skipped=(\\d+), expected failures=\\d+\\)$",
+        "ERROR": "^FAILED \\(failures=\\d+, errors=(\\d+), skipped=\\d+, expected failures=\\d+\\)$",
+        "XFAIL": "^FAILED \\(failures=\\d+, errors=\\d+, skipped=\\d+, expected failures=(\\d+)\\)$"
+      },
+      "logs_checker": "(?:^Testing against Django .*?\\r?\\nTraceback)"
+    }
+  },
+  "django__django_d4dcd5b9dd9e462fec8220e33e3e6c822b7e88a6": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\([^)]*?failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\([^)]*?skipped=(\\d+)",
+        "ERROR": "^FAILED \\([^)]*?errors=(\\d+)",
+        "XFAIL": "^FAILED \\([^)]*?expected failures=(\\d+)"
+      },
+      "logs_checker": null
+    }
+  },
+  "vyperlang__vyper_a2df08888c318713742c57f71465f32a1c27ed72": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": "^=+.*?\\b(\\d+)\\s+xfailed\\b"
+      },
+      "logs_checker": null
+    }
+  },
+  "matthiask__html-sanitizer_48db42fc5143d0140c32d929c46b802f96913550": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED\\s+\\(.*?failures=(\\d+).*?\\)$",
+        "PASSED": "",
+        "SKIPPED": "",
+        "ERROR": "^FAILED\\s+\\(.*?errors=(\\d+).*?\\)$",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "andialbrecht__sqlparse_b4a39d9850969b4e1d6940d32094ee0b42a2cf03": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b.*$",
+        "ERROR": "^=+.*?\\b(\\d+)\\s+error(?:s)?\\b.*$",
+        "XFAIL": "^=+.*?\\b(\\d+)\\s+xfailed\\b.*$"
+      },
+      "logs_checker": null
+    }
+  },
+  "django__django_32ebcbf2e1fe3e5ba79a6554a167efce81f7422d": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(.*?failures=(\\d+).*\\)$",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\(.*?skipped=(\\d+).*\\)$",
+        "ERROR": "",
+        "XFAIL": "^FAILED \\(.*?expected failures=(\\d+).*\\)$"
+      },
+      "logs_checker": "(?:Applying .*? OK\\r?\\nTraceback)"
+    }
+  },
+  "django__django_5f0829a27e85d89ad8c433f5c6a7a7d17c9e9292": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED *\\(failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED .*?skipped=(\\d+)",
+        "ERROR": "^FAILED .*?errors=(\\d+)",
+        "XFAIL": "^FAILED .*?expected failures=(\\d+)"
+      },
+      "logs_checker": "(?:\\A\\s*Traceback)"
+    }
+  },
+  "django__django_601107524523bca02376a0ddc1a06c6fdb8f22f3": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED\\s+\\(.*?failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "",
+        "ERROR": "^FAILED\\s+\\(.*?errors=(\\d+)",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "django__django_0268b855f9eab3377f2821164ef3e66037789e09": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(failures=(\\d+),",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\([^)]*skipped=(\\d+)",
+        "ERROR": "^FAILED \\([^)]*errors=(\\d+)",
+        "XFAIL": "^FAILED \\([^)]*expected failures=(\\d+)"
+      },
+      "logs_checker": null
+    }
+  },
+  "mkomitee__requests-kerberos_9c1e08cc17bb6950455a85d33d391ecd2bce6eb6": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "django__django_1828f4341ec53a8684112d24031b767eba557663": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(.*?failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^(?:OK|FAILED) \\(.*?skipped=(\\d+)",
+        "ERROR": "^FAILED \\(.*?errors=(\\d+)",
+        "XFAIL": "^(?:OK|FAILED) \\(.*?expected failures=(\\d+)"
+      },
+      "logs_checker": null
+    }
+  },
+  "django__django_2654e1b93923bac55f12b4e66c5e39b16695ace5": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\([^)]*?failures=(\\d+)[^)]*\\)$",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\([^)]*?skipped=(\\d+)[^)]*\\)$",
+        "ERROR": "^FAILED \\([^)]*?errors=(\\d+)[^)]*\\)$",
+        "XFAIL": "^FAILED \\([^)]*?expected failures=(\\d+)[^)]*\\)$"
+      },
+      "logs_checker": null
+    }
+  },
+  "django__django_5447709a571cd5d95971f1d5d21d4a7edcf85bbd": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(failures=(\\d+),",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\(failures=\\d+, errors=\\d+, skipped=(\\d+),",
+        "ERROR": "^FAILED \\(failures=\\d+, errors=(\\d+),",
+        "XFAIL": "^FAILED \\(failures=\\d+, errors=\\d+, skipped=\\d+, expected failures=(\\d+)\\)"
+      },
+      "logs_checker": "(?:\\A\\s*Traceback)"
+    }
+  },
+  "django__django_8f9a4d3a2bc42f14bb437defd30c7315adbff22c": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\([^)]*?failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "^FAILED \\([^)]*?skipped=(\\d+)",
+        "ERROR": "^FAILED \\([^)]*?errors=(\\d+)",
+        "XFAIL": "^FAILED \\([^)]*?expected failures=(\\d+)"
+      },
+      "logs_checker": "(?:\\A\\s*Traceback)"
+    }
+  },
+  "openstack__nova_8b289237ed6d53738c22878decf0c429301cf3d0": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^Failures:\\s*(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "",
+        "ERROR": "^Errors:\\s*(\\d+)",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "scrapy-plugins__scrapy-splash_2b253e57fe64ec575079c8cdc99fe2013502ea31": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^={5,}.*?\\b(\\d+)\\s+failed\\b",
+        "PASSED": "^={5,}.*?\\b(\\d+)\\s+passed\\b",
+        "SKIPPED": "^={5,}.*?\\b(\\d+)\\s+skipped\\b",
+        "ERROR": "^={5,}.*?\\b(\\d+)\\s+errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:ImportError while loading)"
+    }
+  },
+  "dpgaspar__flask-appbuilder_6af28521589599b1dbafd6313256229ee9a4fa74": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^FAILED \\(.*?failures=(\\d+)",
+        "PASSED": "",
+        "SKIPPED": "",
+        "ERROR": "^FAILED \\(errors=(\\d+)",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "cobbler__cobbler_d8f60bbf14a838c8c8a1dba98086b223e35fe70a": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b",
+        "ERROR": "^=+.*?\\b(\\d+)\\s+errors?\\b",
+        "XFAIL": ""
+      },
+      "logs_checker": null
+    }
+  },
+  "jupyterhub__oauthenticator_5cd2d1816f90dc5c946e6e38fd2d0ba535624c5c": {
+    "count": {
+      "logs_parser": {
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+failed",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "",
+        "ERROR": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+errors?",
+        "XFAIL": ""
+      },
+      "logs_checker": "(?:errors? during collection)"
+    }
+  }
+}

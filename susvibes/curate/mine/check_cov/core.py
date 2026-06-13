@@ -38,14 +38,14 @@ from pathlib import Path
 import docker.errors
 from tqdm import tqdm
 
-from susvibes.constants import ContainerLimits, get_env_spec_path
+from susvibes.constants import ContainerLimits
 from susvibes.env_specs.constants import (
     WORKSPACE_DIR_NAME,
     SUSVIBES_RUNTIME_DATA_DIR,
 )
-from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_path
+from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_dataset_path
 from susvibes.utils import (
-    load_file, save_file, touched_files, setup_instance_logger, get_image_name,
+    load_file, save_file, touched_files, setup_instance_logger, get_image_name, get_env_specs,
 )
 from susvibes.curate.utils import (
     get_repo_dir,
@@ -287,7 +287,7 @@ def check_cov_threadpool(processed_dataset: list, max_workers: int, coverage_rep
                     failed[instance_id] = reason
                 pbar.update(1)
                 pbar.set_description(
-                    f"{len(succeeded)} ran successfully, {len(failed)} failed"
+                    f"{len(succeeded)} succeeded, {len(failed)} failed"
                 )
                 save_file(results, coverage_report_path)
 
@@ -341,12 +341,13 @@ def main() -> None:
     args = parser.parse_args()
 
     mine_log_dir = get_log_dir(args.run_id, "mine", "check_cov")
-    processed_dataset_path = get_path('processed_dataset', args.run_id)
-    coverage_report_path = get_path('coverage_report', args.run_id)
+    processed_dataset_path = get_dataset_path('processed_dataset', args.run_id)
+    coverage_report_path = get_dataset_path('coverage_report', args.run_id)
     coverage_report_path.parent.mkdir(parents=True, exist_ok=True)
 
     processed_dataset = load_file(processed_dataset_path)
-    dev_tools = load_file(get_env_spec_path('dev_tools', args.run_id))
+    dev_tools = {iid: spec["dev_tools"]
+        for iid, spec in get_env_specs(args.run_id, ("dev_tools",)).items()}
 
     analyze_ids = args.instance_ids
     if args.max_records is not None:

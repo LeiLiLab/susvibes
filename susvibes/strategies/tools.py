@@ -8,7 +8,7 @@ from susvibes.utils import load_file
 
 LOG_TEST_OUTPUT = "test_outputs/{}.txt"
 LOG_REPORT = "report.json"
-EVALUATION_RUNS = ["func", "sec"]
+EVAL_RUNS = ["func", "sec"]
 
 root_dir = Path(__file__).parent.parent
 CWES_DESC_PATH = root_dir / "strategies/cwes.yaml"
@@ -71,7 +71,7 @@ def get_feedback_test_logs(log_dir: Path):
         else:
             continue
         test_logs_list = []
-        for run_name in EVALUATION_RUNS:
+        for run_name in EVAL_RUNS:
             test_output_path = log_dir / instance_id / LOG_TEST_OUTPUT.format(run_name)
             test_logs_list.append(load_file(test_output_path))
         func_test_log, sec_test_log = test_logs_list

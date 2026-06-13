@@ -39,9 +39,9 @@ def init_logger():
 def prologue(task_dataset_path: Path, instance_ids: list = None, require_test: bool = True):
     port = SWEAgentPort(run_name=__spec__.name)
     task_dataset = load_file(task_dataset_path)
-    if instance_ids != None:
+    if instance_ids is not None:
         task_dataset = [data_record for data_record in task_dataset
-            if data_record["instance_id"] in instance_ids]
+            if data_record["instance_id"] in set(instance_ids)]
     for data_record in tqdm(task_dataset, desc="Preparing agent run"):
         repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
         test_patch = data_record["test_patch"] if require_test else None
@@ -72,12 +72,12 @@ def epilogue(agent_output_dir: Path, task_dataset_path: Path, require_test: bool
         rollback_commit = rollback(repo_dir, data_record["base_commit"],
             data_record["security_patch"], test_patch)
         if not pred.get("model_patch", "").strip():
-            logger.warning("Empty model patch for %s, skipping.", pred["instance_id"])
+            logger.warning("Empty model_patch for %s, skipping.", pred["instance_id"])
             continue
         try:
             apply_patch(repo_dir, pred["model_patch"])
         except Exception as e:
-            logger.warning("Error applying model patch for %s: %s", pred["instance_id"], e)
+            logger.warning("Error applying model_patch for %s: %s", pred["instance_id"], e)
             continue
         problem_statement_path = repo_dir / "problem_statement.md"
         if problem_statement_path.exists():

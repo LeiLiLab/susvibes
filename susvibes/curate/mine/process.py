@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import TypedDict
 
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir
-from susvibes.curate.constants import get_path
+from susvibes.curate.constants import get_dataset_path
 from susvibes.utils import load_file, save_file, get_instance_id, setup_logger
 from susvibes.curate.utils import (
     get_repo_dir,
@@ -46,7 +46,7 @@ def init_loggers(log_dir):
     logger = setup_logger(log_dir, "process.log", f"{__name__}.summary", add_stdout=True, handle_tqdm=True, mode="w")
     detail_logger = setup_logger(log_dir, "process_details.log", f"{__name__}.detail", add_stdout=False, mode="w")
 
-RAW_CVE_RECORDS_DIR = get_path('cve_records')
+RAW_CVE_RECORDS_DIR = get_dataset_path('cve_records')
 RAW_REPOSVUL_DATASET_PATH = RAW_CVE_RECORDS_DIR / f'ReposVul/ReposVul_{TARGET_LANG}.jsonl'
 RAW_MOREFIXES_DATASET_PATH = RAW_CVE_RECORDS_DIR / 'Morefixes/dataset_new.jsonl'
 
@@ -353,7 +353,7 @@ if __name__ == "__main__":
     mine_log_dir = get_log_dir(args.run_id, "mine", "process")
     init_loggers(mine_log_dir)
 
-    processed_dataset_path = get_path('processed_dataset', args.run_id)
+    processed_dataset_path = get_dataset_path('processed_dataset', args.run_id)
 
     if args.use_handlers:
         handler_map = {

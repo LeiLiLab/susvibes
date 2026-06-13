@@ -32,7 +32,7 @@ class TaskArtifact(StrEnum):
 
 PATCH_TEMPLATE = """```diff\n\n{patch}\n```"""
 
-def get_path(name: str, run_id: str = "default") -> Path:
+def get_dataset_path(name: str, run_id: str = "default") -> Path:
     base = DATASETS_DIR / run_id
     paths = {
         'cve_records': DATASETS_DIR / 'cve_records',

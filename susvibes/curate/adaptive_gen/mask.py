@@ -32,9 +32,9 @@ def prologue(
 ):
     port = SWEAgentPort(run_name=__spec__.name)
     processed_dataset = load_file(processed_dataset_path)
-    if instance_ids != None:
+    if instance_ids is not None:
         processed_dataset = [data_record for data_record in processed_dataset
-            if data_record["instance_id"] in instance_ids]
+            if data_record["instance_id"] in set(instance_ids)]
     for data_record in tqdm(processed_dataset, desc="Preparing agent run"):
         instance_id = data_record["instance_id"]
         repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
@@ -93,13 +93,13 @@ def epilogue(
             logger.warning("Filtering out text files from patch for %s: %s", instance_id, txt_files)
         filtered_patch = filter_target_files(model_patch, txt_files, exclude=True) if txt_files else model_patch
         if not filtered_patch.strip():
-            logger.warning("Empty model patch for %s, skipping.", instance_id)
+            logger.warning("Empty model_patch for %s, skipping.", instance_id)
             continue
         try:
             apply_patch(repo_dir, filtered_patch)
             apply_patch(repo_dir, filtered_patch, reverse=True)
         except Exception as e:
-            logger.warning("Error applying model patch for %s: %s", instance_id, e)
+            logger.warning("Error applying model_patch for %s: %s", instance_id, e)
             continue
         if "--- /dev/null" in filtered_patch:
             logger.warning("Forbidden file creation for %s, skipping.", instance_id)

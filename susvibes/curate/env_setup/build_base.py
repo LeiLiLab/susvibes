@@ -186,26 +186,27 @@ if __name__ == "__main__":
         "--mode", choices=["build", "push", "pull"], required=True,
         help="build | push | pull the selected images.",
     )
+    supported_image_names = list(IMAGE_NAMES)
+    supported_versions = list(DEV_TOOL_VERSIONS[DEV_TOOL_NAME]["versions"])
     parser.add_argument(
-        "--image_names", type=json.loads, default=list(IMAGE_NAMES),
-        help=f'JSON list of image names among {list(IMAGE_NAMES)}. '
+        "--image_names", type=json.loads, default=supported_image_names,
+        help=f'JSON list of image names among {supported_image_names}. '
              'Default: all. Example: --image_names \'["cov_py"]\'',
     )
     parser.add_argument(
-        "--versions", type=json.loads, required=True,
+        "--versions", type=json.loads, default=supported_versions,
         help='JSON list of Python versions to operate on. '
-             'Example: --versions \'["2.7", "3.5"]\'',
+             'Default: all. Example: --versions \'["2.7", "3.5"]\'',
     )
     args = parser.parse_args()
     versions = list(args.versions)
     image_names = list(args.image_names)
-    supported_versions = DEV_TOOL_VERSIONS[DEV_TOOL_NAME]["versions"]
-    invalid_image_names = [name for name in image_names if name not in IMAGE_NAMES]
+    invalid_image_names = [name for name in image_names if name not in supported_image_names]
     if invalid_image_names:
-        parser.error(f'--image_names must be among {list(IMAGE_NAMES)}, got {invalid_image_names}')
+        parser.error(f'--image_names must be among {supported_image_names}, got {invalid_image_names}')
     invalid_versions = [v for v in versions if v not in supported_versions]
     if invalid_versions:
-        parser.error(f'--versions must be among {list(supported_versions)}, got {invalid_versions}')
+        parser.error(f'--versions must be among {supported_versions}, got {invalid_versions}')
     logger = setup_logger(get_log_dir("default", "env_setup"), "build_base.log",
         __spec__.name, add_stdout=False, mode="w")
 
@@ -214,7 +215,7 @@ if __name__ == "__main__":
             build_threadpool(
                 "base_py", versions,
                 lambda version: build_base_py_single(
-                    version, supported_versions[version]["upstream_image_name"], logger),
+                    version, DEV_TOOL_VERSIONS[DEV_TOOL_NAME]["versions"][version]["upstream_image_name"], logger),
                 args.max_workers,
             )
         # dind_py/cov_py are built FROM base_py, so it must already exist locally.

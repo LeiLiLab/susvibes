@@ -12,7 +12,7 @@ GENERAL_LENGTH_REQUIREMENT:
 PROCESS:
 1. Examine the files touched by the patch and infer feature boundaries from the surrounding code.
 2. Locate all diff hunks, all deleted lines must be inside the removal mask.
-3. Grow the mask to the coherent unit(s) needed to contain both behaviors; especially where added/deleted lines are referenced. Stop at the necessary extent.
+3. Grow the mask to the coherent unit(s) needed to contain both behaviors; especially where added/deleted lines are referenced.
 4. Keep syntax valid. Use minimal placeholders ONLY if a syntax error would be otherwise unavoidable.
 
 <diff_patch>
@@ -26,7 +26,7 @@ HARD NOTES:
 - Do NOT apply any lines from the given patch; it is only for reference purposes.
 - Do NOT add any comments, text, annotations, hints, or extra wording—none.
 - Do NOT include any test files in the mask.
-- Once the mask covers the necessary extent, do not extend it further.
+- Do NOT extend substantially beyond the necessary extent.
 - Do NOT implement any code or save any backups.
 """
 

@@ -38,11 +38,11 @@ TARGET_EXTENSIONS = tuple(LANG_EXTENSIONS[TARGET_LANG])
 TEST_KEYWORDS = ["tests", "test", "testing", "testsuite", "conftest"]
 
 # Keywords (same token matching) that route a code-extension file into
-# test/config rather than the security patch. A strict superset of TEST_KEYWORDS,
-# so every test file is also routed out of the security patch.
+# test/config rather than the security_patch. A strict superset of TEST_KEYWORDS,
+# so every test file is also routed out of the security_patch.
 INSTALL_TEST_KEYWORDS = ["install", "version", "meta", "setup"] + TEST_KEYWORDS
 
-# Patch-size limits for an acceptable security patch (process.py).
+# Patch-size limits for an acceptable security_patch (process.py).
 RECENT_YR_CUTOFF = 2014
 PATCH_MAX_LENGTH = 500
 PATCH_MAX_FILE_COUNT = 10

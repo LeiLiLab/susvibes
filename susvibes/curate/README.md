@@ -98,8 +98,7 @@ python -m susvibes.curate.env_setup.build_repo \
   --agent_output_dir <path_to_agent_output> \
   --max_workers 5 \
   --run_id playground \
-  [--force]                # Optional: force re-build
-  [--from_existing_specs]  # Optional: reuse the cached dockerfile in env_specs instead of re-extracting it from agent output
+  [--from_existing_dockerfiles]  # Optional: reuse the cached dockerfile in env_specs instead of re-extracting it from agent output
 ```
 
 ## 7. Validating and Publishing
@@ -116,11 +115,23 @@ python -m susvibes.curate.validate.with_test \
 
 This requires an LLM API for generating test-suite output parsers: configure the model in [`constants.py`](constants.py), set the API key in your `.env`, and set your Docker Hub namespace in [`susvibes/constants.py`](../constants.py).
 
-Finally, finalize the dataset and publish it to Hugging Face:
+If you want to publish the dataset, finalize it and publish to it Hugging Face:
 
 ```bash
-python -m susvibes.curate.validate.wrapup \
+python -m susvibes.curate.validate.wrap_up \
   --run_id playground
 ```
 
 This filters to validated instances, computes each golden patch, strips records to the released schema, and uploads `susvibes_dataset.jsonl` to the Hugging Face dataset repo set by `HF_DATASET_REPO` in [`susvibes/constants.py`](../constants.py) — it does **not** write the local dataset. Set `HF_TOKEN` (with write access) in your `.env` first.
+
+## Two Curation Pipelines
+
+The seven steps above are the **main pipeline**: each task's security `test_patch` is mined directly from the vulnerability-fixing commit. A **second pipeline** handles commits that ship *no* test changes — there's no potential tests that come with the security-fix commit, so a SWE-agent synthesizes the security tests from the security fix, while functional regression still uses the repo's own suite.
+
+The second pipeline reuses the same stages, differing only in three points:
+
+- Steps 1, 5, 6 (`mine.process`, `adaptive_gen.core`, `build_repo --prologue`) take `--require_test false` — keeping only the test-less records; steps 2–4 are unchanged.
+- A test-synthesis stage is inserted before validation: `test.gen_prologue` drives a SWE-agent to author the security tests.
+- Step 7 validation uses `validate.no_test` instead of `validate.with_test`; `wrap_up` is shared.
+
+See [`test`](test/) for the full second-pipeline walkthrough (it also covers manually editing an existing `test_patch`).

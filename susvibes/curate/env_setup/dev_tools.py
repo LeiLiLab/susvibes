@@ -12,11 +12,11 @@ from pathlib import Path
 from jinja2 import Template
 
 from susvibes.constants import *
-from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_path
+from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_dataset_path
 from susvibes.env_specs import DEV_TOOL_VERSIONS
 from susvibes.curate.env_setup.prompts import DEV_TOOLS_PROMPT_TEMPLATE
 from susvibes.curate.utils.agents.ports import SWEAgentPort
-from susvibes.utils import load_file, save_file, setup_logger, parse_instance_id, touched_files
+from susvibes.utils import load_file, setup_logger, parse_instance_id, touched_files, get_env_specs, save_env_specs
 from susvibes.curate.utils import (
     get_repo_dir,
     reset_to_commit,
@@ -54,8 +54,7 @@ def prologue(processed_dataset_path: Path):
 
 def epilogue(agent_output_dir: Path, run_id: str = "default"):
     predictions, total_cost = SWEAgentPort.after_completion(agent_output_dir)
-    dev_tools_path = get_env_spec_path('dev_tools', run_id)
-    dev_tools = load_file(dev_tools_path) if dev_tools_path.exists() else {}
+    env_specs = get_env_specs(run_id, ("dev_tools",))
 
     for pred in predictions:
         project, base_commit = parse_instance_id(pred["instance_id"])
@@ -63,12 +62,12 @@ def epilogue(agent_output_dir: Path, run_id: str = "default"):
 
         reset_to_commit(repo_dir, base_commit, new_branch=False)
         if not pred.get("model_patch", "").strip():
-            detail_logger.warning("Empty model patch for %s, skipping.", pred["instance_id"])
+            detail_logger.warning("Empty model_patch for %s, skipping.", pred["instance_id"])
             continue
         try:
             apply_patch(repo_dir, pred["model_patch"])
         except Exception as e:
-            detail_logger.warning("Error applying model patch for %s: %s", pred["instance_id"], e)
+            detail_logger.warning("Error applying model_patch for %s: %s", pred["instance_id"], e)
             continue
         try:
             dev_tool = load_file(repo_dir / "dev_tools.json")
@@ -97,14 +96,12 @@ def epilogue(agent_output_dir: Path, run_id: str = "default"):
             detail_logger.warning("Dev tools not found or invalid for %s.", pred["instance_id"])
             continue
 
-        dev_tools[pred["instance_id"]] = dev_tool
+        env_specs[pred["instance_id"]] = {"dev_tools": dev_tool}
 
-    logger.info("%d / %d dev tools identified successfully.", len(dev_tools), len(predictions))
+    logger.info("%d / %d dev tools identified successfully.", len(env_specs), len(predictions))
     if total_cost is not None:
         logger.info("Agent cost: $%.2f", total_cost)
-    dev_tools_path = get_env_spec_path('dev_tools', run_id)
-    dev_tools_path.parent.mkdir(parents=True, exist_ok=True)
-    save_file(dev_tools, dev_tools_path)
+    dev_tools_path = save_env_specs("dev_tools", env_specs, run_id)
     print(f"Dev tools saved to {dev_tools_path}.")
 
 def pipeline(processed_dataset_path: Path, run_id: str = "default"):
@@ -141,7 +138,7 @@ if __name__ == "__main__":
     env_setup_log_dir = get_log_dir(args.run_id, "env_setup")
     init_loggers(env_setup_log_dir)
 
-    processed_dataset_path = get_path('processed_dataset', args.run_id)
+    processed_dataset_path = get_dataset_path('processed_dataset', args.run_id)
     if not processed_dataset_path.exists():
         print(f"processed_dataset not found: {processed_dataset_path}")
         exit(1)
