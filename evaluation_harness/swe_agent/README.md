@@ -29,7 +29,7 @@ sweagent run \
 In SusVibes, prepare batch instances for SWE-agent with the following command:
 
 ```bash
-python -m susvibes.run_evaluation --prologue
+python -m susvibes.eval.core --prologue
 ```
 
 You will find the generated `run_evaluation_generic_instances.yaml` file under `logs/agent_runs/`.

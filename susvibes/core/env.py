@@ -14,9 +14,10 @@ import requests
 from docker.models.containers import Container
 from docker.models.images import Image
 
-from susvibes.constants import ContainerLimits, TestStatus, FAILURE_STATUSES, ImageLoc
+from susvibes.core.constants import ContainerLimits, ImageLoc
 from susvibes.env_specs import *
-from susvibes.utils import get_image_name, get_instance_id, save_file
+from susvibes.core.utils import get_image_name, get_instance_id, save_file
+from susvibes.core.logs import LogsHandler, PassFailure
 
 docker_client = docker.from_env()
 
@@ -300,29 +301,29 @@ class Deployment():
 class Env:
     project: str
     deployment: Deployment
+    dev_tools: dict
     dockerfile: str
     dockerignore: str
-    logs_parser: dict[str, str]
-    logs_checker: str
+    logs_handler: dict
 
     def __init__(
         self,
         logger: logging.Logger,
         project: str,
         image_name: str,
+        dev_tools: dict,
         dockerfile: str,
         dockerignore: str = None,
         image_loc: ImageLoc = ImageLoc.LOCAL,
-        logs_parser: dict = None,
-        logs_checker: str = None,
+        logs_handler: dict = None,
         remove_image: bool = False,
         remove_container: bool = True
     ):
         self.project = project
+        self.dev_tools = dev_tools
         self.dockerfile = dockerfile
         self.dockerignore = dockerignore
-        self.logs_parser = logs_parser
-        self.logs_checker = logs_checker
+        self.logs_handler = logs_handler
         logger.info(f"Collecting enviroment deployment...")
         collect_method = Deployment.from_local if image_loc == ImageLoc.LOCAL else \
             Deployment.from_pull if image_loc == ImageLoc.REMOTE else None
@@ -338,10 +339,10 @@ class Env:
         """Build the `git apply` && chain for patches whose pre_install flag matches,
         kept in their original list order; each patch uses its own `reverse` flag."""
         cmds = []
-        for id, (_, cfg) in enumerate(patches):
-            if bool(cfg.get("pre_install", False)) != pre_install:
+        for id, (_, flags) in enumerate(patches):
+            if bool(flags.get("pre_install", False)) != pre_install:
                 continue
-            reverse = " --reverse" if cfg.get("reverse", False) else ""
+            reverse = " --reverse" if flags.get("reverse", False) else ""
             patch_path = f"{SUSVIBES_BUILD_DATA_DIR}/{PATCHES_DIR_NAME}/{id}.patch"
             cmds.append(f"git apply --ignore-space-change{reverse} {patch_path}")
         return " && ".join(cmds)
@@ -382,8 +383,8 @@ class Env:
         if post_cmds:
             instance_dockerfile += run_stm.format(post_cmds)
 
-        for id, (_, cfg) in enumerate(patches):
-            save_to = cfg.get("save_to")
+        for id, (_, flags) in enumerate(patches):
+            save_to = flags.get("save_to")
             if save_to:
                 src = f"{SUSVIBES_BUILD_DATA_DIR}/{PATCHES_DIR_NAME}/{id}.patch"
                 instance_dockerfile += run_stm.format(
@@ -406,7 +407,7 @@ class Env:
     ) -> Deployment:
         """Build a instance-level Docker image from the environment.
 
-        `patches` is an ordered list of (patch_str, cfg); cfg keys are all optional:
+        `patches` is an ordered list of (patch_str, flags); flags keys are all optional:
         `reverse` (git apply -R), `pre_install` (apply before dependency reinstall;
         default post_install), `save_to` (keep this .patch file at the given image
         path). All pre_install patches apply first (in order), then post_install."""
@@ -437,38 +438,9 @@ class Env:
             )
         return deployment
     
-    def check_test_logs(self, run_logs: str, timed_out: bool = False) -> str:
-        """Get the test status from the run logs, using this instance's logs_checker."""
-        if timed_out:
-            return TestStatus.TIMEOUT
-        if self.logs_checker and re.search(self.logs_checker, run_logs, re.MULTILINE):
-            return TestStatus.STARTUP_ERROR
-        return TestStatus.COMPLETION
-    
-    @staticmethod
-    def get_symbol_resolution_errors(run_logs: str) -> bool:
-        """Get the cound of missing symbol errors from the run logs."""
-        return sum(len(re.findall(pattern, run_logs, re.MULTILINE))
-            for pattern in TEST_SYMBOL_RESOLUTION_ERROR_PATTERNS)
-    
-    def parse_test_logs(self, run_logs: str, logger: logging.Logger) -> dict[str, int]:
-        """Parse the run logs based on test statuses."""
-        logger.info(f"Parsing test logs...")
-        test_result = {}
-        for status, pattern in self.logs_parser.items():
-            if pattern:
-                logs_parse_re = re.compile(pattern, re.MULTILINE)
-                m = None
-                for m in logs_parse_re.finditer(run_logs):
-                    pass
-                if m:
-                    test_result[status] = int(m.group(1))
-                else:
-                    test_result[status] = 0
-        return test_result 
-    
-    @staticmethod
-    def get_test_failures(test_result: dict[str, int]) -> int:
-        """Returns test status as a comparable object based on test result."""
-        return sum(test_result.get(status.value, 0) for status in FAILURE_STATUSES) 
+    def handle_test_logs(self, test_logs: str, timed_out: bool,
+        logger: logging.Logger, kind: str | tuple) -> PassFailure:
+        """Apply this instance's logs handler for `kind` to the test logs, returning a PassFailure
+        (status folded in). `kind` may be a tuple tried in priority order. See validate.logs."""
+        return LogsHandler.handle_by_kind(kind, self.logs_handler, test_logs, timed_out, logger)
 

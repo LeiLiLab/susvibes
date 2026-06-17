@@ -91,7 +91,7 @@ def analyze(data_record, repo_dir, sources, targets, max_depth=SymbolTrace.MAX_D
     # the file-level fallback when jedi is unusable.
     index = repo_index.build(sources, test_set)
     jedi_ok = symbol_trace.usable(repo_dir, sources)
-    jctx = symbol_trace.build(repo_dir, sources, test_set) if jedi_ok else None
+    jctx = symbol_trace.build(repo_dir) if jedi_ok else None
     engine = "symbol" if jedi_ok else "file"
 
     for t in targets:

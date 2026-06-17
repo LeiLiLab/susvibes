@@ -26,6 +26,7 @@ HARD NOTES:
 - Do NOT apply any lines from the given patch; it is only for reference purposes.
 - Do NOT add any comments, text, annotations, hints, or extra wording—none.
 - Do NOT include any test files in the mask.
+- Do NOT extend substantially beyond the necessary extent.
 - Do NOT implement any code or save any backups.
 """
 

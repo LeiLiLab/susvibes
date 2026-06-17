@@ -5,8 +5,8 @@ import subprocess
 import getpass
 from pathlib import Path
 
-from susvibes.constants import ContainerLimits
-from susvibes.utils import load_file, save_file
+from susvibes.core.constants import ContainerLimits
+from susvibes.core.utils import load_file, save_file
 
 from susvibes.curate.constants import AGENT_RUN_LOG_DIR
 

@@ -139,7 +139,8 @@ agent:
                * The change looks "harmless" (a comment, an unused import, a dead line).
              - Why: your tests will be re-run in a clean container; any source change you made will likely behave differently there and the submission will be REJECTED.
              - If you genuinely cannot make discrimination work without modifying existing source, the instance is unfixable from your end. Submit your test files anyway with no source edits, OR run `exit_forfeit` if available — do NOT ship a submission that you know depends on source-code surgery.
-          3. Run the submit command again to confirm.
+          3. If the diff below does not include a desired change you made, the repository's `.gitignore` may be excluding it. Force-track each missing change with `git add -f <path>`.
+          4. Run the submit command again to confirm.
 
           Here is a list of all of your changes:
 

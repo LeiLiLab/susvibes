@@ -20,17 +20,16 @@ import docker
 import docker.errors
 from tqdm import tqdm
 
-from susvibes.constants import get_env_spec_path
 from susvibes.curate.constants import (
     get_log_dir,
-    get_path,
+    get_dataset_path,
     TaskArtifact,
     PATCH_TEMPLATE,
 )
 from susvibes.curate.utils import extract_repo_test_cmd, reverse_patch
-from susvibes.env import Env, Deployment
-from susvibes.utils import (
-    get_image_name, load_file, parse_instance_id, save_file, setup_instance_logger,
+from susvibes.core.env import Env, Deployment
+from susvibes.core.utils import (
+    get_image_name, load_file, parse_instance_id, save_file, setup_instance_logger, get_env_specs,
 )
 
 docker_client = docker.from_env()
@@ -78,7 +77,7 @@ def build_base_no_test_deployment(
             logger=logger,
             project=project,
             image_name=data_record["env_image_name"],
-            dockerfile=env_spec["dockerfile"],
+            **env_spec,
         )
     except (docker.errors.ImageNotFound, docker.errors.NotFound):
         msg = f"Env image not found: {data_record['env_image_name']}"
@@ -130,8 +129,8 @@ def dump_test(data_record, env_spec, edits_dir: Path):
     save_file(readme, task_dir / TaskArtifact.README)
 
 
-def dump_single(record, env_spec, edits_dir: Path, log_dir: Path, no_require_test: bool = False):
-    if no_require_test:
+def dump_single(record, env_spec, edits_dir: Path, log_dir: Path, require_test: bool = True):
+    if not require_test:
         dump_test(record, env_spec, edits_dir)
         return True
     base_no_test_image_name = get_image_name(f"base_no_test_{record['instance_id']}")
@@ -151,22 +150,22 @@ def dump_threadpool(
     log_dir: Path,
     max_workers: int,
     instance_ids: list = None,
-    no_require_test: bool = False,
+    require_test: bool = True,
 ) -> tuple[int, list]:
     """Build base_no_test images and dump editable folders for all candidate
     instances in parallel. Returns (dumped_count, failed_instance_ids).
-    When no_require_test is True, the base_no_test image build is skipped."""
+    When require_test is False, the base_no_test image build is skipped."""
     candidates = [r for r in dataset
         if r.get("test_patch") and r["instance_id"] in env_specs]
     if instance_ids is not None:
         candidates = [r for r in candidates if r["instance_id"] in set(instance_ids)]
 
-    dumped, failed = 0, []
+    succeeded, failed = [], []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(
                 dump_single, r, env_specs[r["instance_id"]], edits_dir, log_dir,
-                no_require_test=no_require_test,
+                require_test=require_test,
             ): r["instance_id"] for r in candidates
         }
         with tqdm(total=len(futures), dynamic_ncols=True,
@@ -178,14 +177,22 @@ def dump_threadpool(
                 except Exception as e:
                     raise RuntimeError(f"Internal error for {instance_id}: {e}")
                 if result:
-                    dumped += 1
+                    succeeded.append(instance_id)
                 else:
                     failed.append(instance_id)
                 pbar.update(1)
                 pbar.set_description(
-                    f"{dumped} dumped, {len(failed)} failed"
+                    f"{len(succeeded)} dumped, {len(failed)} failed"
                 )
-    return dumped, failed
+    if succeeded:
+        print(f"Succeeded ({len(succeeded)}):")
+        for instance_id in sorted(succeeded):
+            print(f"  {instance_id}")
+    if failed:
+        print(f"\nFailed ({len(failed)}):")
+        for instance_id in sorted(failed):
+            print(f"  {instance_id}")
+    return len(succeeded), failed
 
 
 def parse_patch_md(path: Path) -> str | None:
@@ -258,29 +265,28 @@ if __name__ == "__main__":
         help="Number of threads to use for dump.",
     )
     parser.add_argument(
-        "--no_require_test",
-        action="store_true",
-        help="Skip building the base_no_test image during dump.",
+        "--require_test",
+        type=json.loads,
+        default=True,
+        help="Build the base_no_test image during dump (default True); false skips it.",
     )
     args = parser.parse_args()
 
-    dataset_path = get_path("dataset", args.run_id)
-    edits_dir = get_path("edits", args.run_id)
+    dataset_path = get_dataset_path("dataset", args.run_id)
+    edits_dir = get_dataset_path("edits", args.run_id)
     dataset = load_file(dataset_path)
 
     if args.mode == "dump":
-        env_specs = load_file(get_env_spec_path("components", args.run_id))
+        env_specs = get_env_specs(args.run_id)
         log_dir = get_log_dir(args.run_id, "test")
         edits_dir.mkdir(parents=True, exist_ok=True)
         dumped, failed = dump_threadpool(
             dataset, env_specs, edits_dir, log_dir, args.max_workers,
             instance_ids=args.instance_ids,
-            no_require_test=args.no_require_test,
+            require_test=args.require_test,
         )
         save_file(dataset, dataset_path)
         print(f"Built and dumped {dumped} instances to {edits_dir}.")
-        if failed:
-            print(f"Failed: {failed}")
         print(f"Dataset saved to {dataset_path}.")
     else:
         candidates = dataset
@@ -295,7 +301,7 @@ if __name__ == "__main__":
                     unchanged += 1
             except RuntimeError:
                 invalid.append(record["instance_id"])
-        print(f"Updated {updated} test_patches, {unchanged} unchanged.")
+        print(f"Updated {updated} test_patch entries, {unchanged} unchanged.")
         if invalid:
             print(f"Skipped {len(invalid)} with invalid diff content: {invalid}")
         if updated > 0:

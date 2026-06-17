@@ -19,17 +19,16 @@ import docker.errors
 from tqdm import tqdm
 from jinja2 import Template
 
-from susvibes.constants import get_env_spec_path
-from susvibes.curate.constants import get_log_dir, get_path
+from susvibes.curate.constants import get_log_dir, get_dataset_path
 from susvibes.curate.test.prompts import (
     SEC_TEST_GEN_PATCH_SECFIX_PROMPT_TEMPLATE,
     SEC_TEST_GEN_SECFIX_PROMPT_TEMPLATE,
 )
 from susvibes.curate.utils import extract_repo_test_cmd, reverse_patch
 from susvibes.curate.utils.agents.ports import SWEAgentPort
-from susvibes.env import Env, Deployment
+from susvibes.core.env import Env, Deployment
 from susvibes.env_specs import WORKSPACE_DIR_NAME
-from susvibes.utils import load_file, get_image_name, parse_instance_id, setup_instance_logger
+from susvibes.core.utils import load_file, get_image_name, parse_instance_id, setup_instance_logger, get_env_specs
 
 LOG_INSTANCE = "gen_prologue.log"
 SECURITY_PATCH_FILE_NAME = ".susvibes.security_patch.diff"  # kept in repo root for state toggling
@@ -64,7 +63,7 @@ def build_rollback_deployment(data_record, env_spec, target_image_name, log_dir)
             logger=logger,
             project=project,
             image_name=data_record["env_image_name"],
-            dockerfile=env_spec["dockerfile"],
+            **env_spec,
         )
     except (docker.errors.ImageNotFound, docker.errors.NotFound):
         msg = f"Env image not found: {data_record['env_image_name']}"
@@ -118,6 +117,14 @@ def build_rollback_threadpool(records, env_specs, log_dir, max_workers, force=Fa
                 pbar.set_description(
                     f"{len(image_by_id)} built, {len(failed)} failed"
                 )
+    if image_by_id:
+        print(f"Succeeded ({len(image_by_id)}):")
+        for instance_id in sorted(image_by_id):
+            print(f"  {instance_id}")
+    if failed:
+        print(f"\nFailed ({len(failed)}):")
+        for instance_id in sorted(failed):
+            print(f"  {instance_id}")
     return image_by_id, failed
 
 
@@ -127,12 +134,11 @@ def prologue(run_id, strategy, max_workers, instance_ids=None, force=False):
 
     prompt_template = HINT_STRATEGY_TEMPLATES[strategy]
 
-    dataset_path = get_path('dataset', run_id)
-    env_specs_path = get_env_spec_path('components', run_id)
+    dataset_path = get_dataset_path('dataset', run_id)
     log_dir = get_log_dir(run_id, "test")
 
     dataset = load_file(dataset_path)
-    env_specs = load_file(env_specs_path)
+    env_specs = get_env_specs(run_id, ("dev_tools", "dockerfile"))
 
     candidates = [r for r in dataset if r["instance_id"] in env_specs]
     if instance_ids is not None:

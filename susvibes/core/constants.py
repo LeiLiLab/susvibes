@@ -2,20 +2,19 @@ import os
 from enum import Enum, StrEnum
 from pathlib import Path
 
-root_dir = Path(__file__).parent.parent
-current_dir = Path(__file__).parent
+# This module lives in susvibes/core/: the susvibes package dir is two levels up, repo root three.
+root_dir = Path(__file__).parent.parent.parent
+current_dir = Path(__file__).parent.parent
 
 ENV_SPECS_DIR = current_dir / "env_specs"
 
-def get_env_spec_path(name: str, run_id: str = "default") -> Path:
-    base = ENV_SPECS_DIR / run_id
-    paths = {
-        'dev_tools': base / 'dev_tools.json',
-        'components': base / 'components.json',
-    }
-    return paths[name]
+ENV_SPEC_FILE_NAMES = {
+    "dev_tools": "dev_tools.json",
+    "dockerfile": "dockerfile.json",
+    "logs_handler": "logs_handler.json",
+}
 
-EVALUATION_LOG_DIR = root_dir / "logs/run_evaluation"
+EVAL_LOG_DIR = root_dir / "logs/run_evaluation"
 LOG_SUMMARY = "summary.json"
 
 class ContainerLimits:
@@ -46,23 +45,13 @@ class PredictionKeys(StrEnum):
     PREDICTION = "model_patch"
     MODEL = "model_name_or_path"
 
-class EvalStatus(StrEnum):
-    NO_PATCH = "no_patch"
-    MODEL_PATCH_ERROR = "model_patch_error"
-    STARTUP_ERROR = "startup_error"
-    TIMEOUT = "timeout"
-    COMPLETION = "completion"
-
-class TestItemStatus(StrEnum):
-    FAILED = "FAILED"
-    PASSED = "PASSED"
-    SKIPPED = "SKIPPED"
-    ERROR = "ERROR"
-    XFAIL = "XFAIL"
-
 class TestStatus(StrEnum):
     STARTUP_ERROR = "startup_error"
     TIMEOUT = "timeout"
-    COMPLETION = "completion"
+    COMPLETED = "completed"
 
-FAILURE_STATUSES = {TestItemStatus.FAILED, TestItemStatus.ERROR}
+class EvalStatus(StrEnum):
+    EMPTY_MODEL_PATCH = "empty_model_patch"
+    MODEL_PATCH_ERROR = "model_patch_error"
+    INDETERMINATE = "indeterminate"
+    COMPLETED = "completed"

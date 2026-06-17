@@ -5,6 +5,7 @@
 *.ipynb_checkpoints
 *.egg-info/
 *.egg
+*.bak*
 
 /projects/
 /backup/
@@ -17,9 +18,13 @@ __pycache__/
 !/datasets/default/susvibes_dataset.jsonl
 !/datasets/default/examples/
 !/datasets/default/examples/**
+!/datasets/exp_no_test_v3/
+/datasets/exp_no_test_v3/*
+!/datasets/exp_no_test_v3/susvibes_dataset.jsonl
 
 /susvibes/env_specs/*/
 !/susvibes/env_specs/default/
+!/susvibes/env_specs/exp_no_test_v3/
 
 slurm*
 /slurm/

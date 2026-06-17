@@ -1,21 +1,16 @@
-import os
 import time
 import argparse
 import requests
 
 from tqdm import tqdm
-from pathlib import Path
-from dotenv import load_dotenv
 
-from susvibes.curate.constants import get_path
-from susvibes.utils import load_file, save_file
-
-load_dotenv()
-token = os.getenv("GITHUB_TOKEN")
+from susvibes.curate.constants import get_dataset_path
+from susvibes.curate.mine.constants import GITHUB_HEADERS
+from susvibes.core.utils import load_file, save_file
 
 RECENT_YR_CUTOFF = 2014
 
-RAW_MOREFIXES_DIR = get_path('cve_records') / 'Morefixes'
+RAW_MOREFIXES_DIR = get_dataset_path('cve_records') / 'Morefixes'
 URL_DATASET_FILE_NAME = "dataset_url.jsonl"
 DATASET_FILE_NAME = "dataset.jsonl"
 
@@ -32,8 +27,7 @@ def fetch_github_commit_patch(owner: str, repo: str, sha: str,
         "Accept": "application/vnd.github.patch",  # ask API to return patch
         "X-GitHub-Api-Version": "2022-11-28",
     })
-    if token:
-        session.headers["Authorization"] = f"Bearer {token}"
+    session.headers.update(GITHUB_HEADERS)
 
     api_url = f"https://api.github.com/repos/{owner}/{repo}/commits/{sha}"
     backoff = 1.5
@@ -60,8 +54,10 @@ def fetch_github_commit_patch(owner: str, repo: str, sha: str,
 
     # Fallback
     html_patch_url = f"https://github.com/{owner}/{repo}/commit/{sha}.patch"
+    fallback_headers = {"User-Agent": "morefixes-tools/patch-fetch"}
+    fallback_headers.update(GITHUB_HEADERS)
     try:
-        r2 = requests.get(html_patch_url, timeout=timeout, headers={"User-Agent": "morefixes-tools/patch-fetch"})
+        r2 = requests.get(html_patch_url, timeout=timeout, headers=fallback_headers)
         if r2.status_code == 200 and r2.text.strip():
             return r2.text
         last_err = f"HTML .patch status {r2.status_code}"

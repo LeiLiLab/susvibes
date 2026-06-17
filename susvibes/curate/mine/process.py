@@ -7,11 +7,10 @@ from pathlib import Path
 from typing import TypedDict
 
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir
-from susvibes.curate.constants import get_path
-from susvibes.utils import load_file, save_file, get_instance_id, setup_logger
+from susvibes.curate.constants import get_dataset_path
+from susvibes.core.utils import load_file, save_file, get_instance_id, setup_logger
 from susvibes.curate.utils import (
     get_repo_dir,
-    get_repo_size,
     clone_github_repo,
     reset_to_commit,
     apply_patch,
@@ -21,6 +20,7 @@ from susvibes.curate.utils import (
 )
 
 from susvibes.curate.mine.utils import (
+    get_repo_size,
     mask_test_funcs,
     merge_file_patches,
     split_to_file_patches,
@@ -28,6 +28,7 @@ from susvibes.curate.mine.utils import (
     path_has_keyword,
 )
 from susvibes.curate.mine.constants import (
+    GITHUB_HEADERS,
     TARGET_LANG,
     LANG_EXTENSIONS,
     INSTALL_TEST_KEYWORDS,
@@ -42,10 +43,10 @@ detail_logger = None
 
 def init_loggers(log_dir):
     global logger, detail_logger
-    logger = setup_logger(log_dir, "process.log", f"{__name__}.summary", add_stdout=True)
-    detail_logger = setup_logger(log_dir, "process_details.log", f"{__name__}.detail", add_stdout=False)
+    logger = setup_logger(log_dir, "process.log", f"{__name__}.summary", add_stdout=True, handle_tqdm=True, mode="w")
+    detail_logger = setup_logger(log_dir, "process_details.log", f"{__name__}.detail", add_stdout=False, mode="w")
 
-RAW_CVE_RECORDS_DIR = get_path('cve_records')
+RAW_CVE_RECORDS_DIR = get_dataset_path('cve_records')
 RAW_REPOSVUL_DATASET_PATH = RAW_CVE_RECORDS_DIR / f'ReposVul/ReposVul_{TARGET_LANG}.jsonl'
 RAW_MOREFIXES_DATASET_PATH = RAW_CVE_RECORDS_DIR / 'Morefixes/dataset_new.jsonl'
 
@@ -96,7 +97,7 @@ class ReposVulHandler():
         while max_retries > 0:
             max_retries -= 1
             try:
-                r = requests.get(diff_url, allow_redirects=True, timeout=10)
+                r = requests.get(diff_url, headers=GITHUB_HEADERS, allow_redirects=True, timeout=10)
                 if r.status_code == 200:
                     cls.cached_remote_status[diff_url] = True
                     cls._save_cache()
@@ -184,7 +185,7 @@ def code_test_split(data_record, target_lang, test_lang, require_test=True) -> C
 
     created_at = data_record.get('created_at', data_record.get('commit_date', None))
     project = data_record.get('project',
-        f"{data_record.get('owner', '')}/{data_record.get('repo', '')}")
+        f"{data_record.get('owner', '')}/{data_record.get('repo', '')}").lower()
     base_commit = data_record['commit_id']
     instance_id = get_instance_id(project, base_commit)
     info_page = data_record.get('html_url',
@@ -331,9 +332,10 @@ if __name__ == "__main__":
         help='List of handlers to use (JSON format)'
     )
     parser.add_argument(
-        '--no_require_test',
-        action='store_true',
-        help='Keep records even without test files'
+        '--require_test',
+        type=json.loads,
+        default=True,
+        help='Require repo-provided test files (default True); false keeps only records without tests.'
     )
     parser.add_argument(
         '--shuffle',
@@ -351,7 +353,7 @@ if __name__ == "__main__":
     mine_log_dir = get_log_dir(args.run_id, "mine", "process")
     init_loggers(mine_log_dir)
 
-    processed_dataset_path = get_path('processed_dataset', args.run_id)
+    processed_dataset_path = get_dataset_path('processed_dataset', args.run_id)
 
     if args.use_handlers:
         handler_map = {
@@ -362,7 +364,7 @@ if __name__ == "__main__":
     else:
         dataset_handlers = (ReposVulHandler, MorefixesHandler)
 
-    require_test = not args.no_require_test
+    require_test = args.require_test
     processed_dataset = process_datasets(
         dataset_handlers=dataset_handlers,
         target_lang=TARGET_LANG,

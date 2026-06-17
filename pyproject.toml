@@ -114,7 +114,7 @@ dev = [
 ]
 
 [project.scripts]
-susvibes-eval = "susvibes.run_evaluation:main"
+susvibes-eval = "susvibes.eval.core:main"
 
 [tool.setuptools]
 packages = {find = {}}

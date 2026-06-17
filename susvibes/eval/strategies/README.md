@@ -17,7 +17,7 @@ SusVibes supports advanced strategies for security-enhanced evaluation, applying
 First, enhance the dataset with your chosen strategy. This will generate a new dataset file `susvibes_dataset_{strategy}.jsonl` in the `datasets/` directory.
 
 ```bash
-python -m susvibes.run_evaluation \
+python -m susvibes.eval.core \
   --prepare_dataset \
   --strategy <strategy_name>
 ```
@@ -27,7 +27,7 @@ python -m susvibes.run_evaluation \
 After preparing the enhanced dataset, use it to harness your agent instead. Evaluate with the same command as in the main [README](../../README.md#-step-2-evaluation), plus the strategy option:
 
 ```bash
-python -m susvibes.run_evaluation \
+python -m susvibes.eval.core \
   --strategy <strategy_name> \
   # ... other parameters
 ```

@@ -38,14 +38,14 @@ from pathlib import Path
 import docker.errors
 from tqdm import tqdm
 
-from susvibes.constants import ContainerLimits, get_env_spec_path
+from susvibes.core.constants import ContainerLimits
 from susvibes.env_specs.constants import (
     WORKSPACE_DIR_NAME,
     SUSVIBES_RUNTIME_DATA_DIR,
 )
-from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_path
-from susvibes.utils import (
-    load_file, save_file, touched_files, setup_instance_logger, get_image_name,
+from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_dataset_path
+from susvibes.core.utils import (
+    load_file, save_file, touched_files, setup_instance_logger, get_image_name, get_env_specs,
 )
 from susvibes.curate.utils import (
     get_repo_dir,
@@ -54,7 +54,7 @@ from susvibes.curate.utils import (
     get_summary,
     print_summary,
 )
-from susvibes.env import Deployment
+from susvibes.core.env import Deployment
 from susvibes.curate.mine.check_cov.engine.constants import SymbolTrace
 from susvibes.curate.mine.check_cov.engine.extract_facts import TARGET_EXTENSIONS
 
@@ -164,14 +164,15 @@ def build_cov_deployment(data_record: dict, version: str, context_path: Path,
             remove_container=True,
         )
     except docker.errors.BuildError as e:
-        logger.error(f"Failed to build cov deployment for {data_record['instance_id']}: {e}")
+        logger.error(f"Failed to build cov deployment: {e}")
         return None
 
 
 # --- orchestration ---------------------------------------------------------
 
 def check_cov_single(data_record: dict, log_dir: Path, dev_tools: dict,
-                     max_depth: int = SymbolTrace.MAX_DEPTH) -> tuple[dict | None, str | None]:
+                     max_depth: int = SymbolTrace.MAX_DEPTH,
+                     force: bool = False) -> tuple[dict | None, str | None]:
     """Analyze one instance's file-level test coverage at base_commit, inside a
     version-matched cov container. Returns (CoverageResult, None) on success,
     (None, reason) on failure."""
@@ -183,54 +184,56 @@ def check_cov_single(data_record: dict, log_dir: Path, dev_tools: dict,
     logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
     logger.info(f"Checking test coverage for {instance_id}...")
 
-    version = (dev_tools.get(instance_id) or {}).get("version")
-    if not version:
-        logger.warning(f"No dev_tools Python version for {instance_id}; failing.")
-        return None, "no dev_tools python version"
-
-    # engine.analyze requires every target be a target-language (.py) file; filter
-    # here (process does not guarantee it) so a patch mixing .py with non-.py still
-    # gets its .py analyzed instead of failing the whole instance.
-    targets = sorted(t for t in touched_files(data_record["security_patch"])
-                     if t.endswith(TARGET_EXTENSIONS))
-    if not targets:
-        logger.warning(f"No target-language files in security_patch for {instance_id}; failing.")
-        return None, "no target-language files in security_patch"
-
-    repo_dir = get_repo_dir(project, LOCAL_REPOS_DIR)
-    result = None
-    with tempfile.TemporaryDirectory(prefix="cov_") as tmpdir:
-        context_path = Path(tmpdir)
-        # reset + snapshot under the per-repo lock (the shared clone is mutated);
-        # the build context is an independent copy, so build/run happen lock-free.
-        with RepoLocks.locked(project):
-            reset_to_commit(repo_dir, base_commit, new_branch=False)
-            prepare_engine_context(repo_dir, data_record, targets, max_depth, context_path)
-        cov_deployment = build_cov_deployment(data_record, version, context_path, logger)
-        # Run the worker in the container, read its CoverageResult from the logs.
-        # create_container / run_with_timeout self-clean on failure; errors leave result=None.
-        if cov_deployment:
-            try:
-                cov_deployment.create_container(mem_limit=CovContainerLimits.MEM_LIMIT,
-                                                cpu_limit=CovContainerLimits.CPU_LIMIT)
-            except docker.errors.APIError as e:
-                logger.error(f"Failed to create container: {e}")
-            else:
+    # Reuse a prior run's saved container logs if present — re-parsing them reproduces the
+    # result with no rebuild/rerun; --force re-runs from scratch.
+    cov_output_path = Path(log_dir) / instance_id / LOG_COV_OUTPUT
+    if not force and cov_output_path.exists():
+        logger.info("Container logs found; reusing.")
+        result = parse_cov_result(load_file(cov_output_path))
+        reason = None if result is not None else "Failed to parse coverage logs."
+    else:
+        version = dev_tools[instance_id]["version"]
+        # Filter to target-language (.py) files in case a patch mixes .py with non-.py;
+        # engine.analyze raises if none remain (process guarantees the patch touches .py).
+        targets = sorted(t for t in touched_files(data_record["security_patch"])
+                         if t.endswith(TARGET_EXTENSIONS))
+        repo_dir = get_repo_dir(project, LOCAL_REPOS_DIR)
+        result, reason = None, "Failed to build cov deployment."
+        with tempfile.TemporaryDirectory(prefix="cov_") as tmpdir:
+            context_path = Path(tmpdir)
+            # reset + snapshot under the per-repo lock (the shared clone is mutated);
+            # the build context is an independent copy, so build/run happen lock-free.
+            with RepoLocks.locked(project):
+                reset_to_commit(repo_dir, base_commit, new_branch=False)
+                prepare_engine_context(repo_dir, data_record, targets, max_depth, context_path)
+            cov_deployment = build_cov_deployment(data_record, version, context_path, logger)
+            # Run the worker in the container, read its CoverageResult from the logs.
+            # create_container / run_with_timeout self-clean on failure; errors leave result=None.
+            if cov_deployment:
                 try:
-                    logs, timed_out = cov_deployment.run_with_timeout(timeout=CovContainerLimits.RUN_TIMEOUT)
+                    cov_deployment.create_container(mem_limit=CovContainerLimits.MEM_LIMIT,
+                                                    cpu_limit=CovContainerLimits.CPU_LIMIT)
                 except docker.errors.APIError as e:
-                    logger.error(f"Failed to start container: {e}")
+                    reason = f"Failed to create container: {e}"
+                    logger.error(reason)
                 else:
-                    save_file(logs, Path(log_dir) / instance_id / LOG_COV_OUTPUT)
-                    if timed_out:
-                        logger.warning(f"Container timed out after {CovContainerLimits.RUN_TIMEOUT}s.")
+                    try:
+                        logs, timed_out = cov_deployment.run_with_timeout(timeout=CovContainerLimits.RUN_TIMEOUT)
+                    except docker.errors.APIError as e:
+                        reason = f"Failed to start container: {e}"
+                        logger.error(reason)
                     else:
-                        result = parse_cov_result(logs)
-                        if result is None:
-                            logger.error("Failed to parse coverage logs.")
+                        save_file(logs, cov_output_path)
+                        if timed_out:
+                            reason = "Failed to run cov container because of timeout."  # run_with_timeout already logged it
+                        else:
+                            result = parse_cov_result(logs)
+                            if result is None:
+                                reason = "Failed to parse coverage logs."
+                                logger.error(reason)
 
     if result is None:
-        return None, "container run failed or produced no result"
+        return None, reason
     logger.info(f"Coverage for {instance_id}: {result['label']} "
                 f"(score {result.get('score')}, engine {result.get('engine')}): {result.get('reason')}")
     return result, None
@@ -239,7 +242,8 @@ def check_cov_single(data_record: dict, log_dir: Path, dev_tools: dict,
 def check_cov_threadpool(processed_dataset: list, max_workers: int, coverage_report_path: Path,
                          log_dir: Path, dev_tools: dict,
                          instance_ids: list[str] | None = None,
-                         max_depth: int = SymbolTrace.MAX_DEPTH) -> dict:
+                         max_depth: int = SymbolTrace.MAX_DEPTH,
+                         force: bool = False) -> dict:
     """Analyze each instance in its own version-matched container, write every
     instance that ran to the coverage report, and save a run summary (succeeded
     coverage labels + failed reasons).
@@ -252,9 +256,11 @@ def check_cov_threadpool(processed_dataset: list, max_workers: int, coverage_rep
         wanted = set(instance_ids)
         records = [r for r in records if r["instance_id"] in wanted]
 
-    # Cov images are a hard dependency — fail fast if a needed version is missing.
+    # Cov images are a hard dependency for instances that will run — an instance reused
+    # from its existing cov_output.txt needs none. Fail fast if a needed version is missing.
     versions = {v for r in records
-                if (v := (dev_tools.get(r["instance_id"]) or {}).get("version"))}
+                if (force or not (Path(log_dir) / r["instance_id"] / LOG_COV_OUTPUT).exists())
+                and (v := (dev_tools.get(r["instance_id"]) or {}).get("version"))}
     for version in versions:
         cov_py_image = f'{get_image_name("cov_py")}:{version}'
         try:
@@ -264,7 +270,7 @@ def check_cov_threadpool(processed_dataset: list, max_workers: int, coverage_rep
 
     results, succeeded, failed = [], [], {}
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(check_cov_single, r, log_dir, dev_tools, max_depth):
+        futures = {executor.submit(check_cov_single, r, log_dir, dev_tools, max_depth, force):
                    r["instance_id"] for r in records}
         with tqdm(total=len(futures), dynamic_ncols=True,
                   desc=f"Checking coverage [{max_workers} threads]") as pbar:
@@ -281,7 +287,7 @@ def check_cov_threadpool(processed_dataset: list, max_workers: int, coverage_rep
                     failed[instance_id] = reason
                 pbar.update(1)
                 pbar.set_description(
-                    f"{len(succeeded)} ran successfully, {len(failed)} failed"
+                    f"{len(succeeded)} succeeded, {len(failed)} failed"
                 )
                 save_file(results, coverage_report_path)
 
@@ -310,6 +316,11 @@ def main() -> None:
         help="Number of concurrent instance containers",
     )
     parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force re-run, ignoring any reusable cov_output.txt.",
+    )
+    parser.add_argument(
         "--max_records",
         type=int,
         default=None,
@@ -330,12 +341,13 @@ def main() -> None:
     args = parser.parse_args()
 
     mine_log_dir = get_log_dir(args.run_id, "mine", "check_cov")
-    processed_dataset_path = get_path('processed_dataset', args.run_id)
-    coverage_report_path = get_path('coverage_report', args.run_id)
+    processed_dataset_path = get_dataset_path('processed_dataset', args.run_id)
+    coverage_report_path = get_dataset_path('coverage_report', args.run_id)
     coverage_report_path.parent.mkdir(parents=True, exist_ok=True)
 
     processed_dataset = load_file(processed_dataset_path)
-    dev_tools = load_file(get_env_spec_path('dev_tools', args.run_id))
+    dev_tools = {iid: spec["dev_tools"]
+        for iid, spec in get_env_specs(args.run_id, ("dev_tools",)).items()}
 
     analyze_ids = args.instance_ids
     if args.max_records is not None:
@@ -351,6 +363,7 @@ def main() -> None:
         dev_tools=dev_tools,
         instance_ids=analyze_ids,
         max_depth=args.max_depth,
+        force=args.force,
     )
 
 
