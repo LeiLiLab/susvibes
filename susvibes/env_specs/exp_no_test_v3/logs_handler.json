@@ -2,10 +2,10 @@
   "dpgaspar__flask-appbuilder_780bd0e8fbf2d36ada52edb769477e0a4edae580": {
     "count": {
       "logs_parser": {
-        "FAILED": "^FAILED \\((?:errors=\\d+, )?failures=(\\d+)\\)$",
+        "FAILED": "^FAILED \\(.*?failures=(\\d+).*\\)$",
         "PASSED": "",
         "SKIPPED": "",
-        "ERROR": "^FAILED \\(errors=(\\d+), failures=\\d+\\)$",
+        "ERROR": "^FAILED \\(.*?errors=(\\d+).*\\)$",
         "XFAIL": ""
       },
       "logs_checker": null
@@ -17,8 +17,8 @@
       "logs_parser": {
         "FAILED": "",
         "PASSED": "",
-        "SKIPPED": "^FAILED \\(SKIP=(\\d+)",
-        "ERROR": "^FAILED \\([^)]*errors=(\\d+)\\)",
+        "SKIPPED": "^FAILED \\(.*?SKIP=(\\d+)",
+        "ERROR": "^FAILED \\(.*?errors=(\\d+)",
         "XFAIL": ""
       },
       "logs_checker": null
@@ -28,23 +28,23 @@
   "pgadmin-org__pgadmin4_e374edc69239b3e02ecde895e27d9f9e488b87ee": {
     "count": {
       "logs_parser": {
-        "FAILED": "^\\s*(\\d+)\\s+tests\\s+failed",
-        "PASSED": "^\\s*(\\d+)\\s+tests\\s+passed",
-        "SKIPPED": "^\\s*(\\d+)\\s+tests\\s+skipped",
+        "FAILED": "^\\s*(\\d+)\\s+tests\\s+failed\\b:?",
+        "PASSED": "^\\s*(\\d+)\\s+tests\\s+passed\\b",
+        "SKIPPED": "^\\s*(\\d+)\\s+tests\\s+skipped\\b:?",
         "ERROR": "",
         "XFAIL": ""
       },
-      "logs_checker": "AttributeError: 'NoneType' object has no attribute 'startswith'"
+      "logs_checker": "ImportError: cannot import name .* from 'pgadmin\\.utils'"
     },
     "gen_sec": {}
   },
   "bottlepy__bottle_57a2f22e0c1d2b328c4f54bf75741d74f47f1a6b": {
     "count": {
       "logs_parser": {
-        "FAILED": "^FAILED \\((?:[^)]*?failures=(\\d+)[^)]*)\\)",
+        "FAILED": "^FAILED \\(failures=(\\d+)(?:, errors=\\d+)?\\)$",
         "PASSED": "",
         "SKIPPED": "",
-        "ERROR": "^FAILED \\((?:[^)]*?errors=(\\d+)[^)]*)\\)",
+        "ERROR": "^FAILED \\((?:failures=\\d+, )?errors=(\\d+)\\)$",
         "XFAIL": ""
       },
       "logs_checker": null
@@ -54,10 +54,10 @@
   "apache__superset_0e0028260fc8a2099250701524a489f3c9aa146f": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+\\s+(\\d+) failed,",
-        "PASSED": "^=+.*?\\b(\\d+) passed,",
-        "SKIPPED": "^=+.*?\\b(\\d+) skipped,",
-        "ERROR": "^=+.*?\\b(\\d+) errors?\\b",
+        "FAILED": "^===== (\\d+) failed",
+        "PASSED": "^===== .*? (\\d+) passed",
+        "SKIPPED": "^===== .*? (\\d+) skipped",
+        "ERROR": "^===== .*? (\\d+) errors?",
         "XFAIL": ""
       },
       "logs_checker": null
@@ -67,8 +67,8 @@
   "jupyterhub__nbgitpuller_07690644f29a566011dd0d7ba14cae3eb0490481": {
     "count": {
       "logs_parser": {
-        "FAILED": "^.*={3,}.*?(\\d+)\\s+failed",
-        "PASSED": "^.*={3,}.*?(\\d+)\\s+passed",
+        "FAILED": "^.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+failed",
+        "PASSED": "^.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+passed",
         "SKIPPED": "",
         "ERROR": "",
         "XFAIL": ""
@@ -80,10 +80,10 @@
   "xml-security__signxml_1b501faaacf34cf978a52dbc6915ec11e27611cd": {
     "count": {
       "logs_parser": {
-        "FAILED": "^FAILED \\(failures=(\\d+), errors=\\d+\\)",
+        "FAILED": "^FAILED \\([^)]*?failures=(\\d+)[^)]*\\)$",
         "PASSED": "",
         "SKIPPED": "",
-        "ERROR": "^FAILED \\(failures=\\d+, errors=(\\d+)\\)",
+        "ERROR": "^FAILED \\([^)]*?errors=(\\d+)[^)]*\\)$",
         "XFAIL": ""
       },
       "logs_checker": null
@@ -93,8 +93,8 @@
   "kakwa__ldapcherry_6f98076281e9452fdb1adcd1bcbb70a6f968ade9": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b",
-        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+        "FAILED": "^=+ (\\d+) failed\\b",
+        "PASSED": "^=+.*? (\\d+) passed\\b",
         "SKIPPED": "",
         "ERROR": "",
         "XFAIL": ""
@@ -106,10 +106,10 @@
   "mlflow__mlflow_61984e6843d2e59235d82a580c529920cd8f3711": {
     "count": {
       "logs_parser": {
-        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*\\s*=\\s+.*?(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+failed",
-        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*\\s*=\\s+.*?(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+passed",
-        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*\\s*=\\s+.*?(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+skipped",
-        "ERROR": "^(?:\\x1b\\[[0-9;]*m)*\\s*=\\s+.*?(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+errors?",
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=\\s*(?:\\x1b\\[[0-9;]*m)*(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+failed\\b",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=.*?,\\s*(?:\\x1b\\[[0-9;]*m)*(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+passed\\b",
+        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*=.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+skipped\\b",
+        "ERROR": "^(?:\\x1b\\[[0-9;]*m)*=.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+errors?\\b",
         "XFAIL": ""
       },
       "logs_checker": null
@@ -120,12 +120,12 @@
     "count": {
       "logs_parser": {
         "FAILED": "",
-        "PASSED": "^Ran\\s+(\\d+)\\s+tests?\\s+in\\s+[0-9.]+s$",
+        "PASSED": "^Ran\\s+(\\d+)\\s+tests",
         "SKIPPED": "",
         "ERROR": "",
         "XFAIL": ""
       },
-      "logs_checker": "ImportError: cannot import name 'get_mobsf_version'"
+      "logs_checker": "ImportError:\\s+cannot import name .*? from 'mobsf\\.MobSF\\.init'"
     },
     "gen_sec": {}
   },
@@ -145,21 +145,21 @@
   "freedomofpress__dangerzone_6c374d8a7e994f796bfcbbed71b15602a81a39b7": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+[^\\n]*\\b(\\d+)\\s+failed\\b[^\\n]*$",
-        "PASSED": "^=+[^\\n]*\\b(\\d+)\\s+passed\\b[^\\n]*,.*$",
-        "SKIPPED": "^=+[^\\n]*\\b(\\d+)\\s+skipped\\b[^\\n]*$",
-        "ERROR": "^=+[^\\n]*\\b(\\d+)\\s+errors?\\b[^\\n]*$",
+        "FAILED": "^=+\\s*(\\d+)\\s+failed",
+        "PASSED": "^=+.*?\\d+\\s+failed,\\s*(\\d+)\\s+passed",
+        "SKIPPED": "^=+.*?\\d+\\s+failed,\\s*\\d+\\s+passed,\\s*(\\d+)\\s+skipped",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?",
         "XFAIL": ""
       },
-      "logs_checker": "^!+.*Interrupted: \\d+ error during collection"
+      "logs_checker": "Interrupted:\\s+\\d+\\s+errors?\\s+during collection"
     },
     "gen_sec": {}
   },
   "pennersr__django-allauth_39f4a4ce9c891795b00914ca5ec32de72d5369c0": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b.*$",
-        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
         "SKIPPED": "",
         "ERROR": "",
         "XFAIL": ""
@@ -171,7 +171,7 @@
   "zauberzeug__nicegui_ed12eb14f2a6c48b388a05c04b3c5a107ea9d330": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+.*?(\\d+)\\s+failed",
+        "FAILED": "^=+\\s+(\\d+)\\s+failed",
         "PASSED": "^=+.*?(\\d+)\\s+passed",
         "SKIPPED": "",
         "ERROR": "^=+.*?(\\d+)\\s+errors?",
@@ -184,8 +184,8 @@
   "twentysix26__x26-cogs_72dd9323cb4c90f3a5accac7087605375d178246": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+[^\\n]*? (\\d+) failed[^\\n]*$",
-        "PASSED": "^=+[^\\n]*? (\\d+) passed[^\\n]*$",
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
         "SKIPPED": "",
         "ERROR": "",
         "XFAIL": ""
@@ -197,36 +197,36 @@
   "qutebrowser__qutebrowser_a45ca9c788f648d10cccce2af41405bf25ee2948": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b",
-        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
-        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b",
+        "FAILED": "^=+\\s+(\\d+)\\s+failed",
+        "PASSED": "^=+.*?,\\s*(\\d+)\\s+passed",
+        "SKIPPED": "^=+.*?passed,\\s*(\\d+)\\s+skipped",
         "ERROR": "",
-        "XFAIL": "^=+.*?\\b(\\d+)\\s+xfailed\\b"
+        "XFAIL": "^=+.*?skipped,\\s*(\\d+)\\s+xfailed"
       },
-      "logs_checker": null
+      "logs_checker": "^ERROR: could not load\\b.*$"
     },
     "gen_sec": {}
   },
   "astropy__astropy_22057d37b1313f5f5a9b5783df0a091d978dccb5": {
     "count": {
       "logs_parser": {
-        "FAILED": "^.*=+[^\\\\n]*?(\\\\d+)\\\\s+failed[^\\\\n]*$",
-        "PASSED": "^.*=+[^\\\\n]*?(\\\\d+)\\\\s+passed[^\\\\n]*$",
-        "SKIPPED": "^.*=+[^\\\\n]*?(\\\\d+)\\\\s+skipped[^\\\\n]*$",
-        "ERROR": "^.*=+[^\\\\n]*?(\\\\d+)\\\\s+errors?[^\\\\n]*$",
-        "XFAIL": "^.*=+[^\\\\n]*?(\\\\d+)\\\\s+xfailed[^\\\\n]*$"
+        "FAILED": "^.*=+.*?\\b(\\d+)\\s+failed\\b",
+        "PASSED": "^.*=+.*?\\b(\\d+)\\s+passed\\b",
+        "SKIPPED": "^.*=+.*?\\b(\\d+)\\s+skipped\\b",
+        "ERROR": "^.*=+.*?\\b(\\d+)\\s+errors?\\b",
+        "XFAIL": "^.*=+.*?\\b(\\d+)\\s+xfailed\\b"
       },
-      "logs_checker": "Interrupted: \\d+ errors during collection"
+      "logs_checker": "errors during collection"
     },
     "gen_sec": {}
   },
   "bottlepy__bottle_e140e1b54da721a660f2eb9d58a106b7b3ff2f00": {
     "count": {
       "logs_parser": {
-        "FAILED": "^FAILED \\(failures=(\\d+)(?:,.*)?\\)$",
+        "FAILED": "^FAILED \\(.*?failures=(\\d+)",
         "PASSED": "",
         "SKIPPED": "",
-        "ERROR": "^FAILED \\((?:failures=\\d+,\\s*)?errors=(\\d+)\\)$",
+        "ERROR": "^FAILED \\(.*?errors=(\\d+)",
         "XFAIL": ""
       },
       "logs_checker": null
@@ -236,11 +236,11 @@
   "jupyterhub__oauthenticator_1845c0e4b1bff3462c91c3108c85205acd3c75a2": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b.*in\\s",
-        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*in\\s",
-        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b.*in\\s",
-        "ERROR": "^=+.*?\\b(\\d+)\\s+errors?\\b.*in\\s",
-        "XFAIL": "^=+.*?\\b(\\d+)\\s+xfailed\\b.*in\\s"
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "",
+        "XFAIL": ""
       },
       "logs_checker": "ImportError while loading conftest"
     },
@@ -249,13 +249,13 @@
   "datadog__guarddog_37c7d0767ba28f4df46117d478f97652594c491c": {
     "count": {
       "logs_parser": {
-        "FAILED": "",
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b.*$",
         "PASSED": "^=+\\s+(\\d+)\\s+passed\\b.*$",
         "SKIPPED": "",
-        "ERROR": "^=+\\s+(\\d+)\\s+errors?\\b.*$",
+        "ERROR": "",
         "XFAIL": ""
       },
-      "logs_checker": "Interrupted:\\s*\\d+\\s+errors during collection"
+      "logs_checker": null
     },
     "gen_sec": {}
   },
@@ -264,24 +264,24 @@
       "logs_parser": {
         "FAILED": "",
         "PASSED": "^=\\s+(\\d+)\\s+passed,",
-        "SKIPPED": "^=.*?,\\s+(\\d+)\\s+skipped\\b",
+        "SKIPPED": "^=.*?,\\s+(\\d+)\\s+skipped,",
         "ERROR": "",
-        "XFAIL": "^=.*?skipped,\\s+(\\d+)\\s+xfailed\\b"
+        "XFAIL": "^=.*?,\\s+\\d+\\s+skipped,\\s+(\\d+)\\s+xfailed"
       },
-      "logs_checker": "^ImportError while loading conftest"
+      "logs_checker": "ImportError while loading conftest"
     },
     "gen_sec": {}
   },
   "pythoncharmers__python-future_c91d70b34ef0402aef3e9d04364ba98509dca76f": {
     "count": {
       "logs_parser": {
-        "FAILED": "(?i)^=+.*? (\\d+) failed.*? in [0-9.]+s =+",
-        "PASSED": "(?i)^=+.*? (\\d+) passed.*? in [0-9.]+s =+",
-        "SKIPPED": "(?i)^=+.*? (\\d+) skipped.*? in [0-9.]+s =+",
-        "ERROR": "(?i)^=+.*? (\\d+) error(?:s)? .*? in [0-9.]+s =+",
-        "XFAIL": "(?i)^=+.*? (\\d+) xfailed.*? in [0-9.]+s =+"
+        "FAILED": "^=+.*?(\\d+)\\s+failed",
+        "PASSED": "^=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?",
+        "XFAIL": "^=+.*?(\\d+)\\s+xfailed"
       },
-      "logs_checker": "Interrupted:\\s+\\d+\\s+errors?\\s+during collection"
+      "logs_checker": "ERROR collecting"
     },
     "gen_sec": {}
   },
@@ -289,36 +289,36 @@
     "count": {
       "logs_parser": {
         "FAILED": "",
-        "PASSED": "^=+\\s+(\\d+)\\s+passed\\b.*$",
+        "PASSED": "^=+.*?(\\\\d+)\\\\s+passed\\\\b.*$",
         "SKIPPED": "",
-        "ERROR": "^=+\\s+.*?(\\d+)\\s+errors?\\b.*$",
+        "ERROR": "^=+.*?(\\\\d+)\\\\s+error[s]?\\\\b.*$",
         "XFAIL": ""
       },
-      "logs_checker": "^!+.*Interrupted:.*error during collection"
+      "logs_checker": "error(?:s)?\\s+during collection"
     },
     "gen_sec": {}
   },
   "vllm-project__vllm_d3d6bb13fb62da3234addf6574922a4ec0513d04": {
     "count": {
       "logs_parser": {
-        "FAILED": "^={2,}.*?(\\d+)\\s+failed.*$",
-        "PASSED": "^={2,}.*?(\\d+)\\s+passed.*$",
-        "SKIPPED": "^={2,}.*?(\\d+)\\s+skipped.*$",
-        "ERROR": "^={2,}.*?(\\d+)\\s+errors?.*$",
-        "XFAIL": "^={2,}.*?(\\d+)\\s+xfailed.*$"
+        "FAILED": "^=+.*?(\\d+)\\s+failed[^\\n]*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed[^\\n]*$",
+        "SKIPPED": "",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?[^\\n]*$",
+        "XFAIL": ""
       },
-      "logs_checker": "errors? during collection"
+      "logs_checker": "^!+\\s+Interrupted: .*error[s]? during collection"
     },
     "gen_sec": {}
   },
   "pretalx__pretalx_60722c43cf975f319e94102e6bff320723776890": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+.*?(\\d+) failed\\b",
-        "PASSED": "^=+.*?(\\d+) passed\\b",
-        "SKIPPED": "^=+.*?(\\d+) skipped\\b",
-        "ERROR": "",
-        "XFAIL": ""
+        "FAILED": "^=+.*?(\\d+)\\s+failed",
+        "PASSED": "^=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?",
+        "XFAIL": "^=+.*?(\\d+)\\s+xfailed"
       },
       "logs_checker": null
     },
@@ -327,13 +327,13 @@
   "huggingface__transformers_80ca92470938bbcc348e2d9cf4734c7c25cb1c43": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=\\s+(\\d+) failed\\b",
-        "PASSED": "^=.*?\\b(\\d+) passed\\b",
-        "SKIPPED": "^=.*?\\b(\\d+) skipped\\b",
-        "ERROR": "^=.*?\\b(\\d+) errors?\\b",
+        "FAILED": "^=+\\s*(\\d+)\\s+failed,",
+        "PASSED": "^=+.*?(\\d+)\\s+passed,",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped,",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
         "XFAIL": ""
       },
-      "logs_checker": "ConftestImportFailure"
+      "logs_checker": "ImportError while loading conftest"
     },
     "gen_sec": {}
   },
@@ -353,23 +353,23 @@
   "python-pillow__pillow_3bce145966374dd39ce58a6fc0083f8d1890719c": {
     "count": {
       "logs_parser": {
-        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+failed",
-        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+passed",
-        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+skipped",
-        "ERROR": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+errors?",
-        "XFAIL": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+xfailed"
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+[^\\n]*?(?:\\x1b\\[[0-9;]*m)*(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+failed",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+[^\\n]*?(?:\\x1b\\[[0-9;]*m)*(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+passed",
+        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*=+[^\\n]*?(?:\\x1b\\[[0-9;]*m)*(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+skipped",
+        "ERROR": "^(?:\\x1b\\[[0-9;]*m)*=+[^\\n]*?(?:\\x1b\\[[0-9;]*m)*(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+errors?",
+        "XFAIL": "^(?:\\x1b\\[[0-9;]*m)*=+[^\\n]*?(?:\\x1b\\[[0-9;]*m)*(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+xfailed"
       },
-      "logs_checker": "Interrupted:\\s+\\d+\\s+errors?\\s+during\\s+collection"
+      "logs_checker": "error(?:s)? during collection"
     },
     "gen_sec": {}
   },
   "ericsson__codechecker_46bada41e32f3ba0f6011d5c556b579f6dddf07a": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+\\s+.*?\\b(\\d+)\\s+failed\\b.*$",
-        "PASSED": "^=+\\s+.*?\\b(\\d+)\\s+passed\\b.*$",
-        "SKIPPED": "^=+\\s+.*?\\b(\\d+)\\s+skipped\\b.*$",
-        "ERROR": "^=+\\s+.*?\\b(\\d+)\\s+errors?\\b.*$",
+        "FAILED": "^=+.*?\\b(\\d+) failed\\b",
+        "PASSED": "^=+.*?\\b(\\d+) passed\\b",
+        "SKIPPED": "^=+.*?\\b(\\d+) skipped\\b",
+        "ERROR": "^=+.*?\\b(\\d+) errors?\\b",
         "XFAIL": ""
       },
       "logs_checker": null
@@ -379,10 +379,10 @@
   "web2py__web2py_9706d125b42481178d2b423de245f5d2faadbf40": {
     "count": {
       "logs_parser": {
-        "FAILED": "^Failures:\\s+(\\d+)\\s*$",
+        "FAILED": "^Failures:\\s+(\\d+)",
         "PASSED": "",
-        "SKIPPED": "^Skipped:\\s+(\\d+)\\s*$",
-        "ERROR": "^Errors:\\s+(\\d+)\\s*$",
+        "SKIPPED": "^Skipped:\\s+(\\d+)",
+        "ERROR": "^Errors:\\s+(\\d+)",
         "XFAIL": ""
       },
       "logs_checker": null
@@ -392,26 +392,26 @@
   "tox-dev__filelock_4724d7f8c3393ec1f048c93933e6e3e6ec321f0e": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b.*$",
-        "PASSED": "^=+.*?\\s(\\d+)\\s+passed\\b.*$",
-        "SKIPPED": "^=+.*?\\s(\\d+)\\s+skipped\\b.*$",
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b",
         "ERROR": "",
         "XFAIL": ""
       },
-      "logs_checker": "^(?!.*\\b(?:PASSED|FAILED|SKIPPED|ERROR|XPASS|XFAIL)\\b).*::.*$"
+      "logs_checker": null
     },
     "gen_sec": {}
   },
   "apache__superset_b180319bbf08e876ea84963220ebebbfd0699e03": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+\\s*(\\d+)\\sfailed\\b",
-        "PASSED": "^=.*?,\\s*(\\d+)\\spassed\\b",
-        "SKIPPED": "^=.*?(\\d+)\\sskipped\\b",
-        "ERROR": "^=.*?(\\d+)\\serrors?\\b",
+        "FAILED": "^=+\\s*(\\d+)\\sfailed\\b.*=$",
+        "PASSED": "^=+.*?(\\d+)\\spassed\\b.*=$",
+        "SKIPPED": "^=+.*?(\\d+)\\sskipped\\b.*=$",
+        "ERROR": "^=+.*?(\\d+)\\serrors?\\b.*=$",
         "XFAIL": ""
       },
-      "logs_checker": "DB Creation and initialization failed"
+      "logs_checker": "Failed to create app"
     },
     "gen_sec": {}
   },
@@ -431,35 +431,35 @@
   "nltk__nltk_2a50a3edc9d35f57ae42a921c621edc160877f4d": {
     "count": {
       "logs_parser": {
-        "FAILED": "^.*=+[^\\n]*?(\\d+)\\s+failed[^\\n]*in\\s+[0-9.]+s",
-        "PASSED": "^.*=+[^\\n]*?(\\d+)\\s+passed[^\\n]*in\\s+[0-9.]+s",
-        "SKIPPED": "^.*=+[^\\n]*?(\\d+)\\s+skipped[^\\n]*in\\s+[0-9.]+s",
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+failed",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+skipped",
         "ERROR": "",
-        "XFAIL": "^.*=+[^\\n]*?(\\d+)\\s+xfailed[^\\n]*in\\s+[0-9.]+s"
+        "XFAIL": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+xfailed"
       },
-      "logs_checker": null
+      "logs_checker": "ImportError while loading conftest"
     },
     "gen_sec": {}
   },
   "pgadmin-org__pgadmin4_35f05e49b3632a0a674b9b36535a7fe2d93dd0c2": {
     "count": {
       "logs_parser": {
-        "FAILED": "^\\s*(\\d+)\\s+tests?\\s+failed:$",
-        "PASSED": "^\\s*(\\d+)\\s+tests\\s+passed$",
-        "SKIPPED": "^\\s*(\\d+)\\s+tests?\\s+skipped:$",
+        "FAILED": "^\\s*(\\d+)\\s+tests?\\s+failed\\b",
+        "PASSED": "^\\s*(\\d+)\\s+tests?\\s+passed\\b",
+        "SKIPPED": "^\\s*(\\d+)\\s+tests?\\s+skipped\\b",
         "ERROR": "",
         "XFAIL": ""
       },
-      "logs_checker": "^ImportError: cannot import name 'set_binary_path'"
+      "logs_checker": "ImportError: .*set_binary_path"
     },
     "gen_sec": {}
   },
   "python-pillow__pillow_4e9f367dfd3f04c8f5d23f7f759ec12782e10ee7": {
     "count": {
       "logs_parser": {
-        "FAILED": "^\\*{3}\\s+(\\d+)\\s+tests\\s+of\\s+\\d+\\s+failed\\.$",
+        "FAILED": "^\\*\\*\\* (\\d+) tests? of \\d+ failed\\.$",
         "PASSED": "",
-        "SKIPPED": "^---\\s+(\\d+)\\s+tests\\s+skipped\\.$",
+        "SKIPPED": "^--- (\\d+) tests? skipped\\.$",
         "ERROR": "",
         "XFAIL": ""
       },
@@ -470,11 +470,11 @@
   "jupyter__notebook_107a89fce5f413fb5728c1c5d2c7788e1fb17491": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b",
-        "PASSED": "^=+.*?failed,\\s+(\\d+)\\s+passed\\b",
-        "SKIPPED": "^=+.*?passed,\\s+(\\d+)\\s+skipped\\b",
+        "FAILED": "^=+\\s+(\\d+)\\s+failed",
+        "PASSED": "^=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped",
         "ERROR": "",
-        "XFAIL": "^=+.*?skipped,\\s+(\\d+)\\s+xfailed\\b"
+        "XFAIL": "^=+.*?(\\d+)\\s+xfailed"
       },
       "logs_checker": null
     },
@@ -496,9 +496,9 @@
   "ansible__ansible_a0e027fe362fbc209dbeff2f72d6e95f39885c69": {
     "count": {
       "logs_parser": {
-        "FAILED": "^FAILED \\([^\\n]*?failures=(\\d+)",
+        "FAILED": "^FAILED \\(.*?failures=(\\d+)",
         "PASSED": "",
-        "SKIPPED": "^(?:OK|FAILED) \\([^\\n]*?SKIP=(\\d+)",
+        "SKIPPED": "^(?:OK|FAILED) \\(.*?SKIP=(\\d+)",
         "ERROR": "",
         "XFAIL": ""
       },
@@ -509,9 +509,9 @@
   "apache__airflow_2fa51576e1283f5732e38fada686fd248d9c3a1e": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b",
-        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
-        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b",
+        "FAILED": "^=+.*?(\\d+)\\s+failed",
+        "PASSED": "^=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped",
         "ERROR": "",
         "XFAIL": ""
       },
@@ -535,24 +535,24 @@
   "pygments__pygments_97eb3d5ec7c1b3ea4fcf9dee30a2309cf92bd194": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+\\s+(\\d+)\\s+failed",
-        "PASSED": "^=+.*?(\\d+)\\s+passed",
-        "SKIPPED": "^=+.*?(\\d+)\\s+skipped",
-        "ERROR": "",
+        "FAILED": "",
+        "PASSED": "(?i)^=+.*?\\b(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "(?i)^=+.*?\\b(\\d+)\\s+skipped\\b.*$",
+        "ERROR": "(?i)^=+.*?\\b(\\d+)\\s+errors?\\b.*$",
         "XFAIL": ""
       },
-      "logs_checker": null
+      "logs_checker": "Interrupted: \\d+ errors during collection"
     },
     "gen_sec": {}
   },
   "openstack__nova-lxd_1b76cefb92081efa1e88cd8f330253f857028bd2": {
     "count": {
       "logs_parser": {
-        "FAILED": "^\\s*-\\s*Failed:\\s+(\\d+)",
-        "PASSED": "^\\s*-\\s*Passed:\\s+(\\d+)",
-        "SKIPPED": "^\\s*-\\s*Skipped:\\s+(\\d+)",
+        "FAILED": "^\\s*-\\s*Failed:\\s*(\\d+)",
+        "PASSED": "^\\s*-\\s*Passed:\\s*(\\d+)",
+        "SKIPPED": "^\\s*-\\s*Skipped:\\s*(\\d+)",
         "ERROR": "",
-        "XFAIL": "^\\s*-\\s*Expected\\s+Fail:\\s+(\\d+)"
+        "XFAIL": "^\\s*-\\s*Expected\\s+Fail:\\s*(\\d+)"
       },
       "logs_checker": null
     },
@@ -561,8 +561,8 @@
   "alerta__alerta_2bfa31779a4c9df2fa68fa4d0c5c909698c5ef65": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b.*$",
-        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*$",
+        "FAILED": "(?i)^=+.*? (\\d+) failed",
+        "PASSED": "(?i)^=+.*? (\\d+) passed",
         "SKIPPED": "",
         "ERROR": "",
         "XFAIL": ""
@@ -574,11 +574,11 @@
   "ipython__ipython_385d69325319a5972ee9b5983638e3617f21cb1f": {
     "count": {
       "logs_parser": {
-        "FAILED": "^.*=+.*?(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+failed",
-        "PASSED": "^.*=+.*?(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+passed",
-        "SKIPPED": "^.*=+.*?(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+skipped",
-        "ERROR": "^.*=+.*?(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+errors?",
-        "XFAIL": ""
+        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+failed",
+        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+skipped",
+        "ERROR": "",
+        "XFAIL": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+x(?:fail(?:ed)?|pass(?:ed)?)"
       },
       "logs_checker": null
     },
@@ -587,8 +587,8 @@
   "spiral-project__ihatemoney_8d77cf5d5646e1d2d8ded13f0660638f57e98471": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+.*?(\\d+)\\s+failed[^\\n]*$",
-        "PASSED": "^=+.*?(\\d+)\\s+passed[^\\n]*$",
+        "FAILED": "^=+\\s+(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
         "SKIPPED": "",
         "ERROR": "",
         "XFAIL": ""
@@ -606,7 +606,7 @@
         "ERROR": "^=+\\s+(\\d+)\\s+errors?\\b.*$",
         "XFAIL": ""
       },
-      "logs_checker": "^!+.*error during collection"
+      "logs_checker": "collected\\s+\\d+\\s+items\\s*/\\s*\\d+\\s+errors?"
     },
     "gen_sec": {}
   },
@@ -614,23 +614,23 @@
     "count": {
       "logs_parser": {
         "FAILED": "",
-        "PASSED": "^Ran\\s+(\\d+)\\s+tests?",
+        "PASSED": "^Ran\\s+(\\d+)\\s+tests?.*\\n^OK\\s*$",
         "SKIPPED": "",
         "ERROR": "",
         "XFAIL": ""
       },
-      "logs_checker": "^ImportError:"
+      "logs_checker": "ImportError: cannot import name .*? from 'mobsf\\.MobSF\\.init'"
     },
     "gen_sec": {}
   },
   "vllm-project__vllm_9d9a2b77f19f68262d5e469c4e82c0f6365ad72d": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+.*?(\\d+)\\s+failed.*$",
-        "PASSED": "^=+.*?(\\d+)\\s+passed.*$",
-        "SKIPPED": "^=+.*?(\\d+)\\s+skipped.*$",
-        "ERROR": "^=+.*?(\\d+)\\s+errors?.*$",
-        "XFAIL": "^=+.*?(\\d+)\\s+xfail.*$"
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "",
+        "ERROR": "^=+.*?\\b(\\d+)\\s+errors?\\b.*$",
+        "XFAIL": ""
       },
       "logs_checker": null
     },
@@ -639,9 +639,9 @@
   "jupyter-server__jupyter_server_87a4927272819f0b1cae1afa4c8c86ee2da002fd": {
     "count": {
       "logs_parser": {
-        "FAILED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+failed",
-        "PASSED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+passed",
-        "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)(?:\\x1b\\[[0-9;]*m)*\\s+skipped",
+        "FAILED": "^.*====.*?(\\d+)\\sfailed",
+        "PASSED": "^.*====.*?(\\d+)\\spassed",
+        "SKIPPED": "^.*====.*?(\\d+)\\sskipped",
         "ERROR": "",
         "XFAIL": ""
       },
@@ -652,13 +652,13 @@
   "paramiko__paramiko_fa29bd8446c8eab237f5187d28787727b4610516": {
     "count": {
       "logs_parser": {
-        "FAILED": "^FAILED \\([^)]*failures=(\\d+)[^)]*\\)$",
+        "FAILED": "^FAILED\\s+\\(.*?failures=(\\d+)",
         "PASSED": "",
-        "SKIPPED": "^(?:OK|FAILED) \\([^)]*skipped=(\\d+)[^)]*\\)$",
+        "SKIPPED": "^(?:OK|FAILED)\\s+\\(.*?skipped=(\\d+)",
         "ERROR": "",
         "XFAIL": ""
       },
-      "logs_checker": "ImportError: cannot import name"
+      "logs_checker": "ImportError: .*paramiko\\.common"
     },
     "gen_sec": {}
   },
@@ -666,12 +666,12 @@
     "count": {
       "logs_parser": {
         "FAILED": "",
-        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
+        "PASSED": "^=+\\s+(\\d+)\\s+passed\\b",
         "SKIPPED": "",
-        "ERROR": "^=+.*?(\\d+)\\s+error[s]?\\b.*$",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
         "XFAIL": ""
       },
-      "logs_checker": "^!+.*Interrupted: .*during collection"
+      "logs_checker": "^!+.*Interrupted:.*during collection"
     },
     "gen_sec": {}
   },
@@ -691,23 +691,23 @@
   "openstack__barbican_6c841b23afa8ed6fa4cd01ba1a6bebfb60f06ae5": {
     "count": {
       "logs_parser": {
-        "FAILED": "^\\s*-\\s*Failed:\\s*(\\d+)",
-        "PASSED": "^\\s*-\\s*Passed:\\s*(\\d+)",
-        "SKIPPED": "^\\s*-\\s*Skipped:\\s*(\\d+)",
+        "FAILED": "^ - Failed:\\s+(\\d+)$",
+        "PASSED": "^ - Passed:\\s+(\\d+)$",
+        "SKIPPED": "^ - Skipped:\\s+(\\d+)$",
         "ERROR": "",
-        "XFAIL": ""
+        "XFAIL": "^ - Expected Fail:\\s+(\\d+)$"
       },
-      "logs_checker": "^Failures during discovery"
+      "logs_checker": null
     },
     "gen_sec": {}
   },
   "esphome__esphome_d814ed1d4adc71fde47c4df41215bee449884513": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+ .*?(\\d+) failed\\b",
-        "PASSED": "^=+ .*?(\\d+) passed\\b",
+        "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*in\\s[\\d\\.]+s.*$",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*in\\s[\\d\\.]+s.*$",
         "SKIPPED": "",
-        "ERROR": "^=+ .*?(\\d+) errors?\\b",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b.*in\\s[\\d\\.]+s.*$",
         "XFAIL": ""
       },
       "logs_checker": null
@@ -730,26 +730,26 @@
   "zmievsa__cadwyn_b424ecd57cd8dabbc8fe39b8f8ccafea629c7728": {
     "count": {
       "logs_parser": {
-        "FAILED": "",
-        "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
         "SKIPPED": "",
-        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b.*$",
-        "XFAIL": "^=+.*?(\\d+)\\s+xpassed\\b.*$"
+        "ERROR": "",
+        "XFAIL": "^=+.*?\\b(\\d+)\\s+xpassed\\b"
       },
-      "logs_checker": "Interrupted:\\s+\\d+\\s+errors?\\s+during collection"
+      "logs_checker": null
     },
     "gen_sec": {}
   },
   "matrix-org__sydent_f56eee315b6c44fdd9f6aa785cc2ec744a594428": {
     "count": {
       "logs_parser": {
-        "FAILED": "^FAILED \\(errors=(\\d+)\\)$",
-        "PASSED": "^PASSED \\(successes=(\\d+)\\)$",
+        "FAILED": "^FAILED\\s*\\(errors=(\\d+)\\)$",
+        "PASSED": "^PASSED\\s*\\(successes=(\\d+)\\)$",
         "SKIPPED": "",
         "ERROR": "",
         "XFAIL": ""
       },
-      "logs_checker": "^FAILED \\(errors=\\d+\\)\\s*$"
+      "logs_checker": "^tests\\s*$"
     },
     "gen_sec": {}
   },
@@ -770,12 +770,12 @@
     "count": {
       "logs_parser": {
         "FAILED": "",
-        "PASSED": "^=+\\s+(\\d+)\\s+passed\\b",
-        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b",
+        "PASSED": "^=+ +(\\\\d+) +passed\\b.*$",
+        "SKIPPED": "^=+ +\\\\d+ +passed, +(\\\\d+) +skipped\\b.*$",
         "ERROR": "",
         "XFAIL": ""
       },
-      "logs_checker": "^ImportError while loading conftest"
+      "logs_checker": "ImportError while loading conftest"
     },
     "gen_sec": {}
   },
@@ -783,9 +783,9 @@
     "count": {
       "logs_parser": {
         "FAILED": "^=+\\s*(\\d+)\\s+failed\\b",
-        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
-        "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b",
-        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b",
+        "PASSED": "^=.*?(\\d+)\\s+passed\\b",
+        "SKIPPED": "^=.*?(\\d+)\\s+skipped\\b",
+        "ERROR": "^=.*?(\\d+)\\s+errors?\\b",
         "XFAIL": ""
       },
       "logs_checker": null
@@ -795,10 +795,10 @@
   "spotipy-dev__spotipy_1ca453f6ef87a2a9e9876f52b6cb38d13532ccf2": {
     "count": {
       "logs_parser": {
-        "FAILED": "^FAILED\\s+\\(.*?failures=(\\d+).*?\\)$",
-        "PASSED": "^Ran\\s+(\\d+)\\s+tests[^\\n]*\\nOK$",
-        "SKIPPED": "^(?:OK|FAILED)\\s+\\(.*?skipped=(\\d+).*?\\)$",
-        "ERROR": "^FAILED\\s+\\(.*?errors=(\\d+).*?\\)$",
+        "FAILED": "",
+        "PASSED": "",
+        "SKIPPED": "",
+        "ERROR": "^FAILED \\([^)]*?errors=(\\d+)[^)]*\\)$",
         "XFAIL": ""
       },
       "logs_checker": null
@@ -808,11 +808,11 @@
   "fonttools__fonttools_a696d5ba93270d5954f98e7cab5ddca8a02c1e32": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+\\s+(\\d+)\\s+failed,",
-        "PASSED": "^=+.*? (\\d+)\\s+passed,",
-        "SKIPPED": "^=+.*? (\\d+)\\s+skipped,",
-        "ERROR": "",
-        "XFAIL": "^=+.*? (\\d+)\\s+xfailed,"
+        "FAILED": "^=+.*?(\\d+)\\s+failed",
+        "PASSED": "^=+.*?(\\d+)\\s+passed",
+        "SKIPPED": "^=+.*?(\\d+)\\s+skipped",
+        "ERROR": "^=+.*?(\\d+)\\s+errors?",
+        "XFAIL": "^=+.*?(\\d+)\\s+xfailed"
       },
       "logs_checker": null
     },
@@ -822,9 +822,9 @@
     "count": {
       "logs_parser": {
         "FAILED": "",
-        "PASSED": "^=+\\s+(\\d+)\\s+passed\\b.*in\\s+[0-9.]+s\\s+=+$",
+        "PASSED": "^=+[^\\n]*?\\b(\\d+)\\s+passed\\b",
         "SKIPPED": "",
-        "ERROR": "^=+.*?(\\d+)\\s+errors?\\b.*in\\s+[0-9.]+s\\s+=+$",
+        "ERROR": "^=+[^\\n]*?\\b(\\d+)\\s+errors?\\b",
         "XFAIL": ""
       },
       "logs_checker": "ImportError while loading conftest"
@@ -835,12 +835,12 @@
     "count": {
       "logs_parser": {
         "FAILED": "",
-        "PASSED": "",
+        "PASSED": "^Ran (\\d+) tests.*\\n(?:\\n)?OK$",
         "SKIPPED": "",
         "ERROR": "^FAILED \\(errors=(\\d+)\\)$",
         "XFAIL": ""
       },
-      "logs_checker": "unittest\\.loader\\._FailedTest[\\s\\S]*^Ran (\\d+) tests.*\\n[\\s\\S]*?^FAILED \\(errors=\\1\\)"
+      "logs_checker": null
     },
     "gen_sec": {}
   },
@@ -848,38 +848,38 @@
     "count": {
       "logs_parser": {
         "FAILED": "^=+\\s+(\\d+)\\s+failed\\b",
-        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
+        "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
         "SKIPPED": "",
         "ERROR": "",
         "XFAIL": ""
       },
-      "logs_checker": "ERROR: could not load"
+      "logs_checker": "ERROR: could not load .*conftest\\.py"
     },
     "gen_sec": {}
   },
   "ansible__ansible_ed56f51f185a1ffd7ea57130d260098686fcc7c2": {
     "count": {
       "logs_parser": {
-        "FAILED": "^=+\\s+(\\d+)\\s+failed,",
-        "PASSED": "^=+.*?(\\d+)\\s+passed,",
-        "SKIPPED": "^=+.*?(\\d+)\\s+skipped,",
-        "ERROR": "^=+.*?(\\d+)\\s+error\\b",
+        "FAILED": "(?i)^==\\s*(\\d+)\\sfailed",
+        "PASSED": "(?i)^==.*?(\\d+)\\spassed",
+        "SKIPPED": "(?i)^==.*?(\\d+)\\sskipped",
+        "ERROR": "(?i)^==.*?(\\d+)\\serrors?",
         "XFAIL": ""
       },
-      "logs_checker": "Interrupted:\\s+\\d+\\s+errors?\\s+during\\s+collection"
+      "logs_checker": null
     },
     "gen_sec": {}
   },
   "octoprint__octoprint_41ff431014edfa18ca1a01897b10463934dc7fc2": {
     "count": {
       "logs_parser": {
-        "FAILED": "",
-        "PASSED": "^=+.*?(\\d+)\\s+passed.*$",
-        "SKIPPED": "",
-        "ERROR": "^=+.*?(\\d+)\\s+errors?.*$",
-        "XFAIL": ""
+        "FAILED": "^=+.*?\\b(\\d+)\\s+failed\\b.*$",
+        "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b.*$",
+        "SKIPPED": "^=+.*?\\b(\\d+)\\s+skipped\\b.*$",
+        "ERROR": "^=+.*?\\b(\\d+)\\s+errors?\\b.*$",
+        "XFAIL": "^=+.*?\\b(\\d+)\\s+(?:xfailed|xfail|expected\\s+failures?)\\b.*$"
       },
-      "logs_checker": "errors during collection"
+      "logs_checker": "(?i)\\berrors?\\s+during\\s+collection\\b"
     },
     "gen_sec": {}
   },

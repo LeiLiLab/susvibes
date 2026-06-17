@@ -27,7 +27,7 @@ CORE STARTING STRATEGY (in this order):
 1. Check for a Dockerfile in the repository.
    - If present, study it closely and replicate its install/test steps.
 2. If no Dockerfile, inspect CI/CD pipeline configs for tests (e.g., GitHub Actions, CircleCI).
-   - When the pipeline contains multiple test jobs/stages, pick the stage according to core functionality{% if test_files or coverage_files %}, major components, or the coverage requirement below{% else %} or major components{% endif %}—avoid peripheral checks (e.g., lint, format).
+   - When the pipeline contains multiple test jobs/stages, pick the {% if test_files or coverage_files %}one stage/job according to the coverage requirement below{% else %}stage according to core functionality or major components{% endif %}—avoid peripheral checks (e.g., lint, format).
 3. If neither exists, rely on the project's general documentation to plan installation and test execution.
 
 FLAG REQUIREMENTS:
@@ -35,7 +35,7 @@ FLAG REQUIREMENTS:
 - Prefer verbose output that shows individual test case results.
 - Do NOT add early-exit flags (e.g., `--maxfail`, fail-fast).
 
-TEST OBJECTIVE: Run the repository's ENTIRE test suite. Aim for as many test cases as possible to pass (mostly passing is acceptable).{% if test_files or coverage_files %} Even with the full suite as the default, always explicitly verify the coverage requirement below is satisfied. Narrow scope only if strictly necessary, and only in ways that still satisfy it.{% else %} Narrow scope only if strictly necessary.{% endif %}
+TEST OBJECTIVE: {% if test_files or coverage_files %}Run the repository's test suite/job (what a single test command runs) that satisfies the coverage requirement below, and within it run that ENTIRE suite. Aim for as many test cases as possible to pass (mostly passing is acceptable). Always explicitly verify the coverage requirement below is satisfied. Narrow scope only if strictly necessary, and only in ways that still satisfy it.{% else %}Run the repository's ENTIRE test suite. Aim for as many test cases as possible to pass (mostly passing is acceptable). Narrow scope only if strictly necessary.{% endif %}
 
 {% if test_files or coverage_files -%}
 COVERAGE REQUIREMENT:
@@ -43,9 +43,12 @@ COVERAGE REQUIREMENT:
 - [test files] As a check, ensure these test files are executed: {{ test_files | join(', ') }}
 {% endif -%}
 {% if coverage_files -%}
-- [source files] As a check, ensure the tests examining these source files are executed: {{ coverage_files | join(', ') }}
+- [source files] As a check, ensure the run includes tests that actually exercise these source files — run the real logic defined in them and assert on the behavior: {{ coverage_files | join(', ') }}
+  Not sufficient: a test that only imports the module, one that pytest-cov merely reports as "covered", or one that asserts a name/class simply exists.
+  Don't swap in a lighter or unrelated test, and don't skip the exercising test because it is heavy or is a standalone non-standard script. A single test command runs only one suite — if the exercising test lives in a separate job/script from the main suite, choose it even at the cost of not running the main suite.
 {% endif -%}
-- Verify the test run executes {% if test_files %}the test files above{% endif %}{% if test_files and coverage_files %} and {% endif %}{% if coverage_files %}the tests examining the source files above{% endif %}.{% if coverage_files %} If not, expand it to include tests that do.{% endif %}
+- Verify the test run exercises {% if test_files %}the test files above{% endif %}{% if test_files and coverage_files %} and {% endif %}{% if coverage_files %}the tests examining the source files above{% endif %}.{% if coverage_files %} If not, switch to or expand the command so it does.{% endif %}
+- Run only existing tests against existing code in the repository.
 
 {% endif -%}
 VERIFICATION: Phase 1 is complete only when:
