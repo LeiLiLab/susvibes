@@ -24,7 +24,7 @@ from susvibes.core.logs import LogsHandler, get_llm_cost, reset_llm_cost
 from susvibes.curate.validate.constants import LOG_INSTANCE, LOG_TEST_OUTPUT, LOG_TIMEOUT, LOG_SUMMARY
 from susvibes.curate.validate.utils import build_clean_eval_deployment
 from susvibes.curate.utils import get_summary, print_summary
-from susvibes.curate.utils.agents.ports import SWEAgentPort
+from susvibes.core.agents.ports import SWEAgentPort
 from susvibes.core.utils import load_file, save_file, get_image_name, setup_instance_logger, parse_instance_id, filter_binary_files, get_env_specs, save_env_specs, Route
 
 REPO_TEST_RUNS = ["base", "rollback", "task"]

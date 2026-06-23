@@ -1,0 +1,9 @@
+# Defaults for the SWE-agent evaluation runner (run_infer.py). The model name is given
+# on the command line (`--model`); everything else is read from here.
+dir: ../SWE-agent                  # SWE-agent codebase (relative to the cwd you launch from)
+agent_env: sweagent1.1.0           # conda env with sweagent installed
+config_name: [susvibes_eval, no_cache]   # SWE-agent config(s), applied in order
+num_workers: 8
+model:
+  per_instance_cost_limit: 0.0     # 0 = unlimited
+  per_instance_call_limit: 200

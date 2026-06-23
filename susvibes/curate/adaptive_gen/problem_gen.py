@@ -5,9 +5,9 @@ from tqdm import tqdm
 from pathlib import Path
 from jinja2 import Template
 
-from susvibes.curate.constants import LOCAL_REPOS_DIR
+from susvibes.curate.constants import LOCAL_REPOS_DIR, get_agent_setting_path
 from susvibes.curate.adaptive_gen.prompts import PROBLEM_GEN_PROMPT_TEMPLATE
-from susvibes.curate.utils.agents.ports import SWEAgentPort
+from susvibes.core.agents.ports import SWEAgentPort
 from susvibes.curate.adaptive_gen.utils import module_setup_logger
 from susvibes.core.utils import load_file, save_file
 from susvibes.curate.utils import (
@@ -37,7 +37,7 @@ def init_logger():
     logger = module_setup_logger("problem_gen.log", __name__, add_stdout=False)
 
 def prologue(task_dataset_path: Path, instance_ids: list = None, require_test: bool = True):
-    port = SWEAgentPort(run_name=__spec__.name)
+    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")), run_name=__spec__.name)
     task_dataset = load_file(task_dataset_path)
     if instance_ids is not None:
         task_dataset = [data_record for data_record in task_dataset
@@ -108,7 +108,7 @@ def pipeline(task_dataset_path: Path, instance_ids: list = None, require_test: b
     return successful_instance_ids, total_cost
 
 def remove_results(instance_ids: list):
-    port = SWEAgentPort(run_name=__spec__.name)
+    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")), run_name=__spec__.name)
     port.remove_results(instance_ids)
 
 
