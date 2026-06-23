@@ -4,9 +4,9 @@ from tqdm import tqdm
 from pathlib import Path
 from jinja2 import Template
 
-from susvibes.curate.constants import LOCAL_REPOS_DIR
+from susvibes.curate.constants import LOCAL_REPOS_DIR, get_agent_setting_path
 from susvibes.curate.adaptive_gen.prompts import MASK_GEN_PROMPT_TEMPLATE
-from susvibes.curate.utils.agents.ports import SWEAgentPort
+from susvibes.core.agents.ports import SWEAgentPort
 from susvibes.curate.adaptive_gen.utils import module_setup_logger
 from susvibes.core.utils import load_file, save_file, touched_files, filter_target_files
 from susvibes.curate.utils import (
@@ -30,7 +30,7 @@ def prologue(
     instance_ids: list = None,
     require_test: bool = True,
 ):
-    port = SWEAgentPort(run_name=__spec__.name)
+    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")), run_name=__spec__.name)
     processed_dataset = load_file(processed_dataset_path)
     if instance_ids is not None:
         processed_dataset = [data_record for data_record in processed_dataset
@@ -168,7 +168,7 @@ def pipeline(
     return successful_instance_ids, total_cost
 
 def remove_results(instance_ids: list):
-    port = SWEAgentPort(run_name=__spec__.name)
+    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")), run_name=__spec__.name)
     port.remove_results(instance_ids)
 
 

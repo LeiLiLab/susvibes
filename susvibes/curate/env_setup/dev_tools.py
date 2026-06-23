@@ -12,10 +12,10 @@ from pathlib import Path
 from jinja2 import Template
 
 from susvibes.core.constants import *
-from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_dataset_path
+from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_dataset_path, get_agent_setting_path
 from susvibes.env_specs import DEV_TOOL_VERSIONS
 from susvibes.curate.env_setup.prompts import DEV_TOOLS_PROMPT_TEMPLATE
-from susvibes.curate.utils.agents.ports import SWEAgentPort
+from susvibes.core.agents.ports import SWEAgentPort
 from susvibes.core.utils import load_file, setup_logger, parse_instance_id, touched_files, get_env_specs, save_env_specs
 from susvibes.curate.utils import (
     get_repo_dir,
@@ -34,7 +34,7 @@ def init_loggers(log_dir):
     detail_logger = setup_logger(log_dir, "dev_tools_details.log", f"{__name__}.detail", add_stdout=False, mode="w")
 
 def prologue(processed_dataset_path: Path):
-    port = SWEAgentPort(run_name=__spec__.name)
+    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")), run_name=__spec__.name)
     processed_dataset = load_file(processed_dataset_path)
     for data_record in processed_dataset:
         repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)

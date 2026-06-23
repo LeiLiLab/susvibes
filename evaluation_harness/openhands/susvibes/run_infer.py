@@ -154,6 +154,35 @@ def initialize_runtime(
     logger.info('-' * 30)
     obs: CmdOutputObservation
 
+    # The OpenHands runtime activates a micromamba environment that shadows the
+    # container's native Python (which has project dependencies pre-installed).
+    # We cannot use `micromamba deactivate` because it sets PS1='' which breaks
+    # the BashSession's prompt-based output parsing.
+    # Instead, we get the original PATH from the base image (before OpenHands
+    # overlay) and prepend it, so the container's native Python takes priority.
+    base_image = instance['image_name']
+    try:
+        import subprocess
+        result = subprocess.run(
+            ['docker', 'run', '--rm', base_image, 'bash', '-c', 'echo $PATH'],
+            capture_output=True, text=True, timeout=30,
+        )
+        native_path = result.stdout.strip()
+    except Exception as e:
+        logger.warning(f'Failed to get PATH from base image {base_image}: {e}')
+        native_path = '/usr/local/bin:/usr/local/sbin'
+
+    logger.info(f'Native PATH from base image: {native_path}')
+    action = CmdRunAction(command=f'export PATH="{native_path}:$PATH"')
+    action.set_hard_timeout(600)
+    logger.info(action, extra={'msg_type': 'ACTION'})
+    obs = runtime.run_action(action)
+    logger.info(obs, extra={'msg_type': 'OBSERVATION'})
+    assert_and_raise(
+        obs.exit_code == 0,
+        f'Failed to update PATH: {str(obs)}',
+    )
+
     # Set environment variables and basic configuration
     action = CmdRunAction(
         command=f"""echo 'export SUSVIBES_INSTANCE_ID={instance['instance_id']}' >> ~/.bashrc && echo 'export PIP_CACHE_DIR=~/.cache/pip' >> ~/.bashrc"""
@@ -406,6 +435,17 @@ def process_instance(
         metrics=metrics,
         error=state.last_error if state and state.last_error else None,
     )
+
+    # Append prediction incrementally so preds.jsonl is available during evaluation
+    predictions_file = os.path.join(metadata.eval_output_dir, 'preds.jsonl')
+    prediction = {
+        'instance_id': instance.instance_id,
+        'model_name_or_path': f"default__{metadata.eval_output_dir.split('/')[-1]}",
+        'model_patch': git_patch,
+    }
+    with open(predictions_file, 'a') as f:
+        f.write(json.dumps(prediction) + '\n')
+
     return output
 
 
@@ -479,16 +519,19 @@ def to_preds(output_file: str, metadata: EvalMetadata) -> None:
 if __name__ == '__main__':
     parser = get_evaluation_parser()
     parser.add_argument(
-        '--dataset',
+        '--dataset_path',
         type=str,
-        default='susvibes_dataset.jsonl',
-        help='Path to susvibes dataset JSONL file (relative to this script)',
+        required=True,
+        help='Path to susvibes dataset JSONL file (absolute, or relative to cwd)',
     )
 
     args, _ = parser.parse_known_args()
 
     # Load susvibes dataset
-    dataset_path = os.path.join(os.path.dirname(__file__), args.dataset)
+    if os.path.isabs(args.dataset_path):
+        dataset_path = args.dataset_path
+    else:
+        dataset_path = os.path.join(os.getcwd(), args.dataset_path)
     susvibes_dataset = load_susvibes_dataset(dataset_path)
 
     # Filter dataset if needed
@@ -538,7 +581,9 @@ if __name__ == '__main__':
     )
 
     output_file = os.path.join(metadata.eval_output_dir, 'output.jsonl')
+    predictions_file = os.path.join(metadata.eval_output_dir, 'preds.jsonl')
     print(f'### OUTPUT FILE: {output_file} ###')
+    print(f'### PREDICTIONS FILE: {predictions_file} ###')
 
     # Prepare dataset for evaluation
     instances = prepare_dataset(susvibes_tests, output_file, args.eval_n_limit)
@@ -557,5 +602,5 @@ if __name__ == '__main__':
     # Check for maximum retries exceeded
     check_maximum_retries_exceeded(metadata.eval_output_dir)
 
-    # Convert to preds format
+    # Rebuild preds from the complete output to ensure consistency
     to_preds(output_file, metadata)

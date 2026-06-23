@@ -12,7 +12,7 @@ The pipeline runs in this order (all artifacts land under `datasets/<run_id>/` a
 6. [`env_setup/build_repo`](env_setup/) — build a per-instance environment image → `susvibes_dataset.jsonl`
 7. [`validate`](validate/) — validate via execution, then publish the dataset
 
-Several stages drive [SWE-agent (sv)](https://github.com/songwen6968/SWE-agent/tree/sv). Install it from source per its [guidelines](https://swe-agent.com/latest/installation/source/) (a `conda` env is recommended); for each agent stage, place its config (named below) under SWE-agent's `config/` directory and configure [`utils/agents/settings.yaml`](utils/agents/settings.yaml) (a pre-filled example is provided). Run the agent batches as specified in [`utils/agents/runs.sh`](utils/agents/runs.sh).
+Several stages drive [SWE-agent (sv)](https://github.com/songwen6968/SWE-agent/tree/sv). Install it from source per its [guidelines](https://swe-agent.com/latest/installation/source/) (a `conda` env is recommended); for each agent stage, place its config (named below) under SWE-agent's `config/` directory and configure its setting under [`utils/agents/settings/`](utils/agents/settings/) (pre-filled examples are provided). Run the agent batches as specified in [`utils/agents/runs.sh`](utils/agents/runs.sh).
 
 ## 1. Collecting Vulnerability Records
 

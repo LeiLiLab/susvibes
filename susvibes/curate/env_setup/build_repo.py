@@ -26,12 +26,12 @@ import docker.errors
 from docker.models.images import Image
 
 from susvibes.core.constants import *
-from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_dataset_path
+from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_dataset_path, get_agent_setting_path
 from susvibes.core.env import Deployment
 from susvibes.env_specs import dockerfiles, DOCKERFILE_PATTERN, GIT_AUTHOR_CONFIGS, WORKSPACE_DIR_NAME
 from susvibes.curate.env_setup.prompts import INSTALL_TEST_PROMPT_TEMPLATE
 from susvibes.curate.mine.check_cov.engine.constants import CoverageLabel
-from susvibes.curate.utils.agents.ports import EnvAgentPort
+from susvibes.core.agents.ports import SWEAgentPort
 from susvibes.core.utils import load_file, save_file, filter_target_files, get_image_name, setup_instance_logger, parse_instance_id, touched_files, get_env_specs, save_env_specs
 from susvibes.curate.utils import (
     RepoLocks,
@@ -151,7 +151,7 @@ def prologue(
         def __missing__(self, key):
             return '{' + key + '}'
 
-    port = EnvAgentPort(run_name=__spec__.name)
+    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("env_build")), run_name=__spec__.name)
     task_dataset = load_file(task_dataset_path)
     env_specs = get_env_specs(run_id, ("dev_tools",))
     if instance_ids is not None:
@@ -211,7 +211,7 @@ def epilogue(
     save_specs: bool = True,
     instance_ids: list = None,
 ):
-    predictions, _ = EnvAgentPort.after_completion(agent_output_dir) if agent_output_dir else (None, None)
+    predictions, _ = SWEAgentPort.after_completion(agent_output_dir) if agent_output_dir else (None, None)
     task_dataset = load_file(task_dataset_path)
     dataset = build_repo_threadpool(
         run_id, task_dataset, max_workers, env_setup_log_dir,

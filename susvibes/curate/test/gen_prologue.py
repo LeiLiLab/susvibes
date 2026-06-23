@@ -19,13 +19,13 @@ import docker.errors
 from tqdm import tqdm
 from jinja2 import Template
 
-from susvibes.curate.constants import get_log_dir, get_dataset_path
+from susvibes.curate.constants import get_log_dir, get_dataset_path, get_agent_setting_path
 from susvibes.curate.test.prompts import (
     SEC_TEST_GEN_PATCH_SECFIX_PROMPT_TEMPLATE,
     SEC_TEST_GEN_SECFIX_PROMPT_TEMPLATE,
 )
 from susvibes.curate.utils import extract_repo_test_cmd, reverse_patch
-from susvibes.curate.utils.agents.ports import SWEAgentPort
+from susvibes.core.agents.ports import SWEAgentPort
 from susvibes.core.env import Env, Deployment
 from susvibes.env_specs import WORKSPACE_DIR_NAME
 from susvibes.core.utils import load_file, get_image_name, parse_instance_id, setup_instance_logger, get_env_specs
@@ -130,7 +130,7 @@ def build_rollback_threadpool(records, env_specs, log_dir, max_workers, force=Fa
 
 def prologue(run_id, strategy, max_workers, instance_ids=None, force=False):
     strategy = HintStrategy(strategy)
-    port = SWEAgentPort(run_name=f"{__spec__.name}_{strategy.value}")
+    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")), run_name=f"{__spec__.name}_{strategy.value}")
 
     prompt_template = HINT_STRATEGY_TEMPLATES[strategy]
 

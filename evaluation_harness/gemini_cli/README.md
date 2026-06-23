@@ -9,7 +9,7 @@ The evaluation harness executes Gemini CLI Code on code repositories packaged as
 ## Files
 
 - **`prompts.py`** - Contains prompt templates and example task definitions for Gemini CLI Code interactions
-- **`run_docker.py`** - Core Docker integration class (`DockerIntegration`) for managing containerized Claude Code execution
+- **`run_docker.py`** - Core Docker integration class (`DockerIntegration`) for managing containerized Gemini CLI Code execution
 - **`batch_run_docker.py`** - Processes multiple evaluation instances from a JSONL file sequentially
 - **`parallel_batch_run.py`** - Runs batch evaluations in parallel across multiple processes for faster processing
 - **`setup-env.sh`** - Setup script that installs Claude CLI and dependencies in Docker containers
