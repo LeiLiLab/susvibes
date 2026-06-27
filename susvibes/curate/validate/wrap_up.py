@@ -1,25 +1,26 @@
 """
-Purpose: Produce the final SusVibes dataset by filtering validated instances
-and generating golden patches.
+Purpose: Produce the final SusVibes dataset by filtering validated instances and
+generating golden patches. Writes the result to datasets/<run_id>/susvibes_dataset.jsonl;
+with --push_to_hub, also uploads it to the HuggingFace dataset repo.
 
 python -m susvibes.curate.validate.wrap_up \
     --run_id playground
 """
 
 import argparse
+import json
 from tqdm import tqdm
 from typing import TypedDict
 
 from susvibes.core.constants import HF_DATASET_REPO, HF_DATASET_FILE_NAME
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_dataset_path
-from susvibes.core.utils import load_file
+from susvibes.core.utils import load_file, save_file, push_dataset_to_hub
 from susvibes.curate.utils import (
     get_repo_dir,
     reset_to_commit,
     apply_patch,
     commit_changes,
     get_diff_patch,
-    push_dataset_to_hub,
 )
 
 class SusVibesRecord(TypedDict):
@@ -47,8 +48,9 @@ def make_susvibes_record(data_record: dict) -> SusVibesRecord:
     apply_patch(repo_dir, data_record["mask_patch"])
     code_mask_commit = commit_changes(repo_dir, f'Code mask at {data_record["base_commit"]}')
     golden_patch = get_diff_patch(repo_dir, code_mask_commit, data_record["base_commit"])
-    data_record["golden_patch"] = golden_patch
-    return {key: data_record[key] for key in SusVibesRecord.__annotations__}
+    record = {key: data_record[key] for key in SusVibesRecord.__annotations__ if key != "golden_patch"}
+    record["golden_patch"] = golden_patch
+    return record
 
 
 if __name__ == "__main__":
@@ -59,15 +61,33 @@ if __name__ == "__main__":
         default="default",
         help="Run ID for output subdirectory (datasets/<run_id>/...)",
     )
+    parser.add_argument(
+        "--instance_ids",
+        type=json.loads,
+        default=None,
+        help="Only run for the given instance IDs.",
+    )
+    parser.add_argument(
+        "--push_to_hub",
+        action="store_true",
+        help="Also upload the final dataset to the HuggingFace dataset repo.",
+    )
     args = parser.parse_args()
 
-    dataset_path = get_dataset_path('dataset', args.run_id)
-    dataset = load_file(dataset_path)
+    env_dataset_path = get_dataset_path('env_dataset', args.run_id)
+    env_dataset = load_file(env_dataset_path)
 
-    dataset = [r for r in dataset if "expected_pf" in r]
+    env_dataset = [r for r in env_dataset if "expected_pf" in r]
+    if args.instance_ids is not None:
+        env_dataset = [r for r in env_dataset if r["instance_id"] in set(args.instance_ids)]
     dataset = [make_susvibes_record(data_record)
-        for data_record in tqdm(dataset, desc="Wrapping up")]
+        for data_record in tqdm(env_dataset, desc="Wrapping up")]
 
-    push_dataset_to_hub(dataset, HF_DATASET_REPO, HF_DATASET_FILE_NAME,
-        commit_message=f"wrap_up: {len(dataset)} instances (run_id={args.run_id})")
-    print(f"Pushed {len(dataset)} records to https://huggingface.co/datasets/{HF_DATASET_REPO}")
+    dataset_path = get_dataset_path('dataset', args.run_id)
+    save_file(dataset, dataset_path)
+    print(f"Dataset saved to {dataset_path}.")
+
+    if args.push_to_hub:
+        push_dataset_to_hub(dataset, HF_DATASET_REPO, HF_DATASET_FILE_NAME,
+            commit_message=f"wrap_up: {len(dataset)} instances (run_id={args.run_id})")
+        print(f"Pushed {len(dataset)} records to https://huggingface.co/datasets/{HF_DATASET_REPO}")

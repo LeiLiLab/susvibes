@@ -134,7 +134,7 @@ def prologue(run_id, strategy, max_workers, instance_ids=None, force=False):
 
     prompt_template = HINT_STRATEGY_TEMPLATES[strategy]
 
-    dataset_path = get_dataset_path('dataset', run_id)
+    dataset_path = get_dataset_path('env_dataset', run_id)
     log_dir = get_log_dir(run_id, "test")
 
     dataset = load_file(dataset_path)

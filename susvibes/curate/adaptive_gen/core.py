@@ -29,6 +29,7 @@ def adaptive_task_gen(
     processed_dataset_path: Path,
     task_dataset_path: Path,
     coverage_report_path: Path,
+    instance_ids: list = None,
     max_iters: int = None,
     start_iter: int = 0,
     require_test: bool = True,
@@ -40,6 +41,9 @@ def adaptive_task_gen(
         if r["label"] in (CoverageLabel.LIKELY, CoverageLabel.MAYBE)}
     processed_dataset = [data_record for data_record in processed_dataset
         if data_record["instance_id"] in covered_ids]
+    if instance_ids is not None:
+        processed_dataset = [data_record for data_record in processed_dataset
+            if data_record["instance_id"] in set(instance_ids)]
     instance_ids = [data_record["instance_id"] for data_record in processed_dataset]
     total_instances = len(instance_ids)
     total_verified = 0
@@ -227,6 +231,12 @@ if __name__ == "__main__":
         help='Require repo-provided tests (default True); false uses the synthesized-test path.'
     )
     parser.add_argument(
+        "--instance_ids",
+        type=json.loads,
+        default=None,
+        help="Only run for the given instance IDs.",
+    )
+    parser.add_argument(
         '--run_id',
         type=str,
         default='default',
@@ -252,6 +262,7 @@ if __name__ == "__main__":
         processed_dataset_path=processed_dataset_path,
         task_dataset_path=task_dataset_path,
         coverage_report_path=coverage_report_path,
+        instance_ids=args.instance_ids,
         max_iters=args.max_iters,
         start_iter=args.start_iter,
         require_test=args.require_test,

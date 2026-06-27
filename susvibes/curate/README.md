@@ -9,7 +9,7 @@ The pipeline runs in this order (all artifacts land under `datasets/<run_id>/` a
 3. [`env_setup/build_base`](env_setup/) `--mode pull` — pull the `base_py` / `dind_py` / `cov_py` images for those versions
 4. [`mine/check_cov`](mine/check_cov/) — label each instance's test coverage → `coverage_report.jsonl`
 5. [`adaptive_gen`](adaptive_gen/) — generate masks + problem statements for the covered instances → `task_dataset.jsonl`
-6. [`env_setup/build_repo`](env_setup/) — build a per-instance environment image → `susvibes_dataset.jsonl`
+6. [`env_setup/build_repo`](env_setup/) — build a per-instance environment image → `env_dataset.jsonl`
 7. [`validate`](validate/) — validate via execution, then publish the dataset
 
 Several stages drive [SWE-agent (sv)](https://github.com/songwen6968/SWE-agent/tree/sv). Install it from source per its [guidelines](https://swe-agent.com/latest/installation/source/) (a `conda` env is recommended); for each agent stage, place its config (named below) under SWE-agent's `config/` directory and configure its setting under [`utils/agents/settings/`](utils/agents/settings/) (pre-filled examples are provided). Run the agent batches as specified in [`utils/agents/runs.sh`](utils/agents/runs.sh).
@@ -90,7 +90,7 @@ Then run the environment-building agent as specified in [`utils/agents/runs.sh`]
 
 > **Note:** *This step can be resource-consuming in time and space, as the agent repeatedly installs dependencies, tests the environment, and builds Docker images. We recommend at least 2GB of free storage per instance and adjusting parallelism to available CPU cores.*
 
-After the agent finishes, build the environment images from its output, producing `susvibes_dataset.jsonl` (each record tagged with its `env_image_name`):
+After the agent finishes, build the environment images from its output, producing `env_dataset.jsonl` (each record tagged with its `env_image_name`):
 
 ```bash
 python -m susvibes.curate.env_setup.build_repo \
@@ -122,7 +122,7 @@ python -m susvibes.curate.validate.wrap_up \
   --run_id playground
 ```
 
-This filters to validated instances, computes each golden patch, strips records to the released schema, and uploads `susvibes_dataset.jsonl` to the Hugging Face dataset repo set by `HF_DATASET_REPO` in [`susvibes/core/constants.py`](../core/constants.py) — it does **not** write the local dataset. Set `HF_TOKEN` (with write access) in your `.env` first.
+This filters to validated instances, computes each golden patch, strips records to the released schema, and writes the result to `datasets/<run_id>/susvibes_dataset.jsonl` — the final dataset the evaluation harness consumes. Pass `--push_to_hub` to also upload it to the Hugging Face dataset repo set by `HF_DATASET_REPO` in [`susvibes/core/constants.py`](../core/constants.py) (set `HF_TOKEN` with write access in your `.env` first).
 
 ## Two Curation Pipelines
 

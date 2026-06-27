@@ -1,8 +1,10 @@
+import os
 import re
 import sys
 import json
 import yaml
 import logging
+import tempfile
 from tqdm import tqdm
 from pathlib import Path
 
@@ -39,6 +41,27 @@ def save_file(data, file_path: Path | str):
             yaml.dump(data, f, allow_unicode=True, sort_keys=False)
     else:
         file_path.write_text(data)
+
+def push_dataset_to_hub(records, repo_id, filename, private=False, commit_message=None):
+    """Upload records as a JSONL file to a HuggingFace dataset repo without writing
+    into the local datasets/ tree."""
+    from huggingface_hub import HfApi
+    token = os.environ.get("HF_TOKEN")
+    if not token:
+        raise RuntimeError("HF_TOKEN is not set in the environment.")
+    api = HfApi(token=token)
+    api.create_repo(repo_id=repo_id, repo_type="dataset", private=private, exist_ok=True)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir) / filename
+        save_file(records, tmp)
+        api.upload_file(
+            path_or_fileobj=str(tmp),
+            path_in_repo=filename,
+            repo_id=repo_id,
+            repo_type="dataset",
+            commit_message=commit_message or f"Update {filename}",
+        )
+    return f"{repo_id}/{filename}"
 
 def get_env_specs(run_id: str = "default", required_fields: tuple = tuple(ENV_SPEC_FILE_NAMES)) -> dict:
     """Per-instance env specs {instance_id: {dev_tools, dockerfile, logs_handler}}, each carrying
@@ -148,13 +171,22 @@ def setup_instance_logger(
         logger.addHandler(handler)
     return logger
 
-def touched_files(patch):
-    """Extract the list of files touched by a patch string."""
+def touched_files(patch, side="post"):
+    """Files touched by a patch, as a set of paths.
+
+    side="post" -> new-side names (the ``+++ b/`` lines, the post-patch tree);
+    side="pre"  -> old-side names (the ``--- a/`` lines, the pre-patch tree).
+    A ``/dev/null`` side (a file added or deleted by the patch) contributes nothing,
+    so "post" yields exactly the files present after the patch and "pre" exactly
+    those present before it."""
+    marker, prefix = ("+++ ", "b/") if side == "post" else ("--- ", "a/")
     file_paths: set[str] = set()
     for line in patch.splitlines():
-        if line.startswith('+++ '):
+        if line.startswith(marker):
             path = line[4:].split('\t', 1)[0]
-            if path.startswith('b/'):
+            if path == "/dev/null":
+                continue
+            if path.startswith(prefix):
                 path = path[2:]
             file_paths.add(path)
     return file_paths

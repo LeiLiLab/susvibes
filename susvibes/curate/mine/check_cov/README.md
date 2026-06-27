@@ -21,7 +21,6 @@ documented in [`engine/README.md`](engine/README.md).
 python -m susvibes.curate.mine.check_cov \
     --run_id playground \
     --max_workers 5 \
-    [--max_records N] \
     [--instance_ids '["id1", ...]'] \
     [--max_depth 12]
 ```

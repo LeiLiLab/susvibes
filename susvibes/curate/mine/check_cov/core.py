@@ -1,9 +1,10 @@
 """Static file-level test-coverage analysis for collected CVE instances.
 
-Runs after `process`. For each instance in ``processed_dataset.jsonl`` it decides,
-at ``base_commit`` and by static analysis only (no execution), whether the repo's
-own test suite covers the files touched by the ``security_patch`` — at the FILE
-level: does any test in the repo reach any one of them.
+Runs after `process`. For each instance in ``processed_dataset.jsonl`` it decides, by
+static analysis only (no execution), whether the repo's own test suite covers the
+``security_patch`` files — at the FILE level. Analysis runs on the rollback tree
+(``base_commit`` + reverse(security_patch), the vulnerable state), so targets are the
+patch's PRE-side files.
 
 Per-version Docker isolation. Each instance is analyzed INSIDE a container whose
 Python version matches the instance (from ``dev_tools.json``), so the engine runs on
@@ -11,8 +12,8 @@ that interpreter's NATIVE ast/jedi/parso — no py2/py3 parser conflicts. The se
 contained ``engine/`` package (S*/F*/H* scoring; see check_cov.md) is COPYied into
 a thin per-instance image built ``FROM`` the version-matched cov_py image (prebuilt by build_base),
 run once, and torn down (image + container removed). The host only orchestrates:
-reset the repo to base_commit, snapshot sources, build/run the container, read the
-JSON result from its logs.
+roll the repo back to the vulnerable tree, snapshot sources, build/run the container,
+read the JSON result from its logs.
 
 Because jedi runs in the container (a fresh process each time, naturally isolated),
 the host needs no per-instance process isolation: a ThreadPoolExecutor with the
@@ -29,8 +30,6 @@ import argparse
 import json
 import logging
 import os
-import shutil
-import subprocess
 import tempfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
@@ -49,7 +48,8 @@ from susvibes.core.utils import (
 )
 from susvibes.curate.utils import (
     get_repo_dir,
-    reset_to_commit,
+    rollback,
+    run,
     RepoLocks,
     get_summary,
     print_summary,
@@ -93,19 +93,22 @@ def prepare_engine_context(repo_dir: Path, data_record: dict, targets: list[str]
     rsync'd -aHAX (max fidelity); .git pruning and .py selection happen in the worker."""
     workspace_dir = context_path / WORKSPACE_DIR_NAME
     workspace_dir.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
-        ["rsync", "-aHAX",
-         str(repo_dir).rstrip("/") + "/", str(workspace_dir).rstrip("/") + "/"],
-        check=True,
-    )
-    shutil.copytree(ENGINE_DIR, context_path / ENGINE_PKG_NAME,
-                    ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+    run(["rsync", "-aHAX",
+         str(repo_dir).rstrip("/") + "/", str(workspace_dir).rstrip("/") + "/"])
+    engine_dir = context_path / ENGINE_PKG_NAME
+    engine_dir.mkdir(parents=True, exist_ok=True)
+    run(["rsync", "-aHAX", "--exclude=__pycache__", "--exclude=*.pyc",
+         str(ENGINE_DIR).rstrip("/") + "/", str(engine_dir).rstrip("/") + "/"])
+    # The rsync'd tree is the rollback (pre) state; the worker derives each touched file's
+    # post (base) version in-container by forward-applying the security_patch, so the host
+    # ships only the patch text (no git-show) and containment parses with version-matched parso.
     inp = {
         "instance_id": data_record["instance_id"],
         "project": data_record["project"],
         "base_commit": data_record["base_commit"],
         "targets": targets,
         "max_depth": max_depth,
+        "security_patch": data_record["security_patch"],
     }
     runtime_dir = context_path / SUSVIBES_RUNTIME_DATA_DIR.lstrip("/")
     runtime_dir.mkdir(parents=True, exist_ok=True)
@@ -173,9 +176,9 @@ def build_cov_deployment(data_record: dict, version: str, context_path: Path,
 def check_cov_single(data_record: dict, log_dir: Path, dev_tools: dict,
                      max_depth: int = SymbolTrace.MAX_DEPTH,
                      force: bool = False) -> tuple[dict | None, str | None]:
-    """Analyze one instance's file-level test coverage at base_commit, inside a
-    version-matched cov container. Returns (CoverageResult, None) on success,
-    (None, reason) on failure."""
+    """Analyze one instance's file-level test coverage on the rollback tree
+    (base_commit + reverse(security_patch)), inside a version-matched cov container.
+    Returns (CoverageResult, None) on success, (None, reason) on failure."""
     instance_id = data_record["instance_id"]
     project = data_record["project"]
     base_commit = data_record["base_commit"]
@@ -193,18 +196,23 @@ def check_cov_single(data_record: dict, log_dir: Path, dev_tools: dict,
         reason = None if result is not None else "Failed to parse coverage logs."
     else:
         version = dev_tools[instance_id]["version"]
-        # Filter to target-language (.py) files in case a patch mixes .py with non-.py;
-        # engine.analyze raises if none remain (process guarantees the patch touches .py).
-        targets = sorted(t for t in touched_files(data_record["security_patch"])
+        # Targets are the security_patch's PRE-side files (the names present in the
+        # rollback tree), filtered to target-language (.py). A fix that only ADDS a
+        # .py file yields none — the vulnerable code has no such file to cover.
+        targets = sorted(t for t in touched_files(data_record["security_patch"], side="pre")
                          if t.endswith(TARGET_EXTENSIONS))
+        if not targets:
+            msg = "No target-language file in the rollback tree (security_patch only adds files)."
+            logger.info(msg)
+            return None, msg
         repo_dir = get_repo_dir(project, LOCAL_REPOS_DIR)
         result, reason = None, "Failed to build cov deployment."
         with tempfile.TemporaryDirectory(prefix="cov_") as tmpdir:
             context_path = Path(tmpdir)
-            # reset + snapshot under the per-repo lock (the shared clone is mutated);
+            # rollback + snapshot under the per-repo lock (the shared clone is mutated);
             # the build context is an independent copy, so build/run happen lock-free.
             with RepoLocks.locked(project):
-                reset_to_commit(repo_dir, base_commit, new_branch=False)
+                rollback(repo_dir, base_commit, data_record["security_patch"])
                 prepare_engine_context(repo_dir, data_record, targets, max_depth, context_path)
             cov_deployment = build_cov_deployment(data_record, version, context_path, logger)
             # Run the worker in the container, read its CoverageResult from the logs.
@@ -241,7 +249,7 @@ def check_cov_single(data_record: dict, log_dir: Path, dev_tools: dict,
 
 def check_cov_threadpool(processed_dataset: list, max_workers: int, coverage_report_path: Path,
                          log_dir: Path, dev_tools: dict,
-                         instance_ids: list[str] | None = None,
+                         instance_ids: list = None,
                          max_depth: int = SymbolTrace.MAX_DEPTH,
                          force: bool = False) -> dict:
     """Analyze each instance in its own version-matched container, write every
@@ -318,19 +326,13 @@ def main() -> None:
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Force re-run, ignoring any reusable cov_output.txt.",
-    )
-    parser.add_argument(
-        "--max_records",
-        type=int,
-        default=None,
-        help="Maximum number of instances to analyze",
+        help="Force re-run, ignoring any reusable coverage check output.",
     )
     parser.add_argument(
         "--instance_ids",
         type=json.loads,
         default=None,
-        help="JSON list of instance_ids to analyze (subset)",
+        help="Only run for the given instance IDs.",
     )
     parser.add_argument(
         "--max_depth",
@@ -349,19 +351,13 @@ def main() -> None:
     dev_tools = {iid: spec["dev_tools"]
         for iid, spec in get_env_specs(args.run_id, ("dev_tools",)).items()}
 
-    analyze_ids = args.instance_ids
-    if args.max_records is not None:
-        head_ids = [r["instance_id"] for r in processed_dataset[:args.max_records]]
-        analyze_ids = head_ids if analyze_ids is None else \
-            [i for i in head_ids if i in set(analyze_ids)]
-
     check_cov_threadpool(
         processed_dataset,
         max_workers=args.max_workers,
         coverage_report_path=coverage_report_path,
         log_dir=mine_log_dir,
         dev_tools=dev_tools,
-        instance_ids=analyze_ids,
+        instance_ids=args.instance_ids,
         max_depth=args.max_depth,
         force=args.force,
     )
