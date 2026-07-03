@@ -106,11 +106,11 @@ python -m susvibes.eval.core \
 - `--max_workers`: Number of parallel workers (adjust based on available CPU cores)
 - `--force`: Force re-evaluation even if previous logs exist
 
-The evaluation summary is written automatically to `logs/run_evaluation/<run_id>/<strategy>/summary.json` (where `<strategy>` defaults to `generic`); the path is printed at the end of the run.
+The evaluation summary is written automatically to `logs/eval/<run_id>/<strategy>/summary.json` (where `<strategy>` defaults to `generic`); the path is printed at the end of the run.
 
 ### ✅ Verify Setup with Examples:
 
-You can use our provided `datasets/examples/sample_predictions.json` to verify your setup. This should give you a summary in `logs/run_evaluation/test/generic/summary.json`.
+You can use our provided `datasets/examples/sample_predictions.json` to verify your setup. This should give you a summary in `logs/eval/test/generic/summary.json`.
 
 ```bash
 python -m susvibes.eval.core \

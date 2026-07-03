@@ -14,7 +14,7 @@ SusVibes supports advanced strategies for security-enhanced evaluation, applying
 
 ## 1. Prepare Enhanced Dataset
 
-First, enhance the dataset with your chosen strategy. This will generate a new dataset file `susvibes_dataset_{strategy}.jsonl` in the `datasets/` directory.
+First, enhance the dataset with your chosen strategy. This will generate a new dataset file `susvibes_dataset_<run_id>_<strategy>.jsonl` in the `datasets/` directory (`<run_id>` defaults to `default`).
 
 ```bash
 python -m susvibes.eval.core \
@@ -34,7 +34,7 @@ python -m susvibes.eval.core \
 
 For `feedback-driven`, also pass `--feedback_tool <tool_name>`.
 
-This lets you assess additional security measures and insights in place. The evaluation summary for each run is written to `logs/run_evaluation/<run_id>/<strategy>/summary.json`, so different strategies under the same `run_id` are kept separate.
+This lets you assess additional security measures and insights in place. The evaluation summary for each run is written to `logs/eval/<run_id>/<strategy>/summary.json`, so different strategies under the same `run_id` are kept separate.
 
 ## Module Contents
 

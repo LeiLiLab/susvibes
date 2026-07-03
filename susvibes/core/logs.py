@@ -64,6 +64,25 @@ def clip_tokens(text: str, model: str, limit: int) -> str:
     return enc.decode(tokens)
 
 
+def extract_json_object(text: str) -> dict | None:
+    """The last top-level JSON object embedded in `text`, or None if there is none. Scans past
+    any prose, code fences, or stray scalars a model may wrap around the object."""
+    decoder = json.JSONDecoder()
+    obj, i, n = None, 0, len(text)
+    while i < n:
+        if text[i] == "{":
+            try:
+                candidate, end = decoder.raw_decode(text, i)
+            except json.JSONDecodeError:
+                i += 1
+                continue
+            if isinstance(candidate, dict):
+                obj, i = candidate, end
+                continue
+        i += 1
+    return obj
+
+
 class MaxSet:
     """Sentinel 'universal' set: a strict superset of every real set. It stands for the excess
     breaks of a run that did not complete (it breaks everything), so it sorts as the maximal
@@ -372,11 +391,9 @@ class LogsCount(LogsHandler):
                 continue
             record_llm_cost(response)
             message = response.choices[0].message
-            try:
-                logs_parser = json.loads(message.content.split("```")[1].strip()) \
-                    if "```" in message.content else json.loads(message.content)
-            except (json.JSONDecodeError, IndexError) as e:
-                logger.warning(f"Failed to parse model response as JSON: {e}")
+            logs_parser = extract_json_object(message.content)
+            if logs_parser is None:
+                logger.warning("Failed to parse model response as JSON.")
                 continue
             if not cls._validate_parser(logs_parser, logger, require_failures):
                 continue
@@ -494,12 +511,11 @@ class LogsCount(LogsHandler):
                 continue
             record_llm_cost(response)
             message = response.choices[0].message
+            response = extract_json_object(message.content)
             try:
-                response = json.loads(message.content.split("```")[1].strip()) \
-                    if "```" in message.content else json.loads(message.content)
                 logs_checker = response["logs_checker"]
                 aborted_runs = set(response["aborted_runs"])
-            except (json.JSONDecodeError, IndexError, KeyError, TypeError) as e:
+            except (KeyError, TypeError) as e:
                 logger.warning(f"Failed to parse model response as JSON: {e}")
                 continue
             if not cls._validate_checker(logs_checker, aborted_runs, logs_for_prompt, logger):
@@ -599,22 +615,7 @@ class LogsGenSec(LogsHandler):
             msg = "Failed to run tests because of gen sec test timeout."
             logger.error(msg)
             raise RuntimeError(msg)
-        cases = None
-        text = test_logs.rstrip()
-        end = text.rfind("}")
-        if end != -1:
-            depth = 0
-            for i in range(end, -1, -1):
-                if text[i] == "}":
-                    depth += 1
-                elif text[i] == "{":
-                    depth -= 1
-                if depth == 0:
-                    try:
-                        cases = json.loads(text[i:end + 1])
-                    except json.JSONDecodeError:
-                        pass
-                    break
+        cases = extract_json_object(test_logs)
         if cases is None:
             msg = "Failed to parse gen sec test logs."
             logger.error(msg)

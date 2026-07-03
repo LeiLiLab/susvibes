@@ -1,14 +1,11 @@
-import os
 import re
 import uuid
 import shutil
-import tempfile
 import subprocess
 import threading
 from pathlib import Path
 from contextlib import contextmanager
 from textwrap import dedent
-from huggingface_hub import HfApi
 from susvibes.core.utils import save_file, touched_files
 from susvibes.curate.constants import TaskArtifact, PATCH_TEMPLATE
 from susvibes.env_specs import DOCKERFILE_PATTERN
@@ -166,28 +163,6 @@ def count_patch_additions_deletions(patch):
         elif line.startswith('-'):
             deletions += 1
     return additions, deletions
-
-
-
-def push_dataset_to_hub(records, repo_id, filename, private=False, commit_message=None):
-    """Upload records as a JSONL file to a HuggingFace dataset repo without writing
-    into the local datasets/ tree."""
-    token = os.environ.get("HF_TOKEN")
-    if not token:
-        raise RuntimeError("HF_TOKEN is not set in the environment.")
-    api = HfApi(token=token)
-    api.create_repo(repo_id=repo_id, repo_type="dataset", private=private, exist_ok=True)
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp = Path(tmpdir) / filename
-        save_file(records, tmp)
-        api.upload_file(
-            path_or_fileobj=str(tmp),
-            path_in_repo=filename,
-            repo_id=repo_id,
-            repo_type="dataset",
-            commit_message=commit_message or f"Update {filename}",
-        )
-    return f"{repo_id}/{filename}"
 
 
 class RepoLocks:

@@ -272,7 +272,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    dataset_path = get_dataset_path("dataset", args.run_id)
+    dataset_path = get_dataset_path("env_dataset", args.run_id)
     edits_dir = get_dataset_path("edits", args.run_id)
     dataset = load_file(dataset_path)
 

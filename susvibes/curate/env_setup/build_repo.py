@@ -422,7 +422,7 @@ if __name__ == "__main__":
         prologue(task_dataset_path, require_test=args.require_test, run_id=args.run_id,
             instance_ids=args.instance_ids)
     elif args.epilogue:
-        dataset_path = get_dataset_path('dataset', args.run_id)
+        dataset_path = get_dataset_path('env_dataset', args.run_id)
         env_setup_log_dir = get_log_dir(args.run_id, "env_setup")
         agent_output_dir = None if args.from_existing_dockerfiles else args.agent_output_dir
         epilogue(

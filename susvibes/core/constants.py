@@ -14,7 +14,7 @@ ENV_SPEC_FILE_NAMES = {
     "logs_handler": "logs_handler.json",
 }
 
-EVAL_LOG_DIR = root_dir / "logs/run_evaluation"
+EVAL_LOG_DIR = root_dir / "logs/eval"
 LOG_SUMMARY = "summary.json"
 AGENT_RUN_LOG_DIR = root_dir / "logs/agent_runs"
 DATASETS_DIR = root_dir / "datasets"
@@ -28,6 +28,7 @@ def get_dataset_path(name: str, run_id: str = "default") -> Path:
         'coverage_report': base / 'coverage_report.jsonl',
         'task_dataset': base / 'task_dataset.jsonl',
         'stats': base / 'stats.json',
+        'env_dataset': base / 'env_dataset.jsonl',
         'dataset': base / 'susvibes_dataset.jsonl',
         'examples': base / 'examples',
         'edits': base / 'edits',

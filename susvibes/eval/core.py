@@ -64,7 +64,7 @@ def main():
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Force re-run the environment setup.",
+        help="Force re-run, ignoring any reusable evaluation report.",
     )
     parser.add_argument(
         "--instance_ids",
@@ -100,7 +100,7 @@ def main():
 
     args = parser.parse_args()
     # --dataset_id picks which datasets/<dataset_id>/ dataset to read (default: "default");
-    # --run_id only sets the eval-log output directory (logs/run_evaluation/<run_id>/...).
+    # --run_id only sets the eval-log output directory (logs/eval/<run_id>/...).
     dataset_path = get_dataset_path('dataset', args.dataset_id)
     if args.prepare_dataset:
         prepare_dataset(args.run_id, dataset_path, args.strategy, args.feedback_tool, instance_ids=args.instance_ids)

@@ -7,6 +7,7 @@ python -m susvibes.curate.env_setup.dev_tools \
 """
 
 import argparse
+import json
 import re
 from pathlib import Path
 from jinja2 import Template
@@ -33,9 +34,12 @@ def init_loggers(log_dir):
     logger = setup_logger(log_dir, "dev_tools.log", f"{__name__}.summary", add_stdout=True, mode="w")
     detail_logger = setup_logger(log_dir, "dev_tools_details.log", f"{__name__}.detail", add_stdout=False, mode="w")
 
-def prologue(processed_dataset_path: Path):
+def prologue(processed_dataset_path: Path, instance_ids: list = None):
     port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")), run_name=__spec__.name)
     processed_dataset = load_file(processed_dataset_path)
+    if instance_ids is not None:
+        processed_dataset = [data_record for data_record in processed_dataset
+            if data_record["instance_id"] in set(instance_ids)]
     for data_record in processed_dataset:
         repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
         reset_to_commit(repo_dir, data_record["base_commit"])
@@ -52,8 +56,11 @@ def prologue(processed_dataset_path: Path):
     port.before_start()
     return port
 
-def epilogue(agent_output_dir: Path, run_id: str = "default"):
+def epilogue(agent_output_dir: Path, run_id: str = "default", instance_ids: list = None):
     predictions, total_cost = SWEAgentPort.after_completion(agent_output_dir)
+    if instance_ids is not None:
+        predictions = [pred for pred in predictions
+            if pred["instance_id"] in set(instance_ids)]
     env_specs = get_env_specs(run_id, ("dev_tools",))
 
     for pred in predictions:
@@ -104,11 +111,11 @@ def epilogue(agent_output_dir: Path, run_id: str = "default"):
     dev_tools_path = save_env_specs("dev_tools", env_specs, run_id)
     print(f"Dev tools saved to {dev_tools_path}.")
 
-def pipeline(processed_dataset_path: Path, run_id: str = "default"):
+def pipeline(processed_dataset_path: Path, run_id: str = "default", instance_ids: list = None):
     logger.info("Dev tools pipeline started.")
-    port = prologue(processed_dataset_path)
+    port = prologue(processed_dataset_path, instance_ids=instance_ids)
     agent_output_dir = port.run_batch()
-    epilogue(agent_output_dir, run_id=run_id)
+    epilogue(agent_output_dir, run_id=run_id, instance_ids=instance_ids)
     logger.info("Dev tools pipeline finished.")
 
 if __name__ == "__main__":
@@ -129,6 +136,12 @@ if __name__ == "__main__":
         help="Directory where the agent output is stored.",
     )
     parser.add_argument(
+        "--instance_ids",
+        type=json.loads,
+        default=None,
+        help="Only run for the given instance IDs.",
+    )
+    parser.add_argument(
         "--run_id",
         type=str,
         default="default",
@@ -144,8 +157,8 @@ if __name__ == "__main__":
         exit(1)
 
     if args.prologue:
-        prologue(processed_dataset_path)
+        prologue(processed_dataset_path, instance_ids=args.instance_ids)
     elif args.epilogue:
-        epilogue(args.agent_output_dir, run_id=args.run_id)
+        epilogue(args.agent_output_dir, run_id=args.run_id, instance_ids=args.instance_ids)
     else:
-        pipeline(processed_dataset_path, run_id=args.run_id)
+        pipeline(processed_dataset_path, run_id=args.run_id, instance_ids=args.instance_ids)

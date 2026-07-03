@@ -244,6 +244,11 @@ def validate_single(
     logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
     logger.info(f"Validating environment (no_require_test) for {instance_id}...")
 
+    # Drop any prior-run verdict so a failed re-validation leaves nothing behind
+    # (wrap_up keeps an instance solely on expected_pf being present).
+    for key in ("expected_pf", "flags", "image_name"):
+        data_record.pop(key, None)
+
     if not test_patch.strip():
         msg = "Empty model_patch."
         logger.error(msg)
@@ -402,7 +407,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Force re-run the validation.",
+        help="Force re-run, ignoring cached test logs (re-run containers) and re-creating the logs handler.",
     )
     parser.add_argument(
         "--skip_specs",
@@ -423,7 +428,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    dataset_path = get_dataset_path('dataset', args.run_id)
+    dataset_path = get_dataset_path('env_dataset', args.run_id)
     stats_path = get_dataset_path('stats', args.run_id)
     validate_log_dir = get_log_dir(args.run_id, "validate")
 

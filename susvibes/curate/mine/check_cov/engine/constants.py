@@ -76,10 +76,10 @@ class Classifier(object):
 
 
 class Index(object):
-    """repo_index: shared import graph + distinctive-symbol facts (used by every engine)."""
+    """repo_index: shared import graph + distinctive-symbol facts."""
     # Max depth of the file import-graph BFS from tests (edge = "file A imports file
-    # B"). Consumed by file_trace F4, heuristics H5, and the symbol-trace top-level
-    # backstop. Deeper = higher recall, more false positives.
+    # B"). Consumed by heuristics H5 and the symbol-trace top-level backstop. Deeper =
+    # higher recall, more false positives.
     IMPORT_GRAPH_MAX_DEPTH = 8
     # A repo-defined symbol is "distinctive" evidence (a test referencing it implies
     # coverage) only when defined at most this many times repo-wide and at least this
@@ -98,11 +98,6 @@ class SymbolTrace(object):
     # is a project-wide scan, so expanding a widely-referenced symbol re-searches the
     # whole repo for every one of its hundreds of references, at each hop.
     REFERENCE_EXPAND_LIMIT = 100
-    # If more than this fraction of a sample of repo files fail to parse under jedi,
-    # treat jedi as unusable and fall back to file_trace (rare — the version-matched
-    # jedi parses py2 and py3 alike; this catches genuinely broken/exotic sources).
-    JEDI_PARSE_FAIL_RATIO = 0.5
-    JEDI_PARSE_SAMPLE = 40
     # A get_references call (project-wide search) can fail transiently — retry this
     # many times (rebuilding the Script) before giving up.
     GET_REFERENCES_RETRIES = 2
@@ -122,13 +117,6 @@ class SymbolTrace(object):
     #   PARSED: parsing+inferring is the EXPENSIVE step, so kept far lower.
     JEDI_OPENED_FILE_LIMIT = 20000
     JEDI_PARSED_FILE_LIMIT = 200
-
-
-class FileTrace(object):
-    """file_trace: file-level approximation (F1-F6, the no-jedi fallback)."""
-    # Fraction of target files that must be unparseable (with no other evidence)
-    # before the instance is downgraded to `unknown` (don't go unknown too eagerly).
-    MAX_PARSE_FAIL_RATIO = 0.5
 
 
 class Heuristics(object):

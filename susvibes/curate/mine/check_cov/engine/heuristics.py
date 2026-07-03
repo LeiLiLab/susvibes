@@ -8,6 +8,8 @@ dispatch, dynamic string load) with no static Python symbol reference:
     H1   conftest imports the target (fixture wiring), stronger if a fixture it
          defines is consumed by a test
     H2   the target declares a CLI command a test invokes (Click runner.invoke)
+    H10  the target IS a Django management command (management/commands/<X>.py) and a
+         test runs it via call_command("<X>") — the Django analog of H2
     H3   the target module/path is referenced as a STRING in a test (dynamic import
          / registry wiring, e.g. importlib.import_module("pkg.x"))
     H4   the target module is referenced as a STRING in a test-reachable production
@@ -49,6 +51,7 @@ SCORE_STRING_REF = 0.45      # H3/H4: target module/path referenced as a string
 HTTP_DECORATORS = ("route", "get", "post", "put", "delete", "patch")
 CLI_INVOKERS = {"invoke", "CliRunner", "main"}
 WEB2PY_CTRL = re.compile(r'(?:applications/)?([^/]+)/controllers/([^/]+)\.py$')
+MGMT_COMMAND = re.compile(r'(?:^|/)management/commands/([^/]+)\.py$')
 
 
 def decorator_tail(dotted):
@@ -79,8 +82,43 @@ def test_hits_route(test_routes, route):
     return False
 
 
-def score(target, index):
-    """Heuristic (H1-H9) evidence for a target; returns a list of (score, message)."""
+def test_uses_named_route(test_names, kind, name):
+    """Whether a test addresses this route table entry BY NAME (``reverse("ns:x")`` /
+    ``url_for("x")``) — the named-URL counterpart of ``test_hits_route`` for tests that
+    never spell a literal path. The test name's namespace prefix is dropped to its last
+    ``:`` segment; a Django ``path(name=...)`` matches that segment exactly, a DRF
+    ``register(basename=...)`` matches the ``<basename>-<action>`` family it generates.
+    A too-short name (<3 chars) is rejected (FP guard)."""
+    if not name or len(name) < 3:
+        return False
+    for tn in test_names:
+        tail = tn.rsplit(":", 1)[-1]
+        if kind == "register":
+            if tail == name or tail.startswith(name + "-"):
+                return True
+        elif tail == name:
+            return True
+    return False
+
+
+def route_handler_seeded(routes, facts, seed_names):
+    """Whether any of ``routes`` is dispatched to a CHANGED (seeded) symbol — used to
+    keep the route heuristics from firing on a SIBLING route in a multi-route file (a
+    test hitting an unchanged route of the same file is not coverage of the change).
+    With no seed (``seed_names`` is None) every route qualifies (file-level, legacy).
+    The route->handler map is ast-only; a route with no known handler never qualifies
+    under a seed, keeping the gate conservative."""
+    if seed_names is None:
+        return True
+    handlers = facts["route_handlers"]
+    return any(handlers.get(r) and (handlers[r] & seed_names) for r in routes)
+
+
+def score(target, index, seed_names=None):
+    """Heuristic (H1-H10) evidence for a target; returns a list of (score, message).
+    When ``seed_names`` (the security_patch's changed symbols, from containment) is
+    given, the route heuristics (H5-H8) only fire on a route dispatched to a changed
+    symbol — the same narrowing the symbol trace uses."""
     if target not in index.sources:
         return []
     facts = index.facts[target]
@@ -96,6 +134,8 @@ def score(target, index):
     target_routes = facts["route_paths"]
     is_route_file = any(decorator_tail(d) in HTTP_DECORATORS for d in facts["decorators"])
     is_cli_file = any(decorator_tail(d) in ("command", "group") for d in facts["decorators"])
+    mgmt = MGMT_COMMAND.search(target)
+    command_name = mgmt.group(1) if mgmt and mgmt.group(1) != "__init__" else None
     evidence = []
 
     for tf in index.test_set:
@@ -114,14 +154,20 @@ def score(target, index):
         if is_cli_file and (unique_syms & tfacts["used_names"]) and (CLI_INVOKERS & tfacts["used_names"]):
             evidence.append((SCORE_FRAMEWORK, "[H2] test invokes target CLI command ({0})".format(tf)))
 
+        # H10: target is a Django management command a test runs via call_command("<name>").
+        if command_name and "call_command" in tfacts["used_names"] and command_name in tfacts["strings"]:
+            evidence.append((SCORE_FRAMEWORK, "[H10] test runs target management command ({0})".format(tf)))
+
         # H3: target module / path referenced as a string in the test (dynamic import).
         if dotted_modules & tfacts["strings"]:
             evidence.append((SCORE_STRING_REF, "[H3] test references target module as string ({0})".format(tf)))
         elif target in tfacts["strings"]:
             evidence.append((SCORE_STRING_REF, "[H3] test references target path as string ({0})".format(tf)))
 
-        # H5: target self-declares a route (decorator) a test client exercises.
-        if is_route_file and target_routes and (target_routes & tfacts["route_paths"]):
+        # H5: target self-declares a route (decorator) a test client exercises — only
+        # when the matched route dispatches to a CHANGED symbol (not a sibling route).
+        matched_routes = target_routes & tfacts["route_paths"]
+        if is_route_file and matched_routes and route_handler_seeded(matched_routes, facts, seed_names):
             evidence.append((SCORE_FRAMEWORK, "[H5] test exercises matching route path ({0})".format(tf)))
 
     # H4: target module referenced as a string in a production file the tests can
@@ -140,11 +186,15 @@ def score(target, index):
         for rel, f in index.facts.items():
             if rel in index.test_set or not f["url_patterns"]:
                 continue
-            for kind, route, view in f["url_patterns"]:
+            for kind, route, view, route_name in f["url_patterns"]:
                 if view not in unique_syms:
                     continue
+                if seed_names is not None and view not in seed_names:
+                    continue  # route dispatches to an UNCHANGED view of the target
                 for tf in index.test_set:
-                    if test_hits_route(index.facts[tf]["route_paths"], route):
+                    tfacts = index.facts[tf]
+                    if test_hits_route(tfacts["route_paths"], route) \
+                            or test_uses_named_route(tfacts["url_names"], kind, route_name):
                         if kind == "register":
                             evidence.append((SCORE_FRAMEWORK,
                                 "[H7] test hits DRF route '{0}' -> target viewset {1} ({2})".format(route, view, tf)))
@@ -157,6 +207,8 @@ def score(target, index):
     prefix = facts["route_prefix"]
     if prefix and target_routes:
         for r in target_routes:
+            if not route_handler_seeded([r], facts, seed_names):
+                continue  # prefixed route dispatches to an UNCHANGED symbol
             full = "/" + (prefix.strip("/") + "/" + r.strip("/")).strip("/")
             fl = full.lower().rstrip("/")
             hit = False
