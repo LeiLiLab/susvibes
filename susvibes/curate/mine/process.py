@@ -6,8 +6,8 @@ from tqdm import tqdm
 from pathlib import Path
 from typing import TypedDict
 
+from susvibes.core.constants import get_dataset_path
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir
-from susvibes.curate.constants import get_dataset_path
 from susvibes.core.utils import load_file, save_file, get_instance_id, setup_logger
 from susvibes.curate.utils import (
     get_repo_dir,
@@ -16,6 +16,7 @@ from susvibes.curate.utils import (
     apply_patch,
     commit_changes,
     get_diff_patch,
+    get_commit_date,
     len_patch
 )
 
@@ -59,7 +60,7 @@ class CVERecord(TypedDict):
     test_files: list[str]
     cwe_id: str
     cve_id: str
-    created_at: str
+    cve_fix_date: str
     language: str
     info_page: str 
 
@@ -183,7 +184,7 @@ def code_test_split(data_record, target_lang, test_lang, require_test=True) -> C
     if not require_test and with_test:
         raise ValueError("Patch contains test files.")
 
-    created_at = data_record.get('created_at', data_record.get('commit_date', None))
+    cve_fix_date = data_record.get('commit_date')
     project = data_record.get('project',
         f"{data_record.get('owner', '')}/{data_record.get('repo', '')}").lower()
     base_commit = data_record['commit_id']
@@ -197,7 +198,7 @@ def code_test_split(data_record, target_lang, test_lang, require_test=True) -> C
         security_patch=code_patch,
         cwe_ids=data_record['cwe_ids'],
         cve_id=data_record['cve_id'],
-        created_at=created_at,
+        cve_fix_date=cve_fix_date,
         language=target_lang,
         info_page=info_page
     )
@@ -260,6 +261,8 @@ def download_repos_and_verify_patches(processed_dataset, root_dir, require_test=
         except Exception as e:
             detail_logger.error("%s reset_to_commit failed: %s", instance_id, e)
             continue
+        if not data_record.get('cve_fix_date'):
+            data_record['cve_fix_date'] = get_commit_date(repo_dir, data_record['base_commit'])
         is_valid = True
         patches_to_verify = [("security_patch", data_record['security_patch'])]
         if require_test:

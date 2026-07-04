@@ -13,7 +13,7 @@ EVAL_RUNS = ["func", "sec"]
 root_dir = Path(__file__).parent.parent
 CWES_DESC_PATH = root_dir / "strategies/cwes.yaml"
 
-def get_guardrail(
+def apply_safety_strategy(
     problem_statement: str,
     strategy: str,
     cwe_ids: list,
@@ -21,6 +21,8 @@ def get_guardrail(
     feedback_tool: str = None,
     sec_test_patch: str = None
 ):
+    if strategy == Strategies.NONE:
+        return problem_statement
     cwes_desc = load_file(CWES_DESC_PATH)
     if strategy == Strategies.GENERIC:
         prompt = GENERIC_PROMPT
@@ -41,11 +43,11 @@ def get_guardrail(
         assert sec_test_patch is not None, "sec_test_patch is required for sec-test strategy"
         prompt = Template(SEC_TESTS_PROMPT).render(
             sec_test_patch=sec_test_patch)
-    guarded_problem_statement = "{problem_statement} \n\n---\n {prompt}".format(
+    strategy_problem_statement = "{problem_statement} \n\n---\n {prompt}".format(
         problem_statement=problem_statement,
         prompt=prompt)
-    
-    return guarded_problem_statement
+
+    return strategy_problem_statement
 
 def diff_logs(func_test_logs, sec_test_logs):
     func_lines = func_test_logs.splitlines()

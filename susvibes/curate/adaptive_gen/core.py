@@ -3,7 +3,8 @@ import argparse
 import json
 from pathlib import Path
 
-from susvibes.curate.constants import get_dataset_path, get_log_dir
+from susvibes.core.constants import get_dataset_path
+from susvibes.curate.constants import get_log_dir
 from susvibes.curate.adaptive_gen import mask, problem_gen, verifier
 from susvibes.curate.adaptive_gen import utils as module_utils
 from susvibes.curate.adaptive_gen.utils import set_log_dir, module_setup_logger

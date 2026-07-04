@@ -37,12 +37,12 @@ from pathlib import Path
 import docker.errors
 from tqdm import tqdm
 
-from susvibes.core.constants import ContainerLimits
+from susvibes.core.constants import ContainerLimits, get_dataset_path
 from susvibes.env_specs.constants import (
     WORKSPACE_DIR_NAME,
     SUSVIBES_RUNTIME_DATA_DIR,
 )
-from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_dataset_path
+from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir
 from susvibes.core.utils import (
     load_file, save_file, touched_files, setup_instance_logger, get_image_name, get_env_specs,
 )

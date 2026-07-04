@@ -26,7 +26,7 @@ import docker.errors
 from docker.models.images import Image
 
 from susvibes.core.constants import *
-from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_dataset_path, get_agent_setting_path
+from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_agent_setting_path
 from susvibes.core.env import Deployment
 from susvibes.env_specs import dockerfiles, DOCKERFILE_PATTERN, GIT_AUTHOR_CONFIGS, WORKSPACE_DIR_NAME
 from susvibes.curate.env_setup.prompts import INSTALL_TEST_PROMPT_TEMPLATE

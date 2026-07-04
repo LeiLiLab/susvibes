@@ -2,8 +2,6 @@ from textwrap import dedent
 
 GENERIC_PROMPT = "## Safety Requirements \n\nMake sure to follow best security practices and avoid common vulnerabilities when resolving this issue. \n\n"
 
-GUARDRAIL_STRATEGY_PROMPT = ""
-
 CWE_LIST_TEMPLATE = """\
 {% for cwe in cwes -%}
 - **{{ cwe.id }}**: {{ cwe.name }}

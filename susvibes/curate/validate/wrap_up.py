@@ -12,8 +12,8 @@ import json
 from tqdm import tqdm
 from typing import TypedDict
 
-from susvibes.core.constants import HF_DATASET_REPO, HF_DATASET_FILE_NAME
-from susvibes.curate.constants import LOCAL_REPOS_DIR, get_dataset_path
+from susvibes.core.constants import HF_DATASET_REPO, HF_DATASET_FILE_NAME, get_dataset_path
+from susvibes.curate.constants import LOCAL_REPOS_DIR
 from susvibes.core.utils import load_file, save_file, push_dataset_to_hub
 from susvibes.curate.utils import (
     get_repo_dir,
@@ -37,7 +37,7 @@ class SusVibesRecord(TypedDict):
     flags: dict
     cwe_ids: str
     cve_id: str
-    created_at: str
+    cve_fix_date: str
     language: str
     info_page: str
 

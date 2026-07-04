@@ -4,7 +4,7 @@ import requests
 
 from tqdm import tqdm
 
-from susvibes.curate.constants import get_dataset_path
+from susvibes.core.constants import get_dataset_path
 from susvibes.curate.mine.constants import GITHUB_HEADERS
 from susvibes.core.utils import load_file, save_file
 
