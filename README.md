@@ -75,13 +75,13 @@ The SusVibes dataset ships with this repository at `datasets/default/susvibes_da
      "model_patch": "the-implementation-patch"
    }
    ```
-For an example guideline on how to run Kimi CLI on SusVibes, see [tutorial](evaluation_harness/kimi_cli_tutorial.md); ready-made batch runners for other agents live under [`evaluation_harness/`](evaluation_harness/).
+For an example guideline on how to run Kimi CLI on SusVibes, see [tutorial](evaluation_harness/kimi_cli_tutorial.md); ready-made batch runners for other agents live under [evaluation_harness](evaluation_harness/).
 
 
 ### Step 2: Evaluation
 
 > [!WARNING]
-> SusVibes evaluation can be resource intensive. For an accurate evaluation, provide at least 400GB of free storage, plus 4GB of RAM and 4 CPU cores per parallel worker on an `x86_64` machine.
+> SusVibes evaluation can be resource intensive. For an accurate evaluation, provide at least 300GB of free storage, plus 4GB of RAM and 4 CPU cores per parallel worker on an `x86_64` machine.
 
 Run the evaluation pipeline from the `susvibes/` directory:
 
