@@ -18,7 +18,7 @@ from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from susvibes.core.constants import *
-from susvibes.curate.constants import get_log_dir, LOGS_PARSER_MODEL, get_dataset_path
+from susvibes.curate.constants import get_log_dir, LOGS_PARSER_MODEL
 from susvibes.core.env import Deployment, Env
 from susvibes.core.logs import LogsHandler, get_llm_cost, reset_llm_cost
 from susvibes.curate.validate.constants import LOG_INSTANCE, LOG_TEST_OUTPUT, LOG_TIMEOUT, LOG_SUMMARY

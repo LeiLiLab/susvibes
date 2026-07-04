@@ -1,8 +1,6 @@
 from enum import StrEnum
 from pathlib import Path
 
-from susvibes.core.constants import DATASETS_DIR, get_dataset_path
-
 root_dir = Path(__file__).parent.parent.parent
 LOCAL_REPOS_DIR = "/mnt/data2/songwenzhao/projects" #root_dir / 'projects'
 CURATE_LOG_DIR = root_dir / "logs/curate"

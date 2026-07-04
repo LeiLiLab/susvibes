@@ -3,6 +3,7 @@ import uuid
 import shutil
 import subprocess
 import threading
+import time
 from pathlib import Path
 from contextlib import contextmanager
 from textwrap import dedent
@@ -106,6 +107,14 @@ def get_diff_patch(repo_dir: str, base_commit: str, target_commit: str) -> str:
     cmd = ["git", "diff", base_commit, target_commit, "--patch"]
     proc = run(cmd, cwd=repo_dir)
     return proc.stdout
+
+def get_commit_date(repo_dir, commit):
+    """Return a commit's committer date as a UTC ISO-8601 timestamp (e.g. 2019-12-19T14:59:58Z)."""
+    repo_dir = Path(repo_dir)
+    if not is_git_repo(repo_dir):
+        raise FileNotFoundError(f"Project directory {repo_dir} is not a Git repository.")
+    ts = run(["git", "show", "-s", "--format=%ct", commit], cwd=repo_dir).stdout.strip()
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(int(ts)))
 
 def reset_to_commit(repo_dir, commit, new_branch=True):
     """Hard-reset the repository to a specific commit and clean untracked files."""

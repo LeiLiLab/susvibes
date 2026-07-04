@@ -13,7 +13,7 @@ from pathlib import Path
 from jinja2 import Template
 
 from susvibes.core.constants import *
-from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_dataset_path, get_agent_setting_path
+from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_agent_setting_path
 from susvibes.env_specs import DEV_TOOL_VERSIONS
 from susvibes.curate.env_setup.prompts import DEV_TOOLS_PROMPT_TEMPLATE
 from susvibes.core.agents.ports import SWEAgentPort

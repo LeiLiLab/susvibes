@@ -59,6 +59,7 @@ class SWEAgentPort:
         repo_name: str = None,
         image: str = None,
         base_commit: str = None,
+        extra_fields: dict = None,
     ) -> None:
         assert repo_type in ["local", "preexisting"]
         repo_config = {"type": repo_type, "base_commit": base_commit or "HEAD"}
@@ -72,7 +73,7 @@ class SWEAgentPort:
         ]
         if self.mount_docker_socket:
             docker_args = ["-v", "/var/run/docker.sock:/var/run/docker.sock"] + docker_args
-        self.task_instances.append({
+        task_instance = {
             "env": {
                 "deployment": {
                     "type": "docker",
@@ -87,7 +88,10 @@ class SWEAgentPort:
                 "text": problem_statement,
                 "id": instance_id,
             },
-        })
+        }
+        for key, value in (extra_fields or {}).items():
+            task_instance[key].update(value)
+        self.task_instances.append(task_instance)
 
     def before_start(self) -> None:
         save_file(self.task_instances, self.get_instances_path())

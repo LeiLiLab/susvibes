@@ -1,4 +1,4 @@
-# SusVibes Task Curation
+# SusVibes Curation
 
 This directory contains the SusVibes task-curation pipeline: mining vulnerability records, identifying each repo's developer tools, checking test coverage, adaptively generating task candidates, building per-instance Docker environments, and execution-based validation. Before proceeding, ensure the repository is installed per the main [README](../../README.md).
 

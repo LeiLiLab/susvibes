@@ -20,9 +20,9 @@ import docker
 import docker.errors
 from tqdm import tqdm
 
+from susvibes.core.constants import get_dataset_path
 from susvibes.curate.constants import (
     get_log_dir,
-    get_dataset_path,
     TaskArtifact,
     PATCH_TEMPLATE,
 )

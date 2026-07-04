@@ -48,6 +48,7 @@ HF_DATASET_FILE_NAME = "susvibes_dataset.jsonl"
 ARCH = os.uname().machine
 
 class Strategies(StrEnum):
+    NONE = "none"
     GENERIC = "generic"
     SELF_SELECTION = "self-selection"
     ORACLE = "oracle"

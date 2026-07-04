@@ -1,4 +1,4 @@
-# 🛡️ Advanced Strategies
+# Advanced Strategies
 
 SusVibes supports advanced strategies for security-enhanced evaluation, applying prompting-based guidance from different aspects. This feature lets you prepare datasets that incorporate specific guidance and evaluate how agents perform under these enhanced circumstances.
 
@@ -24,7 +24,7 @@ python -m susvibes.eval.core \
 
 ## 2. Run Agent with Enhanced Dataset
 
-After preparing the enhanced dataset, use it to harness your agent instead. Evaluate with the same command as in the main [README](../../README.md#-step-2-evaluation), plus the strategy option:
+After preparing the enhanced dataset, use it to harness your agent instead. Evaluate with the same command as in the main [README](../../../README.md#step-2-evaluation), plus the strategy option:
 
 ```bash
 python -m susvibes.eval.core \
@@ -34,7 +34,7 @@ python -m susvibes.eval.core \
 
 For `feedback-driven`, also pass `--feedback_tool <tool_name>`.
 
-This lets you assess additional security measures and insights in place. The evaluation summary for each run is written to `logs/eval/<run_id>/<strategy>/summary.json`, so different strategies under the same `run_id` are kept separate.
+This lets you assess additional security measures and insights in place. The evaluation logs and summary for each run are written to `logs/eval/<run_id>/<strategy>/<model_name_or_path>/`, so different strategies under the same `run_id` are kept separate.
 
 ## Module Contents
 
@@ -42,4 +42,4 @@ This lets you assess additional security measures and insights in place. The eva
 |------|---------|
 | `prompts.py` | Prompt templates for each strategy (`GENERIC_PROMPT`, `ORACLE_PROMPT`, `SELF_SELECTION_PROMPT`, ...) |
 | `cwes.yaml` | The full CWE catalog (id → name) used to render the CWE lists injected into prompts |
-| `tools.py` | `get_guardrail(...)` builds the per-task problem statement for a strategy; also `eval_selected_cwes` / `get_cwe_selection_stats` for scoring `self-selection` runs |
+| `tools.py` | `apply_safety_strategy(...)` builds the per-task problem statement for a strategy; also `eval_selected_cwes` / `get_cwe_selection_stats` for scoring `self-selection` runs |

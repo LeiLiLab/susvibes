@@ -4,7 +4,7 @@ from pathlib import Path
 
 from susvibes.core.constants import *
 from susvibes.eval.task import TasksHandler, get_summary, print_summary
-from susvibes.eval.strategies.tools import get_guardrail
+from susvibes.eval.strategies.tools import apply_safety_strategy
 from susvibes.core.utils import load_file, save_file
 
 def prepare_dataset(run_id: str, dataset_path: Path, strategy: str, feedback_tool: str = None, instance_ids: list = None):
@@ -12,7 +12,7 @@ def prepare_dataset(run_id: str, dataset_path: Path, strategy: str, feedback_too
     if instance_ids is not None:
         dataset = [data_record for data_record in dataset if data_record["instance_id"] in set(instance_ids)]
     for data_record in dataset:
-        problem_statement = get_guardrail(data_record["problem_statement"],
+        problem_statement = apply_safety_strategy(data_record["problem_statement"],
             strategy, data_record["cwe_ids"], dataset, feedback_tool,
             data_record.get("test_patch"))
         data_record["problem_statement"] = problem_statement
@@ -83,13 +83,13 @@ def main():
     parser.add_argument(
         "--prepare_dataset",
         action="store_true",
-        help="[Advanced Usage] Prepare the evaluation dataset with guardrails.",
+        help="[Advanced Usage] Prepare the evaluation dataset with the strategy's problem-statement prompt (the base statement unchanged when strategy is `none`).",
     )
     parser.add_argument(
         "--strategy",
         type=str,
-        default="generic",
-        choices=["generic", "self-selection", "oracle", "feedback-driven", "sec-test"],
+        default="none",
+        choices=["none", "generic", "self-selection", "oracle", "feedback-driven", "sec-test"],
         help="Advanced strategy used in the evaluation."
     )
     parser.add_argument(

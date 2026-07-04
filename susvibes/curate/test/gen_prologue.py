@@ -19,7 +19,8 @@ import docker.errors
 from tqdm import tqdm
 from jinja2 import Template
 
-from susvibes.curate.constants import get_log_dir, get_dataset_path, get_agent_setting_path
+from susvibes.core.constants import get_dataset_path
+from susvibes.curate.constants import get_log_dir, get_agent_setting_path
 from susvibes.curate.test.prompts import (
     SEC_TEST_GEN_PATCH_SECFIX_PROMPT_TEMPLATE,
     SEC_TEST_GEN_SECFIX_PROMPT_TEMPLATE,
