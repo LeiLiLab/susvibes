@@ -63,7 +63,7 @@ EOF
 
 ### Step 7: Run Evaluation
 
-Follow the evaluation guidelines from the main [README](../README.md#step-2-evaluation):
+Follow the evaluation guidelines from the main [README](../README.md#step-2-evaluate-the-agents-solutions):
 
 The evaluation will assess both:
 - **Functional correctness**: Does the solution solve the task?
