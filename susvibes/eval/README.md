@@ -21,10 +21,10 @@ Before evaluation, every `model_patch` is filtered to remove edits to the task's
 | `--max_workers` | `5` | Number of instances evaluated in parallel. |
 | `--force` | off | Re-run, ignoring any reusable per-instance `report.json`. |
 | `--instance_ids` | all | JSON list; evaluate only these instances. |
-| `--strategy` | `none` | *(Advanced)* Security-enhancement strategy (`none`, `generic`, `self-selection`, `oracle`, `feedback-driven`, `sec-test`). During evaluation it labels the output path and, for `self-selection`, scores the agent's CWE choices; the prompt itself is injected earlier by `--prepare_dataset`. See [strategies](strategies/README.md). |
+| `--strategy` | `none` | *(Advanced)* Security-enhancement strategy (`none`, `generic`, `self-selection`, `oracle`, `feedback-driven`, `sec-test`). During evaluation it labels the output path and, for `self-selection`, scores the agent's CWE choices; the prompt itself is injected earlier by `--prepare_dataset`. See [strategies](strategies/). |
 | `--feedback_tool` | — | *(Advanced)* Tool name, required only for the `feedback-driven` strategy. |
 | `--dataset_id` | `default` | *(Advanced)* Which `datasets/<dataset_id>/susvibes_dataset.jsonl` to evaluate against. |
-| `--prepare_dataset` | off | *(Advanced)* Do not evaluate; instead write a strategy-augmented dataset `susvibes_dataset_<run_id>_<strategy>.jsonl`. See [strategies](strategies/README.md). |
+| `--prepare_dataset` | off | *(Advanced)* Do not evaluate; instead write a strategy-augmented dataset `susvibes_dataset_<run_id>_<strategy>.jsonl`. See [strategies](strategies/). |
 
 ## Output layout
 
@@ -112,5 +112,5 @@ Both headline ratios use the same denominator (`num_candidates`), and `sec_pass`
 
 ## See also
 
-- [strategies](strategies/README.md) — security-enhancement strategies and `--prepare_dataset`.
+- [strategies](strategies/) — security-enhancement strategies and `--prepare_dataset`.
 - Main [README](../../README.md) — quick-start evaluation guide and prediction format.

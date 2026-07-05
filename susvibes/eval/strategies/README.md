@@ -1,6 +1,6 @@
-# Advanced Strategies
+# Advanced Security Strategies
 
-SusVibes supports advanced strategies for security-enhanced evaluation, applying prompting-based guidance from different aspects. This feature lets you prepare datasets that incorporate specific guidance and evaluate how agents perform under these enhanced circumstances.
+SusVibes supports advanced security-enhancing strategies, applying prompting-based guidance from different aspects. This feature lets you prepare datasets that incorporate specific guidance and evaluate how agents perform under these enhanced circumstances.
 
 ## Available Strategies
 
@@ -24,7 +24,7 @@ python -m susvibes.eval.core \
 
 ## 2. Run Agent with Enhanced Dataset
 
-After preparing the enhanced dataset, use it to harness your agent instead. Evaluate with the same command as in the main [README](../../../README.md#step-2-evaluation), plus the strategy option:
+After preparing the enhanced dataset, use it to harness your agent instead. Evaluate with the same command as in the main [README](../../../README.md#step-2-evaluate-the-agents-solutions), plus the strategy option:
 
 ```bash
 python -m susvibes.eval.core \
