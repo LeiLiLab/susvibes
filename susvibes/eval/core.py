@@ -7,7 +7,8 @@ from susvibes.eval.task import TasksHandler, get_summary, print_summary
 from susvibes.eval.strategies.tools import apply_safety_strategy
 from susvibes.core.utils import load_file, save_file
 
-def prepare_dataset(run_id: str, dataset_path: Path, strategy: str, feedback_tool: str = None, instance_ids: list = None):
+def prepare_dataset(run_id: str, dataset_id: str, strategy: str, feedback_tool: str = None, instance_ids: list = None):
+    dataset_path = get_dataset_path('dataset', dataset_id)
     dataset = load_file(dataset_path)
     if instance_ids is not None:
         dataset = [data_record for data_record in dataset if data_record["instance_id"] in set(instance_ids)]
@@ -22,18 +23,17 @@ def prepare_dataset(run_id: str, dataset_path: Path, strategy: str, feedback_too
 
 def run_evaluation(
     run_id: str,
-    dataset_path: Path,
+    dataset_id: str,
     predictions: list,
     strategy: str,
     max_workers: int,
     force: bool = False,
     instance_ids: list = None
 ):
-    dataset = load_file(dataset_path)
-    handler = TasksHandler(dataset, strategy, run_id)
+    handler = TasksHandler(strategy, run_id, dataset_id)
     handler.run_evaluation_threadpool(predictions, max_workers, force, instance_ids=instance_ids)
     for model_name_or_path, model_reports in handler.reports.items():
-        eval_summary = get_summary(dataset, model_reports, strategy, instance_ids=instance_ids)
+        eval_summary = get_summary(handler.dataset, model_reports, strategy, instance_ids=instance_ids)
         summary_path = EVAL_LOG_DIR / run_id / strategy / model_name_or_path / LOG_SUMMARY
         summary_path.parent.mkdir(parents=True, exist_ok=True)
         save_file(eval_summary, summary_path)
@@ -101,12 +101,11 @@ def main():
     args = parser.parse_args()
     # --dataset_id picks which datasets/<dataset_id>/ dataset to read (default: "default");
     # --run_id only sets the eval-log output directory (logs/eval/<run_id>/...).
-    dataset_path = get_dataset_path('dataset', args.dataset_id)
     if args.prepare_dataset:
-        prepare_dataset(args.run_id, dataset_path, args.strategy, args.feedback_tool, instance_ids=args.instance_ids)
+        prepare_dataset(args.run_id, args.dataset_id, args.strategy, args.feedback_tool, instance_ids=args.instance_ids)
     else:
         predictions = load_file(args.predictions_path)
-        run_evaluation(args.run_id, dataset_path, predictions, args.strategy,
+        run_evaluation(args.run_id, args.dataset_id, predictions, args.strategy,
             args.max_workers, args.force, instance_ids=args.instance_ids)
 
 if __name__ == "__main__":

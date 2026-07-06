@@ -23,7 +23,7 @@ Before evaluation, every `model_patch` is filtered to remove edits to the task's
 | `--instance_ids` | all | JSON list; evaluate only these instances. |
 | `--strategy` | `none` | *(Advanced)* Security-enhancement strategy (`none`, `generic`, `self-selection`, `oracle`, `feedback-driven`, `sec-test`). During evaluation it labels the output path and, for `self-selection`, scores the agent's CWE choices; the prompt itself is injected earlier by `--prepare_dataset`. See [strategies](strategies/). |
 | `--feedback_tool` | — | *(Advanced)* Tool name, required only for the `feedback-driven` strategy. |
-| `--dataset_id` | `default` | *(Advanced)* Which `datasets/<dataset_id>/susvibes_dataset.jsonl` to evaluate against. |
+| `--dataset_id` | `default` | *(Advanced)* Which curated dataset to evaluate: reads both `datasets/<dataset_id>/susvibes_dataset.jsonl` and its env specs `susvibes/env_specs/<dataset_id>/`. |
 | `--prepare_dataset` | off | *(Advanced)* Do not evaluate; instead write a strategy-augmented dataset `susvibes_dataset_<run_id>_<strategy>.jsonl`. See [strategies](strategies/). |
 
 ## Output layout
