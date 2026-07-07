@@ -233,12 +233,12 @@ class TasksHandler:
     run_id: str
     reports: dict  # {model_name_or_path: {instance_id: report}}
 
-    def __init__(self, dataset: list, strategy: str, run_id: str = "default"):
-        self.dataset = dataset
+    def __init__(self, strategy: str, run_id: str = "default", dataset_id: str = "default"):
         self.strategy = strategy
         self.run_id = run_id  # labels the eval-log output directory only
-        # Dataset and env_specs always come from the "default" run, never run_id.
-        self.env_specs = get_env_specs()
+        # Dataset and env_specs both come from dataset_id, never run_id.
+        self.dataset = load_file(get_dataset_path('dataset', dataset_id))
+        self.env_specs = get_env_specs(dataset_id)
         self.reports = {}
 
     @staticmethod

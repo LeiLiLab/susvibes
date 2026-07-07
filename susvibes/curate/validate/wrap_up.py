@@ -1,7 +1,9 @@
 """
 Purpose: Produce the final SusVibes dataset by filtering validated instances and
 generating golden patches. Writes the result to datasets/<run_id>/susvibes_dataset.jsonl;
-with --push_to_hub, also uploads it to the HuggingFace dataset repo.
+with --push_images, also pushes each instance's eval image to the Docker Hub (so the
+dataset's image_name is pullable); with --push_to_hub, also uploads the dataset to the
+HuggingFace dataset repo.
 
 python -m susvibes.curate.validate.wrap_up \
     --run_id playground
@@ -9,10 +11,13 @@ python -m susvibes.curate.validate.wrap_up \
 
 import argparse
 import json
+import docker.errors
 from tqdm import tqdm
 from typing import TypedDict
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from susvibes.core.constants import HF_DATASET_REPO, HF_DATASET_FILE_NAME, get_dataset_path
+from susvibes.core.env import Deployment
 from susvibes.curate.constants import LOCAL_REPOS_DIR
 from susvibes.core.utils import load_file, save_file, push_dataset_to_hub
 from susvibes.curate.utils import (
@@ -53,6 +58,43 @@ def make_susvibes_record(data_record: dict) -> SusVibesRecord:
     return record
 
 
+def push_images_threadpool(image_names: list, max_workers: int) -> None:
+    """Push each eval image to the Docker Hub in parallel; missing locals are skipped."""
+    def _push(image_name):
+        try:
+            Deployment.collect_image(image_name=image_name)
+        except docker.errors.ImageNotFound:
+            return image_name, f"Eval image not found locally: {image_name}"
+        try:
+            Deployment.push_image(image_name)
+            return image_name, None
+        except Exception as e:
+            return image_name, str(e)
+
+    print(f"\nPushing {len(image_names)} eval images...")
+    succeeded, failed = [], {}
+    with ThreadPoolExecutor(max_workers=max_workers) as ex:
+        futs = [ex.submit(_push, image_name) for image_name in image_names]
+        with tqdm(total=len(futs), dynamic_ncols=True,
+            desc=f"Pushing [{max_workers} threads]") as pbar:
+            for f in as_completed(futs):
+                image_name, err = f.result()
+                if err is None:
+                    succeeded.append(image_name)
+                else:
+                    failed[image_name] = err
+                pbar.update(1)
+                pbar.set_description(f"{len(succeeded)} pushed, {len(failed)} failed")
+    if succeeded:
+        print(f"Pushed ({len(succeeded)}):")
+        for image_name in succeeded:
+            print(f"  {image_name}")
+    if failed:
+        print(f"Failed ({len(failed)}):")
+        for image_name, err in failed.items():
+            print(f"  {image_name}: {err}")
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Build final SusVibes dataset from validated instances.")
     parser.add_argument(
@@ -66,6 +108,17 @@ if __name__ == "__main__":
         type=json.loads,
         default=None,
         help="Only run for the given instance IDs.",
+    )
+    parser.add_argument(
+        "--push_images",
+        action="store_true",
+        help="Also push each instance's eval image to the Docker Hub.",
+    )
+    parser.add_argument(
+        "--max_workers",
+        type=int,
+        default=5,
+        help="Number of threads for pushing eval images.",
     )
     parser.add_argument(
         "--push_to_hub",
@@ -86,6 +139,9 @@ if __name__ == "__main__":
     dataset_path = get_dataset_path('dataset', args.run_id)
     save_file(dataset, dataset_path)
     print(f"Dataset saved to {dataset_path}.")
+
+    if args.push_images:
+        push_images_threadpool([record["image_name"] for record in dataset], args.max_workers)
 
     if args.push_to_hub:
         push_dataset_to_hub(dataset, HF_DATASET_REPO, HF_DATASET_FILE_NAME,
