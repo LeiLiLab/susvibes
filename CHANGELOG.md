@@ -40,4 +40,4 @@ computed on the 200-task set and remain valid there; they are not directly compa
 
 ## v0.0
 
-Initial release — 200-task security benchmark.
+Initial release — 200-task security-oriented vibe coding benchmark.
