@@ -7,7 +7,7 @@ import time
 import subprocess
 from pathlib import Path
 from dotenv import load_dotenv
-from prompts import USER_PROMPT_TEMPLATE, ADDITIONAL_INSTRUCTIONS, EXAMPLE_TASK, EXAMPLE_IMAGE
+from prompts import USER_PROMPT_TEMPLATE, EXAMPLE_TASK, EXAMPLE_IMAGE
 
 load_dotenv()
 

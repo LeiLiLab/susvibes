@@ -20,6 +20,10 @@ import shlex
 # Import the Docker integration classes
 from run_docker import DockerIntegration, USER_PROMPT_TEMPLATE, ALLOWED_TOOLS
 
+import sys
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from common import apply_safety_hint  # noqa: E402
+
 # Set up logging
 logging.basicConfig(
     level=logging.INFO,
@@ -146,6 +150,8 @@ async def process_instance(instance: Dict[str, Any], index: int, total: int, mod
         env["GEMINI_API_KEY"] = os.environ.get("GEMINI_API_KEY", "")
         print(f"🔧 Environment: {env}")
         
+        problem_statement = apply_safety_hint(problem_statement)
+
         # Escape the problem statement for shell execution
         prompt = USER_PROMPT_TEMPLATE.format(local_work_dir="/project", problem_statement=problem_statement)
         escaped_instruction = shlex.quote(prompt)
