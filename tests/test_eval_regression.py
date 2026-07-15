@@ -6,7 +6,7 @@ Each catalog entry defines:
   (2) ``expect.decision`` — target pass/fail, reason, evidence, sec metadata
 
 Tests assert the target spec. No evaluation logic is mirrored in tests —
-decision checks call ``susvibes.tasks.evaluate_run_from_logs`` when it
+decision checks call ``susvibes.eval.task.evaluate_run_from_logs`` when it
 exists. Until Phase 2, most tests fail (that is intentional).
 """
 

@@ -5,7 +5,7 @@ Loads catalog + dataset + env specs. Asserts target expectations from
 
 Do **not** mirror production evaluation logic here. Parser count targets use
 the real ``_parse_counts`` helper; decision targets require a production API
-(``susvibes.tasks.evaluate_run_from_logs``) that does not exist yet.
+(``susvibes.eval.task.evaluate_run_from_logs``) that does not exist yet.
 """
 
 from __future__ import annotations
@@ -16,8 +16,8 @@ from pathlib import Path
 
 import pytest
 
-from susvibes.env import Env
-from susvibes.utils import load_file as _load_file
+from susvibes.core.env import Env
+from susvibes.core.utils import load_file as _load_file
 
 
 def _parse_counts(log_text: str, logs_parser: dict):
@@ -59,7 +59,9 @@ _DATASET_PATHS = (
     _AUTHORITATIVE_DATASET,
     _REPO_ROOT / "datasets" / "default" / "susvibes_dataset.jsonl",
 )
-_COMPONENTS_PATH = _REPO_ROOT / "susvibes" / "env_specs" / "default" / "components.json"
+# Vendored env specs (dockerfile + logs_parser/checker) for exactly the catalog
+# instances, so the suite is hermetic and independent of the live env_specs layout.
+_COMPONENTS_PATH = _FIXTURES_DIR / "components.json"
 
 
 @lru_cache(maxsize=1)
@@ -100,8 +102,11 @@ def load_instance_record(instance_id: str) -> dict:
 def make_env_for_instance(instance_id: str) -> Env:
     spec = _load_components()[instance_id]
     env = object.__new__(Env)
-    env.logs_parser = spec["logs_parser"]
-    env.logs_checker = spec.get("logs_checker")
+    # logs_parser / logs_checker are read-only properties over logs_handler.
+    env.logs_handler = {"count": {
+        "logs_parser": spec["logs_parser"],
+        "logs_checker": spec.get("logs_checker"),
+    }}
     env.dockerfile = spec["dockerfile"]
     return env
 
@@ -126,12 +131,12 @@ def parse_target_counts(log_text: str, env: Env) -> dict[str, int] | None:
 
 def production_eval_report(case: dict) -> dict:
     """Obtain evaluation report from production — no test-side reimplementation."""
-    from susvibes import tasks
+    from susvibes.eval import task as tasks
 
     if not hasattr(tasks, "evaluate_run_from_logs"):
         pytest.fail(
             f"{case['id']}: decision spec is defined but "
-            "susvibes.tasks.evaluate_run_from_logs is not implemented yet"
+            "susvibes.eval.task.evaluate_run_from_logs is not implemented yet"
         )
 
     record = load_instance_record(case["instance_id"])

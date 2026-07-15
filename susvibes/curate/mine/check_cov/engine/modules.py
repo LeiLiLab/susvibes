@@ -35,6 +35,21 @@ def package_dirs(sources):
     return out
 
 
+def source_roots(pkg_dirs):
+    """Repo-relative dirs to put on sys.path so the repo's OWN packages resolve ahead
+    of an installed same-named package: the parent of each top-level package (a package
+    dir whose parent is not itself a package). A flat layout yields ``{""}`` (the repo
+    root, which jedi already roots at); a ``src`` layout yields ``{"src"}`` — the dir
+    jedi does NOT auto-prioritize, so a repo ``import pkg`` would otherwise resolve to a
+    site-packages ``pkg`` and the trace would miss the repo's references."""
+    roots = set()
+    for d in pkg_dirs:
+        parent = d.rsplit("/", 1)[0] if "/" in d else ""
+        if parent not in pkg_dirs:
+            roots.add(parent)
+    return roots
+
+
 def module_name(rel, pkg_dirs):
     """Dotted module name for ``rel`` (jedi's shortest-path resolution), or None
     if ``rel`` is not a .py file or has no importable name (a top-level

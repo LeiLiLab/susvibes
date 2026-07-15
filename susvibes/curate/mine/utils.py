@@ -2,6 +2,7 @@ import re
 import ast
 import itertools
 import difflib
+import requests
 
 # is_test_file / path_has_keyword now live in the self-contained check_cov engine
 # (vendored py2/py3 into the cov_py containers); re-export so process keeps importing
@@ -10,6 +11,18 @@ from susvibes.curate.mine.check_cov.engine.extract_facts import (  # noqa: F401
     path_has_keyword,
     is_test_file,
 )
+from susvibes.curate.mine.constants import GITHUB_HEADERS
+
+
+def get_repo_size(project) -> int | None:
+    """Return repo size in KB via GitHub API, or None on failure."""
+    try:
+        r = requests.get(f"https://api.github.com/repos/{project}", headers=GITHUB_HEADERS, timeout=10)
+        if r.status_code == 200:
+            return r.json().get("size", 0)
+    except requests.RequestException:
+        pass
+    return None
 
 
 def merge_file_patches(file_patches):

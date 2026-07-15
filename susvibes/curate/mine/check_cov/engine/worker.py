@@ -24,6 +24,7 @@ import sys
 import json
 
 from .analyze import analyze
+from .containment import seed_names_for_targets
 from .constants import SymbolTrace
 from .extract_facts import TARGET_EXTENSIONS
 
@@ -41,8 +42,11 @@ def read_sources(src_root):
         if ".git" in dirnames:
             dirnames.remove(".git")   # prune: never descend into a .git tree
         for fn in filenames:
-            if not fn.endswith(TARGET_EXTENSIONS):
-                continue
+            try:
+                if not fn.endswith(TARGET_EXTENSIONS):
+                    continue
+            except UnicodeDecodeError:
+                continue   # py2: a non-ascii (undecodable) filename is never a .py we analyze
             abs_path = os.path.join(dirpath, fn)
             rel = os.path.relpath(abs_path, src_root).replace(os.sep, "/")
             try:
@@ -58,7 +62,11 @@ def main(src_root, input_path):
         meta = json.load(fh)
     sources = read_sources(src_root)
     max_depth = meta.get("max_depth", SymbolTrace.MAX_DEPTH)
-    result = analyze(meta, src_root, sources, meta["targets"], max_depth)
+    # Narrow each trace to the security_patch's containing symbols. Deleted lines map into
+    # these rolled-back sources; the post version (for added lines) is derived in-engine by
+    # forward-applying the patch, so the host ships only the patch text.
+    seed_names_map = seed_names_for_targets(meta["security_patch"], sources)
+    result = analyze(meta, src_root, sources, meta["targets"], seed_names_map, max_depth)
     print(RESULT_MARKER)
     # engine builds the result with OrderedDicts, so json.dumps keeps a stable key
     # order (instance_id first) across py2.7/3.5/3.6+ without sort_keys.

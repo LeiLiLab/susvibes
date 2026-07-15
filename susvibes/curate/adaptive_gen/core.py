@@ -1,16 +1,18 @@
 import random
 import argparse
+import json
 from pathlib import Path
 
-from susvibes.curate.constants import get_path, get_log_dir
+from susvibes.core.constants import get_dataset_path
+from susvibes.curate.constants import get_log_dir
 from susvibes.curate.adaptive_gen import mask, problem_gen, verifier
 from susvibes.curate.adaptive_gen import utils as module_utils
 from susvibes.curate.adaptive_gen.utils import set_log_dir, module_setup_logger
-from susvibes.utils import load_file, save_file, confirm_overwrite_logs
+from susvibes.core.utils import load_file, save_file, confirm_overwrite_logs
 from susvibes.curate.utils import len_patch, dump_task
 from susvibes.curate.mine.check_cov.engine.constants import CoverageLabel
 
-LENGTH_RATIO_FUNC = [1, 2, 2, 5, 10, 15, 50]
+LENGTH_RATIO_FUNC = [1, 2, 5, 15, 30, 50]
 TASK_MAX_LENGTH = 2000
 MASK_RATIO_TOLERANCE = 0.5
 
@@ -28,9 +30,10 @@ def adaptive_task_gen(
     processed_dataset_path: Path,
     task_dataset_path: Path,
     coverage_report_path: Path,
+    instance_ids: list = None,
     max_iters: int = None,
     start_iter: int = 0,
-    no_require_test: bool = False,
+    require_test: bool = True,
     debug: bool = False,
 ):
     processed_dataset = load_file(processed_dataset_path)
@@ -39,6 +42,9 @@ def adaptive_task_gen(
         if r["label"] in (CoverageLabel.LIKELY, CoverageLabel.MAYBE)}
     processed_dataset = [data_record for data_record in processed_dataset
         if data_record["instance_id"] in covered_ids]
+    if instance_ids is not None:
+        processed_dataset = [data_record for data_record in processed_dataset
+            if data_record["instance_id"] in set(instance_ids)]
     instance_ids = [data_record["instance_id"] for data_record in processed_dataset]
     total_instances = len(instance_ids)
     total_verified = 0
@@ -94,7 +100,7 @@ def adaptive_task_gen(
             max_length=TASK_MAX_LENGTH,
             ratio_tolerance=MASK_RATIO_TOLERANCE,
             instance_ids=pending_instance_ids,
-            no_require_test=no_require_test,
+            require_test=require_test,
             iter_id=iter_id + 1,
         )
         iter_cost += mask_cost or 0
@@ -114,7 +120,7 @@ def adaptive_task_gen(
         successful_instance_ids, gen_cost = problem_gen.pipeline(
             task_dataset_path=task_dataset_path,
             instance_ids=pending_instance_ids,
-            no_require_test=no_require_test,
+            require_test=require_test,
             iter_id=iter_id + 1,
         )
         iter_cost += gen_cost or 0
@@ -134,7 +140,7 @@ def adaptive_task_gen(
         successful_instance_ids, verified_instance_ids, verify_cost = verifier.pipeline(
             task_dataset_path=task_dataset_path,
             instance_ids=pending_instance_ids,
-            no_require_test=no_require_test,
+            require_test=require_test,
             iter_id=iter_id + 1,
         )
         iter_cost += verify_cost or 0
@@ -220,9 +226,16 @@ if __name__ == "__main__":
         help='Number of tasks to preview after generation'
     )
     parser.add_argument(
-        '--no_require_test',
-        action='store_true',
-        help='Do not require test patches; skip test_patch in rollback.'
+        '--require_test',
+        type=json.loads,
+        default=True,
+        help='Require repo-provided tests (default True); false uses the synthesized-test path.'
+    )
+    parser.add_argument(
+        "--instance_ids",
+        type=json.loads,
+        default=None,
+        help="Only run for the given instance IDs.",
     )
     parser.add_argument(
         '--run_id',
@@ -240,19 +253,20 @@ if __name__ == "__main__":
     adaptive_gen_log_dir = get_log_dir(args.run_id, "adaptive_gen")
     init_loggers(adaptive_gen_log_dir)
 
-    processed_dataset_path = get_path('processed_dataset', args.run_id)
-    task_dataset_path = get_path('task_dataset', args.run_id)
-    coverage_report_path = get_path('coverage_report', args.run_id)
-    stats_path = get_path('stats', args.run_id)
-    examples_path = get_path('examples', args.run_id)
+    processed_dataset_path = get_dataset_path('processed_dataset', args.run_id)
+    task_dataset_path = get_dataset_path('task_dataset', args.run_id)
+    coverage_report_path = get_dataset_path('coverage_report', args.run_id)
+    stats_path = get_dataset_path('stats', args.run_id)
+    examples_path = get_dataset_path('examples', args.run_id)
 
     adaptive_task_gen(
         processed_dataset_path=processed_dataset_path,
         task_dataset_path=task_dataset_path,
         coverage_report_path=coverage_report_path,
+        instance_ids=args.instance_ids,
         max_iters=args.max_iters,
         start_iter=args.start_iter,
-        no_require_test=args.no_require_test,
+        require_test=args.require_test,
         debug=args.debug,
     )
     get_task_stats(

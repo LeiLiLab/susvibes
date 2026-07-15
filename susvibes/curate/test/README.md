@@ -19,7 +19,7 @@ Write per-instance editable folders to `datasets/<run_id>/edits/`:
 python -m susvibes.curate.test.edit --mode dump --run_id <run_id> \
   --max_workers <N> \
   [--instance_ids '["<id_1>", ...]']  # Optional: only dump these
-  [--no_require_test]                 # Optional: skip building the base_no_test image
+  [--require_test false]                 # Optional: skip building the base_no_test image
 ```
 
 Each `datasets/<run_id>/edits/<instance_id>/` contains:
@@ -31,7 +31,7 @@ Each `datasets/<run_id>/edits/<instance_id>/` contains:
 - `README.md` — meta (project, CVE, CWE, verification image, test command)
 - `test_patch_backups/` — backups of prior versions (populated on sync)
 
-By default, dump also builds a per-instance `base_no_test` image (env image with the original `test_patch` reversed) and records its name in the dataset under `base_no_test_image_name`. The next validation step then uses this image so the *edited* `test_patch` is the only one applied. Pass `--no_require_test` to skip this image build.
+By default, dump also builds a per-instance `base_no_test` image (env image with the original `test_patch` reversed) and records its name in the dataset under `base_no_test_image_name`. The next validation step then uses this image so the *edited* `test_patch` is the only one applied. Pass `--require_test false` to skip this image build.
 
 ### 2. Edit `test_patch.md`
 
@@ -67,13 +67,13 @@ Inspect the resulting `summary.json` for per-instance pass/fail counts and failu
 
 This is for instances where the original commit had no usable test_patch — a SWE-agent authors a security test from scratch given the security fix.
 
-This path expects the upstream pipeline to have been run in `--no_require_test` mode, i.e.:
+This path expects the upstream pipeline to have been run in `--require_test false` mode, i.e.:
 
-- `python -m susvibes.curate.mine.process --no_require_test ...` — keeps vulnerability records that have no associated test files
-- `python -m susvibes.curate.adaptive_gen.core --no_require_test ...` — produces tasks without requiring a `test_patch` field
-- `python -m susvibes.curate.env_setup.build_repo --prologue --no_require_test ...` — instructs SWE-agent (sv-env-setup) to run the full repo test suite instead of a designated set of test files
+- `python -m susvibes.curate.mine.process --require_test false ...` — keeps vulnerability records that have no associated test files
+- `python -m susvibes.curate.adaptive_gen.core --require_test false ...` — produces tasks without requiring a `test_patch` field
+- `python -m susvibes.curate.env_setup.build_repo --prologue --require_test false ...` — instructs SWE-agent (sv-env-setup) to run the full repo test suite instead of a designated set of test files
 
-The synthesis agent itself uses the config at [`../utils/agents/configs/test_gen.yaml`](../utils/agents/configs/test_gen.yaml). Set it up the same way as other SWE-agent configs in this curation pipeline (place under SWE-agent's `config/` directory; see [`../utils/agents/settings.yaml`](../utils/agents/settings.yaml)).
+The synthesis agent itself uses the config at [`../utils/agents/configs/test_gen.yaml`](../utils/agents/configs/test_gen.yaml). Set it up the same way as other SWE-agent configs in this curation pipeline (place under SWE-agent's `config/` directory; see [`../utils/agents/settings/`](../utils/agents/settings/)).
 
 ### 1. Build rollback images + prepare agent batch
 
@@ -83,6 +83,7 @@ python -m susvibes.curate.test.gen_prologue \
   --max_workers <N> \
   [--strategy patch_secfix|secfix]  # Optional: prompt hint variant, default patch_secfix
   [--instance_ids '["<id_1>", ...]']
+  [--force]                         # Optional: rebuild rollback images even if present
 ```
 
 For each candidate this builds a *rollback* variant of the env image with the `security_patch` reversed (so the repo sits in the vulnerable state) and the patch persisted at `.susvibes.security_patch.diff` so the agent can toggle states. It then assembles the SWE-agent batch instances yaml.

@@ -26,7 +26,8 @@ from susvibes.runners.base import (
     TestRunnerAdapter as RunnerAdapter,
 )
 from susvibes.runners import DjangoTestAdapter, FallbackAdapter, PytestAdapter
-from susvibes.tasks import _decide_pass, get_summary
+from susvibes.core.constants import EvalStatus
+from susvibes.eval.task import _decide_pass, get_summary
 
 
 class TestSessionResult:
@@ -308,7 +309,8 @@ class TestSummaryEvidenceStats:
         sec = {"pass": sec_pass, "status": status}
         if evidence is not None:
             sec["evidence"] = evidence
-        return {"func": {"pass": func_pass, "status": status}, "sec": sec}
+        return {"eval_status": EvalStatus.COMPLETED,
+                "run": {"func": {"pass": func_pass, "status": status}, "sec": sec}}
 
     def test_evidence_tally(self):
         reports = {
@@ -328,6 +330,6 @@ class TestSummaryEvidenceStats:
         }
         summary = get_summary([1, 2], reports, "default")
         # 1 of 2 correct & secure; evidence labels do not move the ratio.
-        assert summary["correct_secure_ratio"] == 0.5
+        assert summary["sec_pass"] == 0.5
         assert summary["evidence_stats"]["full"] == 1
         assert summary["evidence_stats"]["count_only"] == 1

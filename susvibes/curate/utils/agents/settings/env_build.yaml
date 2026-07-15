@@ -1,0 +1,10 @@
+dir: ../Env-agent
+run_name: env-agent_default
+model:
+  name: claude-sonnet-4-5-20250929
+  per_instance_cost_limit: 0.0
+  per_instance_call_limit: 200
+agent_env: envagent1.1.0
+config_name: susvibes_env_setup
+num_workers: 5
+mount_docker_socket: true   # docker-in-docker for building env images

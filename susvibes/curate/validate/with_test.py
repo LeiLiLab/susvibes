@@ -17,43 +17,35 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import docker
 import docker.errors
 
-from susvibes.constants import *
-from susvibes.curate.constants import get_log_dir, LOGS_PARSER_MODEL, get_path
-from susvibes.env import Deployment, Env
-from susvibes.curate.validate.logs import get_logs_parser, get_logs_checker, get_llm_cost, reset_llm_cost
+from susvibes.core.constants import *
+from susvibes.curate.constants import get_log_dir, LOGS_PARSER_MODEL
+from susvibes.core.env import Deployment, Env
+from susvibes.core.logs import LogsHandler, get_llm_cost, reset_llm_cost
+from susvibes.curate.validate.constants import LOG_INSTANCE, LOG_TEST_OUTPUT, LOG_TIMEOUT, LOG_SUMMARY
 from susvibes.curate.validate.utils import build_clean_eval_deployment
 from susvibes.curate.utils import get_summary, print_summary
-from susvibes.utils import load_file, save_file, get_image_name, setup_instance_logger, parse_instance_id
+from susvibes.core.utils import load_file, save_file, get_image_name, setup_instance_logger, parse_instance_id, get_env_specs, save_env_specs, Route
 
 docker_client = docker.from_env()
 
-LOG_INSTANCE = "validate.log"
-LOG_TEST_OUTPUT = "test_outputs/{}.txt"
-LOG_TEST_STATUSES = "test_statuses.json"
-LOG_SUMMARY = "summary.json"
-
-ENV_SETUP_RUNS = ["base", "rollback", "base_no_test", "rollback_with_test", "task"]
+TEST_RUNS = ["base", "rollback", "base_no_test", "rollback_with_test", "task"]
 
 
 def run_test_suite_multi(
     env: Env,
     data_record: dict,
+    flags: dict,
     log_dir: Path,
     logger: logging.Logger,
     force: bool = False,
     from_base_no_test_image: bool = False,
-    from_existing_specs: bool = False,
-    env_spec: dict = None,
-) -> list:
-    """Run tests in the environment and return test logs for multiple patches.
+) -> tuple[list, list]:
+    """Run tests in the environment; collect and cache each run's logs and timeout flag.
+    Returns (test_logs_list, timed_out_list); classification is done by the caller.
 
     When `from_base_no_test_image` is True, the env's image is expected to start
     at the base_no_test commit (secure code without the dataset's test_patch),
-    so the patch lists are computed relative to that baseline.
-
-    Collects each run's logs, then ensures a per-instance logs_checker exists (reused
-    from env_spec or synthesized from these logs) BEFORE classifying — the checker is
-    what decides startup_error vs completion. Finally applies the critical-abort checks."""
+    so the patch lists are computed relative to that baseline."""
     logger.info(f"Running tests in environment deployment {env.deployment.image.tags[0]}...")
     sec = data_record["security_patch"]
     test = data_record["test_patch"]
@@ -71,19 +63,16 @@ def run_test_suite_multi(
             [(test, {"reverse": True})], [(sec, {"reverse": True})],
             [(data_record["task_patch"], {})]
         ]
-    allow_timeout = lambda id: id >= 3
-    allow_startup_error = lambda id: id == 4
-
-    test_statuses_path = log_dir / LOG_TEST_STATUSES
-    cached_statuses = load_file(test_statuses_path) if test_statuses_path.exists() else {}
+    timeout_path = log_dir / LOG_TIMEOUT
+    timed_out_dict = load_file(timeout_path) if timeout_path.exists() else {}
 
     test_logs_list, timed_out_list = [], []
-    for run_patches, run_name in zip(runs_list, ENV_SETUP_RUNS):
+    for run_patches, run_name in zip(runs_list, TEST_RUNS):
         test_output_path = log_dir / LOG_TEST_OUTPUT.format(run_name)
         if not force and test_output_path.exists():
             logger.info("Container logs found; reusing.")
             test_logs = load_file(test_output_path)
-            timed_out = cached_statuses.get(run_name) == TestStatus.TIMEOUT
+            timed_out = timed_out_dict.get(run_name, False)
         else:
             try:
                 deployment: Deployment = env.build_instance_deployment(
@@ -96,7 +85,8 @@ def run_test_suite_multi(
                 logger.error(msg)
                 raise RuntimeError(msg)
             try:
-                deployment.create_container(mem_limit=ContainerLimits.MEM_LIMIT, cpu_limit=ContainerLimits.CPU_LIMIT)
+                deployment.create_container(command=Route.route_test_cmd(flags, run_name),
+                    mem_limit=ContainerLimits.MEM_LIMIT, cpu_limit=ContainerLimits.CPU_LIMIT)
             except docker.errors.APIError as e:
                 msg = f"Failed to create container: {e}"
                 logger.error(msg)
@@ -112,96 +102,57 @@ def run_test_suite_multi(
         test_logs_list.append(test_logs)
         timed_out_list.append(timed_out)
 
-    # The logs_checker must exist before classification (it decides startup_error vs
-    # completion). Reuse the stored one under --from_existing_specs, else synthesize.
-    if from_existing_specs and env_spec is not None and "logs_checker" in env_spec:
-        logger.info("Reusing logs checker from env_spec.")
-    else:
-        get_logs_checker(env, test_logs_list, model=LOGS_PARSER_MODEL,
-            log_dir=log_dir, logger=logger, force=force)
-
-    test_status_dict = {run_name: env.check_test_logs(test_logs, timed_out)
-        for run_name, test_logs, timed_out in zip(ENV_SETUP_RUNS, test_logs_list, timed_out_list)}
-    save_file(test_status_dict, test_statuses_path)
-
-    for id, run_name in enumerate(ENV_SETUP_RUNS):
-        if test_status_dict[run_name] == TestStatus.TIMEOUT \
-            and not allow_timeout(id):
-            msg = "Failed to run tests because of critical timeout."
-            logger.error(msg)
-            raise RuntimeError(msg)
-        if test_status_dict[run_name] == TestStatus.STARTUP_ERROR \
-            and not allow_startup_error(id):
-            msg = "Failed to run tests because of critical startup error."
-            logger.error(msg)
-            raise RuntimeError(msg)
-
-    test_statuses = [test_status_dict[run_name] for run_name in ENV_SETUP_RUNS]
-    return test_logs_list, test_statuses
+    save_file(dict(zip(TEST_RUNS, timed_out_list)), timeout_path)
+    return test_logs_list, timed_out_list
 
 def validate_test_breaks(
     env: Env,
     test_logs_list: list,
-    test_statuses: list,
+    timed_out_list: list,
+    flags: dict,
     logger: logging.Logger
 ) -> tuple:
     """
     Verify the task on security and functional test breaks.
-    Raises RuntimeError on failure; returns (expected_failures, stats) on success.
+    Raises RuntimeError on failure; returns (expected_pf, stats) on success.
     """
-    test_result_list, test_failures_list = [], []
-    for logs, status in zip(test_logs_list, test_statuses):
-        if not status:
-            test_result_list.append({})
-            continue
-        try:
-            test_result = env.parse_test_logs(logs, logger)
-            test_result_list.append(test_result)
-        except Exception as e:
-            msg = "Failed to parse test logs."
-            logger.error(msg)
-            raise RuntimeError(msg)
-        test_failures_list.append(env.get_test_failures(test_result))
+    test_pf_list = [env.handle_test_logs(test_logs, timed_out, logger,
+        kind=Route.route_logs_kind(flags, run_name))
+        for run_name, test_logs, timed_out in zip(TEST_RUNS, test_logs_list, timed_out_list)]
 
-    base_tf, rollback_tf, base_no_test_tf, rollback_with_test_tf, task_tf = test_failures_list
-    test_completed_list = [ts == TestStatus.COMPLETION for ts in test_statuses]
-    _, _, _, rollback_with_test_completed, task_completed = test_completed_list
+    base_pf, rollback_pf, base_no_test_pf, rollback_with_test_pf, task_pf = test_pf_list
 
-    test_symbres_errs_list = []
-    for logs in test_logs_list:
-        test_symbres_errs_list.append(env.get_symbol_resolution_errors(logs))
-    _, rollback_te, _, rollback_with_test_te, _ = test_symbres_errs_list
-    if rollback_with_test_completed and rollback_with_test_te > rollback_te:
+    test_symb_res_errs_list = [LogsHandler.count_symb_res_errors(test_logs) for test_logs in test_logs_list]
+    _, rollback_sre, _, rollback_with_test_sre, _ = test_symb_res_errs_list
+    if rollback_with_test_pf.completed() and rollback_with_test_sre > rollback_sre:
         msg = "Failed to verify task on symbol resolution errors: rollback-{}, rollback_with_test-{}".format(
-            rollback_te, rollback_with_test_te)
+            rollback_sre, rollback_with_test_sre)
         logger.error(msg)
         raise RuntimeError(msg)
     stats = {}
-    extra_pass = rollback_tf - base_no_test_tf
-    is_broken = not rollback_with_test_completed or rollback_with_test_tf > rollback_tf
-    is_repaired = not rollback_with_test_completed or base_tf < rollback_with_test_tf - extra_pass
-    if not (is_broken and is_repaired) or extra_pass < 0:
+    is_broken = rollback_with_test_pf.breaks_more_than(rollback_pf)
+    is_repaired = base_pf.excess_breaks_over(base_no_test_pf) \
+        < rollback_with_test_pf.excess_breaks_over(rollback_pf)
+    if not (is_broken and is_repaired) or base_no_test_pf.breaks_more_than(rollback_pf):
         msg = "Failed to verify task on sec test breaks: rollback-{}, base_no_test-{}, rollback_with_test-{}, base-{}".format(
-            rollback_tf, base_no_test_tf, rollback_with_test_tf if rollback_with_test_completed else "N/A", base_tf)
+            rollback_pf, base_no_test_pf, rollback_with_test_pf, base_pf)
         logger.error(msg)
         raise RuntimeError(msg)
-    stats["num_sec_tests"] = rollback_with_test_tf - extra_pass - base_tf \
-        if rollback_with_test_completed else -1
+    stats["num_sec_tests"] = rollback_with_test_pf.count_excess_breaks_over(rollback_pf) \
+        - base_pf.count_excess_breaks_over(base_no_test_pf)
 
-    is_broken = not task_completed or task_tf > rollback_tf
-    if not is_broken:
+    if not task_pf.breaks_more_than(rollback_pf):
         msg = "Failed to verify task on functional test breaks: rollback-{}, task-{}".format(
-            rollback_tf, task_tf if task_completed else "N/A")
+            rollback_pf, task_pf)
         logger.error(msg)
         raise RuntimeError(msg)
 
-    expected_failures = {
-        "func": rollback_tf,
-        "sec": base_tf - base_no_test_tf
+    expected_pf = {
+        "func": rollback_pf.get_raw(),
+        "sec": base_pf.excess_breaks_over(base_no_test_pf, to_raw=True)
     }
-    stats["num_func_tests"] = task_tf - rollback_tf \
-        if task_completed else -1
-    return (expected_failures, stats)
+    stats["num_func_tests"] = task_pf.count_excess_breaks_over(rollback_pf)
+    return (expected_pf, stats)
 
 
 def validate_single(
@@ -210,12 +161,11 @@ def validate_single(
     env_spec: dict,
     validate_log_dir: Path,
     force: bool = False,
-    from_existing_specs: bool = False,
     from_base_no_test_image: bool = False,
 ) -> tuple[dict | None, str | None]:
     """Validate a single instance via test execution.
     Returns (env_spec, None) on success, (None, failure_reason) on failure.
-    On success, data_record is updated in-place with expected_failures and image_name."""
+    On success, data_record is updated in-place with expected_pf and image_name."""
     instance_id = data_record["instance_id"]
     project, _ = parse_instance_id(instance_id)
 
@@ -223,6 +173,11 @@ def validate_single(
     log_file = log_dir / LOG_INSTANCE
     logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
     logger.info(f"Validating environment for {instance_id}...")
+
+    # Drop any prior-run verdict so a failed re-validation leaves nothing behind
+    # (wrap_up keeps an instance solely on expected_pf being present).
+    for key in ("expected_pf", "flags", "image_name"):
+        data_record.pop(key, None)
 
     image_kind = "base_no_test_image" if from_base_no_test_image else "env_image"
     image_name = data_record.get(f"{image_kind}_name")
@@ -241,23 +196,22 @@ def validate_single(
         msg = f"Env image not found: {image_name}"
         logger.error(msg)
         raise RuntimeError(msg)
+    flags = {}
     try:
-        test_logs_list, test_statuses = run_test_suite_multi(
-            env, data_record, log_dir, logger, force,
+        test_logs_list, timed_out_list = run_test_suite_multi(
+            env, data_record, flags, log_dir, logger, force,
             from_base_no_test_image=from_base_no_test_image,
-            from_existing_specs=from_existing_specs, env_spec=env_spec,
         )
-        if from_existing_specs and env_spec.get("logs_parser"):
-            logger.info("Reusing logs parser from env_spec.")
-        else:
-            get_logs_parser(env, test_logs_list, test_statuses,
-                log_dir=log_dir, logger=logger, model=LOGS_PARSER_MODEL,
-                ordering_checks=[(3, 0), (4, 1)], force=force)
-        expected_failures, test_stats = validate_test_breaks(env, test_logs_list, test_statuses, logger=logger)
+        env.logs_handler = LogsHandler.get_by_kind("count", env.logs_handler,
+            test_logs_list=test_logs_list, timed_out_list=timed_out_list,
+            model=LOGS_PARSER_MODEL, log_dir=log_dir, logger=logger, ordering_checks=[(3, 0), (4, 1)],
+            allow_timeout=lambda id: id >= 3, allow_startup_error=lambda id: id == 4,
+            force=force)
+        expected_pf, test_stats = validate_test_breaks(env, test_logs_list, timed_out_list, flags, logger=logger)
     except RuntimeError as e:
         return None, str(e)
-    logger.info("Task verified successfully, expected_failures-{}, num_sec_tests-{}, num_func_tests-{}".format(
-        expected_failures, test_stats["num_sec_tests"], test_stats["num_func_tests"]))
+    logger.info("Task verified, expected_pf-{}, num_sec_tests-{}, num_func_tests-{}".format(
+        expected_pf, test_stats["num_sec_tests"], test_stats["num_func_tests"]))
 
     logger.info(f"Building task deployment for {instance_id}...")
     if from_base_no_test_image:
@@ -286,37 +240,31 @@ def validate_single(
         logger.error(msg)
         return None, msg
 
-    env_spec["logs_parser"] = env.logs_parser
-    env_spec["logs_checker"] = env.logs_checker
-    data_record["expected_failures"] = expected_failures
+    env_spec["logs_handler"] = env.logs_handler
+    data_record["expected_pf"] = expected_pf
+    data_record["flags"] = flags
     data_record["image_name"] = eval_image_name
     instance_stats.update(test_stats)
     return env_spec, None
 
 
 def validate_threadpool(
+    run_id: str,
     dataset: list,
     stats: dict,
     max_workers: int,
-    env_specs_path: Path,
     validate_log_dir: Path,
     force: bool = False,
     save_specs: bool = True,
     instance_ids: list = None,
-    from_existing_specs: bool = False,
     from_base_no_test_image: bool = False,
 ):
-    env_specs = load_file(env_specs_path) if env_specs_path.exists() else {}
+    env_specs = get_env_specs(run_id, ("dev_tools", "dockerfile"))
     dataset_by_id = {data_record["instance_id"]: data_record
         for data_record in dataset}
     candidate_ids = set(dataset_by_id.keys()) & set(env_specs.keys())
     if instance_ids is not None:
         candidate_ids = candidate_ids & set(instance_ids)
-    if from_existing_specs:
-        skipped = {iid for iid in candidate_ids if not env_specs[iid].get("logs_parser")}
-        if skipped:
-            print(f"--from_existing_specs: {len(skipped)} instance(s) skipped (no stored logs_parser): {sorted(skipped)}")
-        candidate_ids = candidate_ids - skipped
 
     if from_base_no_test_image:
         use_bnt = set(candidate_ids)
@@ -342,6 +290,7 @@ def validate_threadpool(
 
     reset_llm_cost()
     succeeded, failed = [], {}
+    env_specs_path = None
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(
@@ -351,7 +300,6 @@ def validate_threadpool(
                 env_specs[instance_id],
                 validate_log_dir,
                 force=force,
-                from_existing_specs=from_existing_specs,
                 from_base_no_test_image=(instance_id in use_bnt),
             ): instance_id
             for instance_id in candidate_ids
@@ -371,18 +319,18 @@ def validate_threadpool(
                     failed[instance_id] = reason
                 pbar.update(1)
                 pbar.set_description(
-                    f"{len(succeeded)} ran successfully, {len(failed)} failed"
+                    f"{len(succeeded)} succeeded, {len(failed)} failed"
                 )
                 if save_specs:
-                    save_file(env_specs, env_specs_path)
+                    env_specs_path = save_env_specs("logs_handler", env_specs, run_id)
 
     summary = get_summary(succeeded, failed)
     summary_path = validate_log_dir / LOG_SUMMARY
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(summary, summary_path)
     print_summary(summary)
-    print(f"Logs-parser/checker LLM cost: ${get_llm_cost():.4f}")
-    if save_specs:
+    print(f"LogsHandler LLM cost: ${get_llm_cost():.4f}")
+    if env_specs_path:
         print(f"Environments saved to {env_specs_path}.")
     print(f"Summary saved to {summary_path}.")
 
@@ -398,7 +346,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Force re-run the validation.",
+        help="Force re-run, ignoring cached test logs (re-run containers) and re-creating the logs handler.",
     )
     parser.add_argument(
         "--skip_specs",
@@ -418,31 +366,24 @@ if __name__ == "__main__":
         help="Run ID for output subdirectory (datasets/<run_id>/...)",
     )
     parser.add_argument(
-        "--from_existing_specs",
-        action="store_true",
-        help="Reuse the logs_parser stored in env_specs instead of re-synthesizing via LLM.",
-    )
-    parser.add_argument(
         "--from_base_no_test_image",
         action="store_true",
         help="Use the per-instance base_no_test image as the starting point.",
     )
     args = parser.parse_args()
 
-    dataset_path = get_path('dataset', args.run_id)
-    stats_path = get_path('stats', args.run_id)
-    env_specs_path = get_env_spec_path('components', args.run_id)
+    dataset_path = get_dataset_path('env_dataset', args.run_id)
+    stats_path = get_dataset_path('stats', args.run_id)
     validate_log_dir = get_log_dir(args.run_id, "validate")
 
     dataset = load_file(dataset_path)
     stats = load_file(stats_path) if stats_path.exists() else {}
 
     validate_threadpool(
-        dataset, stats, args.max_workers, env_specs_path, validate_log_dir,
+        args.run_id, dataset, stats, args.max_workers, validate_log_dir,
         force=args.force,
         save_specs=not args.skip_specs,
         instance_ids=args.instance_ids,
-        from_existing_specs=args.from_existing_specs,
         from_base_no_test_image=args.from_base_no_test_image,
     )
 

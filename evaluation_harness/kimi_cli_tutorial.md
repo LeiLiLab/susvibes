@@ -1,6 +1,6 @@
 # Tutorial: Running SusVibes Tasks with Kimi CLI
 
-This tutorial demonstrates how to manually evaluate AI coding agents using Kimi CLI on SusVibes benchmark tasks within containerized environments. Runing a single SusVibes' task typically cost you less than $1. However, if you need support, feel free to contact us for an API key. 
+This tutorial demonstrates how to manually evaluate AI coding agents using Kimi CLI on SusVibes benchmark tasks within containerized environments. Runing a single SusVibes task typically cost you less than $1. However, if you need support, feel free to contact us for an API key. 
 
 ## Overview
 
@@ -63,7 +63,7 @@ EOF
 
 ### Step 7: Run Evaluation
 
-Follow the evaluation guidelines from the main [README](../README.md#step-2-evaluation):
+Follow the evaluation guidelines from the main [README](../README.md#step-2-evaluate-the-agents-solutions):
 
 The evaluation will assess both:
 - **Functional correctness**: Does the solution solve the task?
@@ -100,7 +100,7 @@ The evaluation will assess both:
 ## Additional Resources
 
 - Main SusVibes [README](../README.md)
-- [SusVibes Dataset](../datasets/susvibes_dataset.jsonl)
+- [SusVibes Dataset](../datasets/default/susvibes_dataset.jsonl)
 - Docker Documentation: https://docs.docker.com/
 - Git Diff Format: https://git-scm.com/docs/git-diff
 

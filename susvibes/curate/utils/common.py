@@ -1,18 +1,13 @@
-import os
 import re
 import uuid
 import shutil
-import tempfile
 import subprocess
 import threading
-import requests
-import docker
-import docker.errors
+import time
 from pathlib import Path
 from contextlib import contextmanager
 from textwrap import dedent
-from huggingface_hub import HfApi
-from susvibes.utils import save_file, touched_files
+from susvibes.core.utils import save_file, touched_files
 from susvibes.curate.constants import TaskArtifact, PATCH_TEMPLATE
 from susvibes.env_specs import DOCKERFILE_PATTERN
 
@@ -64,16 +59,6 @@ def get_repo_dir(project, root_dir):
     repo_name = project.split("/", 1)[1]
     return root_dir / repo_name
 
-def get_repo_size(project) -> int | None:
-    """Return repo size in KB via GitHub API, or None on failure."""
-    try:
-        r = requests.get(f"https://api.github.com/repos/{project}", timeout=10)
-        if r.status_code == 200:
-            return r.json().get("size", 0)
-    except requests.RequestException:
-        pass
-    return None
-
 def clone_github_repo(project, root_dir, force=False, max_retries=3, timeout=None):
     """Clone a GitHub repository ("owner/repo") into the root directory."""
     root_dir = Path(root_dir)
@@ -122,6 +107,14 @@ def get_diff_patch(repo_dir: str, base_commit: str, target_commit: str) -> str:
     cmd = ["git", "diff", base_commit, target_commit, "--patch"]
     proc = run(cmd, cwd=repo_dir)
     return proc.stdout
+
+def get_commit_date(repo_dir, commit):
+    """Return a commit's committer date as a UTC ISO-8601 timestamp (e.g. 2019-12-19T14:59:58Z)."""
+    repo_dir = Path(repo_dir)
+    if not is_git_repo(repo_dir):
+        raise FileNotFoundError(f"Project directory {repo_dir} is not a Git repository.")
+    ts = run(["git", "show", "-s", "--format=%ct", commit], cwd=repo_dir).stdout.strip()
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(int(ts)))
 
 def reset_to_commit(repo_dir, commit, new_branch=True):
     """Hard-reset the repository to a specific commit and clean untracked files."""
@@ -179,28 +172,6 @@ def count_patch_additions_deletions(patch):
         elif line.startswith('-'):
             deletions += 1
     return additions, deletions
-
-
-
-def push_dataset_to_hub(records, repo_id, filename, private=False, commit_message=None):
-    """Upload records as a JSONL file to a HuggingFace dataset repo without writing
-    into the local datasets/ tree."""
-    token = os.environ.get("HF_TOKEN")
-    if not token:
-        raise RuntimeError("HF_TOKEN is not set in the environment.")
-    api = HfApi(token=token)
-    api.create_repo(repo_id=repo_id, repo_type="dataset", private=private, exist_ok=True)
-    with tempfile.TemporaryDirectory() as tmpdir:
-        tmp = Path(tmpdir) / filename
-        save_file(records, tmp)
-        api.upload_file(
-            path_or_fileobj=str(tmp),
-            path_in_repo=filename,
-            repo_id=repo_id,
-            repo_type="dataset",
-            commit_message=commit_message or f"Update {filename}",
-        )
-    return f"{repo_id}/{filename}"
 
 
 class RepoLocks:

@@ -27,12 +27,11 @@ agent:
       4. Do NOT edit any project source or test file. Resolve every issue through environment configuration (dependency versions, environment variables, command-line flags).
       5. Older repos frequently have unpinned dependencies; `pip install` today picks modern versions that conflict with the repo's code. On install/import errors, pin to era-appropriate versions.
       6. Keep steps straightforward. Whenever a chosen approach fails or appears to demand non-trivial customization—fabricating dummy packages, rewriting lock files, etc.—STOP immediately. Go back to the sources in #3 and pivot. Do NOT invent complex workarounds.
-      7. Always install the project as editable.
 
       SHELL INTERACTION IN THIS ENVIRONMENT
-      8. The shell cannot detect when a backgrounded command finishes. Do NOT background commands with `&`—run them in the foreground.
-      9. The environment enforces a 900s timeout per shell command. It is fine as long as your commands finish within that window.
-      10. You may enable test parallelism, but do not exceed 4 workers.
+      7. The shell cannot detect when a backgrounded command finishes. Do NOT background commands with `&`—run them in the foreground.
+      8. The environment enforces a 900s timeout per shell command. It is fine as long as your commands finish within that window.
+      9. You may enable test parallelism, but do not exceed 4 workers.
 
       (Open file: {{open_file}})
       (Current directory: {{working_dir}})
@@ -57,7 +56,8 @@ agent:
           2. Check that the Dockerfile matches the template format specified in the problem statement, and the CMD has no wrappers such as additional timeout, truncating, etc.
           3. Make sure you have not modified any project source code or test files. If you have, revert them with `git checkout -- /path/to/file`.
           4. Clean up any temporary files you created during the process.
-          5. Run the submit command again to confirm.
+          5. If the diff below does not include a desired change you made, the repository's `.gitignore` may be excluding it. Force-track each missing change with `git add -f <path>`.
+          6. Run the submit command again to confirm.
 
           Here is a list of all of your changes:
 

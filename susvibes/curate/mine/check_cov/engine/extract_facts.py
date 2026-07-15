@@ -34,13 +34,41 @@ def path_has_keyword(path, keywords):
 
 def is_test_file(path, exts=TARGET_EXTENSIONS):
     """Whether a path is a test file: its suffix is a test-language extension and
-    some "/"- or "_"-delimited token of its (lowercased) path is a test keyword."""
+    some "/"- or "_"-delimited token of its (lowercased) path is a test keyword.
+
+    This is the PATH-only signal (shared with mine.process). It over-matches files
+    that merely have a test-ish name/dir but contain no tests (a production
+    ``hit_testing_service.py``, a ``test/`` utility script): check_cov pairs it with
+    ``has_test_def`` to exclude those from its coverage test set."""
     if not str(path).lower().endswith(tuple(exts)):
         return False
     return path_has_keyword(path, TEST_KEYWORDS)
 
 
+# A file that is on a test-ish PATH but defines no test (no `def test_*`, no Test
+# class / TestCase, no fixture) is not a test — it is production or utility code that
+# happens to live under a test-ish name. Such a file referencing the target is NOT
+# coverage (e.g. a production service whose name contains "testing", a `__main__`
+# helper under `test/`).
+_TEST_DEF = re.compile(
+    r"^[ \t]*(?:async[ \t]+)?def[ \t]+test"      # def test_* / def testFoo
+    r"|^[ \t]*class[ \t]+Test\w"                  # class Test...
+    r"|^[ \t]*class[ \t]+\w+Test(?:Case)?\b"      # class FooTest / FooTestCase
+    r"|\b(?:unittest\.)?TestCase\b"               # subclass of (unittest.)TestCase
+    r"|@(?:pytest\.)?fixture",                    # @fixture / @pytest.fixture (conftest)
+    re.M)
+
+
+def has_test_def(source):
+    """Whether source actually defines a test (function/class/fixture) — the content
+    check that, combined with ``is_test_file`` path, identifies a real test file."""
+    return bool(source) and _TEST_DEF.search(source) is not None
+
+
 HTTP_METHODS = {"get", "post", "put", "delete", "patch", "route", "options", "head"}
+# Route-declaring call/decorator tails: HTTP verbs plus @expose (Flask-AppBuilder /
+# flask-classful / flask-restful declare a route via @expose("/path"), not @app.route).
+ROUTE_METHODS = HTTP_METHODS | {"expose"}
 _ts_local = threading.local()
 
 # ast.Constant (3.8+) unifies literals; <=3.7 / py2 use ast.Str. function/class
@@ -82,9 +110,20 @@ def empty_facts():
         "strings": set(),          # string literal contents (bounded)
         "decorators": set(),       # dotted decorator names, e.g. "app.route", "pytest.fixture"
         "route_paths": set(),      # path literals from route decorators / client calls
-        "url_patterns": [],        # (kind, route_or_prefix, view_symbol): a cross-file
+        "route_handlers": {},      # route path -> {handler symbol names} (a self-declared
+                                   # @app.route("/x") on def x): ties a route to the symbol
+                                   # it dispatches to, so H5/H8 can require the matched route
+                                   # to be the CHANGED one (ast layer only)
+        "url_patterns": [],        # (kind, route_or_prefix, view_symbol, name): a cross-file
                                    # route table — Django path/re_path/url ("path") and
-                                   # DRF router.register ("register"); only ast layer fills it
+                                   # DRF router.register ("register"); name is the route's
+                                   # name=/basename= (None if absent); only ast layer fills it
+        "url_names": set(),        # route names a test addresses by name (reverse("ns:x") /
+                                   # url_for("x")) — matched against url_patterns' name so a
+                                   # named-URL test hit needs no literal path (ast layer only)
+        "as_view_targets": {},     # var name -> class name for `v = Cls.as_view()` (Django
+                                   # class-based-view exposure): a urlconf routing `v` reaches
+                                   # Cls's http methods (get/post/...); ast layer only
         "route_prefix": None,      # Flask Blueprint url_prefix / FastAPI APIRouter prefix
         "parse_level": "none",     # ast | tree_sitter | regex | none
     }
@@ -103,15 +142,25 @@ def dotted_name(node):
     return ".".join(reversed(parts)) if parts else None
 
 
-def collect_call_path(node, facts):
-    """Record a leading "/..." string arg of route/client calls (e.g. client.get("/x"))."""
+def route_path_of(node):
+    """The leading "/..." path of an HTTP route/client call (``@app.route("/x")`` /
+    ``client.get("/x")``), or None — the shared path-arg rule for route_paths and
+    route_handlers."""
     func = node.func
     attr = func.attr if isinstance(func, ast.Attribute) else (
         func.id if isinstance(func, ast.Name) else None)
-    if attr in HTTP_METHODS and node.args:
+    if attr in ROUTE_METHODS and node.args:
         s = str_constant(node.args[0])
         if s is not None and s.startswith("/"):
-            facts["route_paths"].add(s)
+            return s
+    return None
+
+
+def collect_call_path(node, facts):
+    """Record a leading "/..." string arg of route/client calls (e.g. client.get("/x"))."""
+    s = route_path_of(node)
+    if s is not None:
+        facts["route_paths"].add(s)
 
 
 URL_FUNCS = ("path", "re_path", "url")
@@ -137,11 +186,21 @@ def ref_tail(node):
     return None
 
 
+def keyword_string(node, key):
+    """The string value of a keyword arg ``key=...`` on a call, or None."""
+    for kw in node.keywords:
+        if kw.arg == key:
+            return str_constant(kw.value)
+    return None
+
+
 def collect_url_pattern(node, facts):
-    """Record a route-table entry as (kind, route_or_prefix, view_symbol):
-    Django ``path/re_path/url(route, view)`` -> ("path", route, view); DRF
-    ``router.register(prefix, ViewSet)`` -> ("register", prefix, ViewSet). These
-    link a URL to a view defined in ANOTHER file (no symbol reference)."""
+    """Record a route-table entry as (kind, route_or_prefix, view_symbol, name):
+    Django ``path/re_path/url(route, view, name=)`` -> ("path", route, view, name); DRF
+    ``router.register(prefix, ViewSet, basename=)`` -> ("register", prefix, ViewSet,
+    basename). These link a URL to a view defined in ANOTHER file (no symbol reference);
+    name carries the route's name=/basename= so a test addressing it via reverse()/
+    url_for() (no literal path) can still be matched."""
     func = node.func
     name = func.attr if isinstance(func, ast.Attribute) else (
         func.id if isinstance(func, ast.Name) else None)
@@ -149,12 +208,44 @@ def collect_url_pattern(node, facts):
         route = str_constant(node.args[0])
         view = ref_tail(node.args[1])
         if route is not None and view:
-            facts["url_patterns"].append(("path", route, view))
+            facts["url_patterns"].append(("path", route, view, keyword_string(node, "name")))
     elif name == "register" and len(node.args) >= 2:
         prefix = str_constant(node.args[0])
         vs = ref_tail(node.args[1])
         if prefix is not None and vs:
-            facts["url_patterns"].append(("register", prefix, vs))
+            facts["url_patterns"].append(("register", prefix, vs, keyword_string(node, "basename")))
+
+
+def collect_as_view_target(node, facts):
+    """Record ``var = SomeClass.as_view()`` (Django class-based-view exposure) as
+    var_name -> class_name, so a urlconf entry routing ``var`` resolves to the class
+    whose http methods (get/post/...) handle the route."""
+    if not (isinstance(node.value, ast.Call)
+            and isinstance(node.value.func, ast.Attribute)
+            and node.value.func.attr == "as_view"):
+        return
+    cls = ref_tail(node.value)            # SomeClass.as_view() -> "SomeClass"
+    if not cls:
+        return
+    for tgt in node.targets:
+        if isinstance(tgt, ast.Name):
+            facts["as_view_targets"][tgt.id] = cls
+
+
+URL_NAME_FUNCS = ("reverse", "reverse_lazy", "url_for")
+
+
+def collect_url_name(node, facts):
+    """Record a route NAME a test addresses by name: ``reverse("ns:x")`` /
+    ``url_for("x")`` -> the first string arg. Matched against url_patterns' name, so a
+    named-URL test client needs no literal path."""
+    func = node.func
+    name = func.attr if isinstance(func, ast.Attribute) else (
+        func.id if isinstance(func, ast.Name) else None)
+    if name in URL_NAME_FUNCS and node.args:
+        s = str_constant(node.args[0])
+        if s is not None:
+            facts["url_names"].add(s)
 
 
 def collect_route_prefix(node, facts):
@@ -200,6 +291,9 @@ def facts_from_ast(source):
                     facts["decorators"].add(dotted)
                 if isinstance(dec, ast.Call):
                     collect_call_path(dec, facts)
+                    rp = route_path_of(dec)
+                    if rp is not None:
+                        facts["route_handlers"].setdefault(rp, set()).add(node.name)
         elif isinstance(node, ast.Name):
             facts["used_names"].add(node.id)
         elif isinstance(node, ast.Attribute):
@@ -207,7 +301,10 @@ def facts_from_ast(source):
         elif isinstance(node, ast.Call):
             collect_call_path(node, facts)
             collect_url_pattern(node, facts)
+            collect_url_name(node, facts)
             collect_route_prefix(node, facts)
+        elif isinstance(node, ast.Assign):
+            collect_as_view_target(node, facts)
         else:
             s = str_constant(node)
             if s is not None and 0 < len(s) <= 200:
@@ -230,7 +327,8 @@ def get_ts_parser():
     return parser or None
 
 
-def ts_dotted(node, txt):
+def ts_dotted_name(node, txt):
+    """Tree-sitter counterpart of ``dotted_name``: the dotted-name string of ``node``."""
     if node is None:
         return None
     m = re.match(r'[\w\.]+', txt(node))
@@ -255,12 +353,12 @@ def facts_from_tree_sitter(source):
         t = node.type
         if t == "import_statement":
             for child in node.named_children:
-                name = ts_dotted(child, txt)
+                name = ts_dotted_name(child, txt)
                 if name:
                     facts["import_modules"].add(name)
         elif t == "import_from_statement":
             mod_node = node.child_by_field_name("module_name")
-            mod = ts_dotted(mod_node, txt) if mod_node else None
+            mod = ts_dotted_name(mod_node, txt) if mod_node else None
             raw = txt(node)
             m = re.match(r'from\s+(\.+)', raw)
             level = len(m.group(1)) if m else 0
@@ -268,7 +366,7 @@ def facts_from_tree_sitter(source):
             for child in node.named_children:
                 if child is mod_node:
                     continue
-                nm = ts_dotted(child, txt)
+                nm = ts_dotted_name(child, txt)
                 if nm and nm != "*":
                     names.append(nm.split(".")[-1])
             if mod and level == 0:

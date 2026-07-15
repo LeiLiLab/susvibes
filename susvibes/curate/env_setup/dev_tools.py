@@ -7,18 +7,19 @@ python -m susvibes.curate.env_setup.dev_tools \
 """
 
 import argparse
+import json
 import re
 from pathlib import Path
+from jinja2 import Template
 
-from susvibes.constants import *
-from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_path
+from susvibes.core.constants import *
+from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_agent_setting_path
 from susvibes.env_specs import DEV_TOOL_VERSIONS
 from susvibes.curate.env_setup.prompts import DEV_TOOLS_PROMPT_TEMPLATE
-from susvibes.curate.utils.agents.ports import SWEAgentPort
-from susvibes.utils import load_file, save_file, setup_logger, parse_instance_id
+from susvibes.core.agents.ports import SWEAgentPort
+from susvibes.core.utils import load_file, setup_logger, parse_instance_id, touched_files, get_env_specs, save_env_specs
 from susvibes.curate.utils import (
     get_repo_dir,
-    clone_github_repo,
     reset_to_commit,
     apply_patch,
 )
@@ -30,29 +31,37 @@ detail_logger = None
 
 def init_loggers(log_dir):
     global logger, detail_logger
-    logger = setup_logger(log_dir, "dev_tools.log", f"{__name__}.summary", add_stdout=True)
-    detail_logger = setup_logger(log_dir, "dev_tools_details.log", f"{__name__}.detail", add_stdout=False)
+    logger = setup_logger(log_dir, "dev_tools.log", f"{__name__}.summary", add_stdout=True, mode="w")
+    detail_logger = setup_logger(log_dir, "dev_tools_details.log", f"{__name__}.detail", add_stdout=False, mode="w")
 
-def prologue(task_dataset_path: Path):
-    port = SWEAgentPort(run_name=__spec__.name)
-    task_dataset = load_file(task_dataset_path)
-    for data_record in task_dataset:
-        repo_dir = clone_github_repo(data_record["project"], root_dir=LOCAL_REPOS_DIR, force=False)
+def prologue(processed_dataset_path: Path, instance_ids: list = None):
+    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")), run_name=__spec__.name)
+    processed_dataset = load_file(processed_dataset_path)
+    if instance_ids is not None:
+        processed_dataset = [data_record for data_record in processed_dataset
+            if data_record["instance_id"] in set(instance_ids)]
+    for data_record in processed_dataset:
+        repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
         reset_to_commit(repo_dir, data_record["base_commit"])
+        security_files = sorted(touched_files(data_record["security_patch"]))
         port.add_task(
             repo_type="local",
             repo_dir=repo_dir,
             base_commit=data_record["base_commit"],
-            problem_statement=DEV_TOOLS_PROMPT_TEMPLATE,
+            problem_statement=Template(DEV_TOOLS_PROMPT_TEMPLATE).render(
+                security_files=security_files,
+            ),
             instance_id=data_record["instance_id"],
         )
     port.before_start()
     return port
 
-def epilogue(agent_output_dir: Path, run_id: str = "default"):
+def epilogue(agent_output_dir: Path, run_id: str = "default", instance_ids: list = None):
     predictions, total_cost = SWEAgentPort.after_completion(agent_output_dir)
-    dev_tools_path = get_env_spec_path('dev_tools', run_id)
-    dev_tools = load_file(dev_tools_path) if dev_tools_path.exists() else {}
+    if instance_ids is not None:
+        predictions = [pred for pred in predictions
+            if pred["instance_id"] in set(instance_ids)]
+    env_specs = get_env_specs(run_id, ("dev_tools",))
 
     for pred in predictions:
         project, base_commit = parse_instance_id(pred["instance_id"])
@@ -60,12 +69,12 @@ def epilogue(agent_output_dir: Path, run_id: str = "default"):
 
         reset_to_commit(repo_dir, base_commit, new_branch=False)
         if not pred.get("model_patch", "").strip():
-            detail_logger.warning("Empty model patch for %s, skipping.", pred["instance_id"])
+            detail_logger.warning("Empty model_patch for %s, skipping.", pred["instance_id"])
             continue
         try:
             apply_patch(repo_dir, pred["model_patch"])
         except Exception as e:
-            detail_logger.warning("Error applying model patch for %s: %s", pred["instance_id"], e)
+            detail_logger.warning("Error applying model_patch for %s: %s", pred["instance_id"], e)
             continue
         try:
             dev_tool = load_file(repo_dir / "dev_tools.json")
@@ -94,21 +103,19 @@ def epilogue(agent_output_dir: Path, run_id: str = "default"):
             detail_logger.warning("Dev tools not found or invalid for %s.", pred["instance_id"])
             continue
 
-        dev_tools[pred["instance_id"]] = dev_tool
+        env_specs[pred["instance_id"]] = {"dev_tools": dev_tool}
 
-    logger.info("%d / %d dev tools identified successfully.", len(dev_tools), len(predictions))
+    logger.info("%d / %d dev tools identified successfully.", len(env_specs), len(predictions))
     if total_cost is not None:
         logger.info("Agent cost: $%.2f", total_cost)
-    dev_tools_path = get_env_spec_path('dev_tools', run_id)
-    dev_tools_path.parent.mkdir(parents=True, exist_ok=True)
-    save_file(dev_tools, dev_tools_path)
+    dev_tools_path = save_env_specs("dev_tools", env_specs, run_id)
     print(f"Dev tools saved to {dev_tools_path}.")
 
-def pipeline(task_dataset_path: Path, run_id: str = "default"):
+def pipeline(processed_dataset_path: Path, run_id: str = "default", instance_ids: list = None):
     logger.info("Dev tools pipeline started.")
-    port = prologue(task_dataset_path)
+    port = prologue(processed_dataset_path, instance_ids=instance_ids)
     agent_output_dir = port.run_batch()
-    epilogue(agent_output_dir, run_id=run_id)
+    epilogue(agent_output_dir, run_id=run_id, instance_ids=instance_ids)
     logger.info("Dev tools pipeline finished.")
 
 if __name__ == "__main__":
@@ -129,6 +136,12 @@ if __name__ == "__main__":
         help="Directory where the agent output is stored.",
     )
     parser.add_argument(
+        "--instance_ids",
+        type=json.loads,
+        default=None,
+        help="Only run for the given instance IDs.",
+    )
+    parser.add_argument(
         "--run_id",
         type=str,
         default="default",
@@ -138,23 +151,14 @@ if __name__ == "__main__":
     env_setup_log_dir = get_log_dir(args.run_id, "env_setup")
     init_loggers(env_setup_log_dir)
 
-    task_dataset_path = get_path('task_dataset', args.run_id)
-    if not task_dataset_path.exists():
-        fallback_path = get_path('processed_dataset', args.run_id)
-        if fallback_path.exists():
-            answer = input(f"task_dataset not found. Use {fallback_path} instead? [Y/n] ").strip().lower()
-            if answer in ('', 'y'):
-                task_dataset_path = fallback_path
-            else:
-                print("Aborted.")
-                exit(1)
-        else:
-            print(f"Neither task_dataset nor processed_dataset found under {task_dataset_path.parent}.")
-            exit(1)
+    processed_dataset_path = get_dataset_path('processed_dataset', args.run_id)
+    if not processed_dataset_path.exists():
+        print(f"processed_dataset not found: {processed_dataset_path}")
+        exit(1)
 
     if args.prologue:
-        prologue(task_dataset_path)
+        prologue(processed_dataset_path, instance_ids=args.instance_ids)
     elif args.epilogue:
-        epilogue(args.agent_output_dir, run_id=args.run_id)
+        epilogue(args.agent_output_dir, run_id=args.run_id, instance_ids=args.instance_ids)
     else:
-        pipeline(task_dataset_path, run_id=args.run_id)
+        pipeline(processed_dataset_path, run_id=args.run_id, instance_ids=args.instance_ids)

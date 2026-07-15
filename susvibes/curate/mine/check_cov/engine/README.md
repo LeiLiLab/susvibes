@@ -31,21 +31,49 @@ label: `≥ Classifier.LIKELY_THRESHOLD` → likely, `> 0` → maybe, `0` → un
 
 ## How a target is scored
 
-`analyze` picks **one** trace engine per repo — `symbol_trace` (precise, jedi) if
-`symbol_trace.usable()` finds jedi can parse the repo, else `file_trace` (the Python-2
-fallback) — and **always** layers `heuristics` (runtime wiring) on top. The per-file
-score is the max over every layer that fired. (No test suite at all → every target is
-`unlikely_covered` immediately.)
+`analyze` runs `symbol_trace` (precise, jedi) and **always** layers `heuristics`
+(runtime wiring) on top. The per-file score is the max over every layer that fired. (No
+test suite at all → every target is `unlikely_covered` immediately.)
 
-### symbol_trace (jedi) — S1–S4
-A backward BFS over the symbol use-graph: seeds are the symbols **defined** in the
-target file; jedi's project-wide `get_references` finds each use, and the scope of the
-use decides the next hop — a use **in a test** is a hit; a use in another def **taints
-that def** (test → wrapper → … → target); a use bound into a **module global**
-(`urlpatterns = [View]`) taints the global; an implicitly-invoked method (dunder /
-`@property`) continues through its **class**. Type-annotation uses (`x: T`, `-> T`) are
-skipped (looked up as a type, never executed). Scope discovery uses parso, not jedi
-inference (only `get_references` touches jedi — its name inference is thread-unsafe).
+### Containment seeding
+The trace is **not** seeded from every symbol in the target file but only from the
+symbols that **contain a `security_patch` changed line** — the method/class/function/
+global the change lives in. `containment.seed_names_for_targets` computes this seed-name
+set from the patch text and the rollback (pre) sources; the **post** version of each
+touched file (needed to place the patch's *added* lines) is derived in-container by
+`containment.apply_hunks` — a pure-Python `git apply` analog — so it parses with the
+same version-matched `parso` and the host ships only the patch (no git-show). A target
+with an empty seed set seeds nothing (no whole-file fallback).
+
+### symbol_trace (jedi) — S1–S5
+A backward BFS over the symbol use-graph. **One symbol-kind rule defines what counts
+as a referenceable node** — **module-level functions / classes / globals, and class
+methods (properties included)** (it qualifies only if referenceable from **outside**
+the file and resolved precisely by `get_references`). **Seeds** (`seed_symbol_positions`)
+are *all* such symbols in the target file — so a class is **always** seeded. **Successors** taint only the *innermost* such node
+enclosing a use, so a class is tainted **only** when the use sits directly in a class
+body (base class / class-variable value) or in a dunder; an ordinary method-body use
+taints the **method**, never its class. Deliberately excluded: **class variables and instance attributes**
+(`self.x` is scattered, possibly dynamic/inherited, shared mutable state — running
+`get_references` on it over-links every method that merely touches it into bogus
+chains; the **class** is seeded instead, which covers "a test constructs/subclasses
+it"); **imports** (resolve to a definition in another file → would match that external
+symbol's uses repo-wide); **nested functions** (unreachable from outside their scope).
+
+`get_references` finds every use of a seed; **`successors`** routes each use to the
+innermost qualifying symbol that **carries** it, re-expanded on the next hop:
+
+| the use sits… | tainted successor |
+|---|---|
+| in a **test file** | — hit (FIFO frontier ⇒ the first hit is the shortest chain) |
+| in a **function / method body** | that function (a wrapper chain of any length is followed); a **dunder**, lacking a by-name call site, continues through its **class** |
+| **directly in a class body** (base class, class-variable value) | the class |
+| bound into a **module-level global** (`urlpatterns = [View]`) | that global |
+| a bare module-top-level statement, no name to follow | — only the S4 import-reachability backstop applies |
+
+Type-annotation uses (`x: T`, `-> T`) are skipped (looked up as a type, never
+executed). Scope discovery uses parso, not jedi inference (only `get_references`
+touches jedi — its name inference is thread-unsafe).
 
 | id | evidence | score |
 |---|---|---|
@@ -53,8 +81,21 @@ inference (only `get_references` touches jedi — its name inference is thread-u
 | S2 | reached through 2–3 wrapping/global hops | `0.80` |
 | S3 | reached through a deeper real reference chain | `0.65` |
 | S4 | target symbol used at module top level of a test-imported file (backstop) | `0.55` |
+| S5 | the walk reached a symbol that IS an HTTP route handler whose route a test exercises (backstop) | `0.55` |
 
-### file_trace — Python-2 fallback: F1–F6
+**S5 — route-handler bridge.** A change is often reached only at runtime through an HTTP
+route: the walk taints the handler that dispatches to it, then dead-ends because
+`get_references` cannot cross the route-dispatch edge from a test client to the handler.
+When a reached symbol IS such a handler and a test exercises its route, that is coverage.
+Two dispatch shapes (`route_handler_bridge`): (a) a function a route **decorator**
+(`@app.route` / `@blueprint.route` / `@expose`) in its file targets, matched against a
+test's literal client path (segment-aligned, so an external mount prefix is tolerated);
+(b) an http method (get/post/…) of a **class-based view** exposed via `Cls.as_view()` and
+routed by a urlconf entry a test addresses — by literal path, or BY NAME via
+`reverse()`/`url_for()` (the named-URL match, shared with H6/H7). A backstop, like S4: a
+direct reference chain found elsewhere is stronger and returns first.
+
+### file_trace — no-jedi fallback: F1–F6
 When jedi is unusable, reachability is approximated over imports/symbols.
 
 **F1–F2 — a test imports the target**
@@ -101,6 +142,12 @@ target at runtime; the rules differ only in *where* the URL lives.
 | H8 | the target's **Blueprint/APIRouter prefix** + its own route match a test client's full URL | `0.55` |
 | H9 | **web2py convention**: target is a controller, a test string carries its `<app>/<ctrl>` URL + a target function name | `0.55` |
 
+A test "requests the matching URL" two ways: a **literal** client path (`client.get("/x")`),
+or **by name** — `reverse("ns:name")` / `url_for("name")` matched against the route's
+`name=` (Django `path`) / `basename` (DRF `register`, whose `<basename>-<action>` family is
+matched). The named form lets H6/H7 (and the S5 CBV bridge) fire when a test never spells a
+literal path. `@expose` (Flask-AppBuilder / flask-classful) counts as a route decorator.
+
 ## Low-false-positive design
 - **Distinctive symbols** (F5/F6, H2-CLI, the H6/H7 view anchor): a target-defined name
   counts only if it is long enough and defined few enough times repo-wide —
@@ -127,5 +174,4 @@ shared `RepoIndex` (imports, module map, re-exports, route table, symbol def-cou
 test-to-file BFS depths) is built in [`repo_index.py`](repo_index.py); path→module
 mapping is in [`modules.py`](modules.py); the tolerant `ast → tree-sitter → regex` fact
 extractor is in [`extract_facts.py`](extract_facts.py).
-```
 

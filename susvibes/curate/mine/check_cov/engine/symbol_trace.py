@@ -6,20 +6,23 @@ reachability, distinctive-symbol matching) with a single precise question: is
 there a real symbol-reference chain from some test into a symbol DEFINED in the
 target file?
 
-The trace is a backward BFS over the symbol use-graph. Starting from the symbols
-defined in the target file (functions, classes, and module-level globals),
-jedi's project-wide ``get_references`` finds every place each symbol is used. For
-each use we look at the SCOPE that contains it:
+The trace is a backward BFS over the symbol use-graph. Seeds are the symbols
+defined in the target file that can be referenced from outside it and reliably found
+by get_references — module-level functions, classes, and globals, plus class methods
+(properties included); see ``seed_symbol_positions``. jedi's project-wide
+``get_references`` finds every place each symbol is used; ``successors`` maps each
+use to the innermost such symbol that carries it, expanded on the next hop:
 
   - a use inside a test file means the target is reached (covered);
-  - a use inside another function/class body taints that enclosing definition,
-    which is expanded on the next hop — so a test that calls a wrapper that calls
-    ... that calls the target symbol is found, however many hops away;
-  - a use at MODULE TOP LEVEL bound into a global (``urlpatterns = [MyView]``,
-    ``HANDLERS = {...: target}``) taints that global, which is expanded next — so
-    a test that imports the global reaches the target. This keeps the trace
+  - a use inside a function/method body taints that function, expanded on the next
+    hop — so a wrapper chain of any length is found; a dunder, lacking a by-name
+    call site, continues through its CLASS instead;
+  - a use directly in a class body (a base class, a class-variable value) taints the
+    class — who instantiates or subclasses it is then traced;
+  - a use bound into a module-level global (``urlpatterns = [MyView]``) taints that
+    global, so a test that uses the global reaches the target. This keeps the trace
     symbol-precise instead of degrading to "the file is importable" the moment a
-    symbol is used outside a function;
+    symbol is used at module top level;
   - a use at module top level with no name to continue (a bare ``register(X)``)
     has no symbol to follow: the file simply executes it on import, so the only
     signal left is whether a test imports that file (import-graph reachability).
@@ -37,11 +40,12 @@ Only ``get_references`` (a pure reference search) uses jedi.
 
 Runs inside a version-matched cov_py container, so the jedi/parso here are the
 ones pinned for the target's Python version (jedi 0.19/parso 0.8 on py3.6+, jedi
-0.17/parso 0.7 on py2.7/3.5). ``usable()`` still samples the repo and falls back
-to the file-level engine if parsing largely fails.
+0.17/parso 0.7 on py2.7/3.5) — so jedi parses the sources and the trace is the sole
+coverage engine (no file-level fallback).
 """
 from __future__ import print_function, division, absolute_import, unicode_literals
 
+import re
 from collections import deque
 
 try:
@@ -54,7 +58,7 @@ import jedi.inference.references as jedi_references
 import parso
 
 from .constants import SymbolTrace
-from .constants import is_test_file
+from .heuristics import test_hits_route, test_uses_named_route
 
 # jedi's project-wide get_references silently caps how many files it opens/parses
 # via hardcoded module globals, dropping test references on large repos (see the
@@ -71,39 +75,29 @@ SCORE_DIRECT = 0.95         # S1: a test references a target-defined symbol dire
 SCORE_CHAIN_NEAR = 0.80     # S2: reached through 2-3 wrapping/global hops
 SCORE_CHAIN_FAR = 0.65      # S3: reached through >3 hops (still a real reference chain)
 
-# Decorators that make a method implicitly invoked (via attribute access, not an
-# explicit ``obj.method()`` call) — like dunder methods, these have no by-name call
-# site for get_references to find, so the trace must continue through the class.
-PROPERTY_DECORATORS = {"property", "cached_property", "setter", "getter", "deleter"}
 # A target symbol is used by a bare top-level statement in a non-test file that a
 # test imports: the file runs the statement on import, but no method body need run
 # (often only construction/registration) — weaker, like a file-level reach.
 SCORE_TOPLEVEL_REACH = 0.55   # S4: target symbol used at module top level of a test-imported file (backstop)
 
-
-def usable(repo_dir, sources):
-    """Sample-parse repo files with jedi; return False (-> file-level fallback) when
-    too many fail, which in practice means a Python 2 repo jedi cannot parse."""
-    rels = list(sources)[:SymbolTrace.JEDI_PARSE_SAMPLE]
-    if not rels:
-        return False
-    fails = 0
-    for rel in rels:
-        try:
-            jedi.Script(code=sources[rel], path=str(Path(repo_dir) / rel)).get_names()
-        except Exception:
-            fails += 1
-    return fails / len(rels) <= SymbolTrace.JEDI_PARSE_FAIL_RATIO
+# The backward walk reached a function that is itself an HTTP route handler (a route
+# decorator dispatches to it) whose route a test exercises: the change is reached at
+# runtime through that route, the dispatch edge get_references cannot cross. Same score
+# as the route heuristics (a runtime dispatch, not a direct reference) — a backstop.
+SCORE_ROUTE_BRIDGE = 0.55     # S5: a test hits the route of a handler the walk reached from the change
 
 
 class JediContext(object):
     """Per-instance jedi/parso state. Not reusable across instances: each instance
     is a different commit, so the working tree (and parse results) differ."""
 
-    def __init__(self, repo_dir, test_set):
+    def __init__(self, repo_dir, source_roots=()):
         self.repo_dir = Path(repo_dir)
-        self.project = jedi.Project(str(repo_dir))
-        self.test_set = test_set
+        # Prepend each non-root source root (e.g. a src/ layout's "src") so the repo's
+        # own packages shadow an installed same-named package — added_sys_path goes to
+        # the FRONT of jedi's sys.path, ahead of site-packages.
+        added = [str(self.repo_dir / r) for r in sorted(source_roots) if r]
+        self.project = jedi.Project(str(repo_dir), added_sys_path=added)
         self._scripts = {}
         self._trees = {}
 
@@ -142,8 +136,20 @@ class JediContext(object):
             return None
 
 
-def build(repo_dir, sources, test_set):
-    return JediContext(repo_dir, test_set)
+def build(repo_dir, source_roots=()):
+    return JediContext(repo_dir, source_roots)
+
+
+def annassign_value_op(expr_stmt):
+    """The ``=`` operator node of an annotated assignment (``x: T = v`` -> children
+    ``[name, annassign]``), or None when ``expr_stmt`` is not an annotated assignment
+    WITH a value (a bare ``x: T`` declaration binds nothing)."""
+    children = expr_stmt.children
+    if len(children) == 2 and children[1].type == "annassign":
+        for c in children[1].children:
+            if c.type == "operator" and c.value == "=":
+                return c
+    return None
 
 
 def assignment_lhs_names(expr_stmt):
@@ -151,8 +157,12 @@ def assignment_lhs_names(expr_stmt):
 
     A name is an assignment target when at least one ``=`` operator follows it
     among the statement's direct children, so ``a = b = rhs`` yields a and b but
-    not rhs, and a bare expression (no ``=``) yields nothing."""
+    not rhs, and a bare expression (no ``=``) yields nothing. An annotated assignment
+    ``a: T = rhs`` (whose ``=`` is nested in an ``annassign`` child) yields a too, but a
+    bare ``a: T`` annotation (no value) yields nothing."""
     children = expr_stmt.children
+    if annassign_value_op(expr_stmt) is not None:
+        return [children[0].start_pos] if children[0].type == "name" else []
     eq = [i for i, c in enumerate(children)
           if c.type == "operator" and c.value == "="]
     if not eq:
@@ -160,62 +170,81 @@ def assignment_lhs_names(expr_stmt):
     return [c.start_pos for c in children[:eq[-1]] if c.type == "name"]
 
 
-def defined_name_positions(tree):
-    """(line, col) of every traceable symbol DEFINED in a file: function/class
-    names, and the target names of module-level assignments (globals)."""
+def definition_scope(node):
+    """The scope a definition lives in: 'module', 'class', or 'function' (the kind of
+    the nearest enclosing def/class, or 'module' if none)."""
+    parent = node.parent
+    while parent is not None:
+        if parent.type == "funcdef":
+            return "function"
+        if parent.type == "classdef":
+            return "class"
+        if parent.type == "module":
+            return "module"
+        parent = parent.parent
+    return "module"
+
+
+def seed_symbol_positions(tree, seed_names=None):
+    """(line, col) of every symbol DEFINED in a file that can be referenced from
+    OUTSIDE it and reliably found by get_references — used to SEED the backward trace
+    (``successors`` applies the same symbol-kind rule, but by walking UP from a single
+    use rather than scanning a whole file, so it does not call this). When
+    ``seed_names`` is given, only symbols whose name is in it are returned (the
+    containment-narrowed seed; see containment.py):
+
+      - module-level function / class / global variable;
+      - class method (property included).
+
+    Class variables and instance attributes are NOT seeded. An instance attribute
+    (``self.X``) has no real definition point (scattered across methods, possibly set
+    via setattr or inherited) and is shared mutable state — get_references on it links
+    every method that merely touches the attribute, fabricating chains between code
+    that never calls each other. Seeding the CLASS instead covers the real case (a
+    test that constructs or subclasses it) without that hazard. Imports are not seeded
+    either: an imported name resolves to a definition in ANOTHER file, so
+    get_references would match that external symbol's uses project-wide. Nested
+    functions and function-local names are excluded too — nothing outside their
+    function can reference them."""
     if tree is None:
         return []
     out = []
-    # Function/class definitions anywhere in the file.
     stack = list(getattr(tree, "children", []))
     while stack:
         node = stack.pop()
-        if node.type in ("funcdef", "classdef"):
-            out.append(node.name.start_pos)
+        t = node.type
+        if t in ("funcdef", "classdef"):
+            if definition_scope(node) in ("module", "class"):
+                out.append(node.name.start_pos)
+        elif t == "expr_stmt":
+            if definition_scope(node) == "module":
+                out.extend(assignment_lhs_names(node))   # module-level global
         if hasattr(node, "children"):
             stack.extend(node.children)
-    # Module-level globals: direct module children that are assignments.
-    for stmt in getattr(tree, "children", []):
-        if stmt.type != "simple_stmt":
-            continue
-        for child in stmt.children:
-            if child.type == "expr_stmt":
-                out.extend(assignment_lhs_names(child))
+    if seed_names is not None:
+        kept = []
+        for pos in out:
+            leaf = tree.get_leaf_for_position(pos)
+            if leaf is not None and leaf.value in seed_names:
+                kept.append(pos)
+        out = kept
     return out
 
 
-def seed_positions(ctx, target):
-    """(abs_path, [(line, col), ...]) of symbols defined in the target file."""
+def seed_positions(ctx, target, seed_names=None):
+    """(abs_path, [(line, col), ...]) of the seed symbols in the target file —
+    narrowed to ``seed_names`` (the security_patch's containing symbols) when given."""
     abs_path = ctx.repo_dir / target
-    return abs_path, defined_name_positions(ctx.parso_tree(abs_path))
-
-
-def decorator_tails(funcnode):
-    """Last dotted segment of each decorator on a funcdef (``@x.setter`` -> setter,
-    ``@property`` -> property); empty if the funcdef carries no decorators."""
-    decorated = funcnode.parent
-    if decorated is None or decorated.type != "decorated":
-        return []
-    tails = []
-    for dec in decorated.children:
-        if dec.type != "decorator":
-            continue
-        names = [c.value for c in dec.children if c.type == "name"]
-        for c in dec.children:
-            if c.type == "trailer":
-                names += [cc.value for cc in c.children if cc.type == "name"]
-        if names:
-            tails.append(names[-1])
-    return tails
+    return abs_path, seed_symbol_positions(ctx.parso_tree(abs_path), seed_names)
 
 
 def is_implicit_method(funcnode):
-    """Whether a method is invoked implicitly (no ``obj.method()`` call site for
-    get_references to find): a dunder, or a property/descriptor accessor."""
+    """Whether a method is invoked implicitly, with no by-name site for get_references
+    to find — a dunder (``__init__`` on construction, ``__getitem__`` on indexing):
+    the trace must continue through its class. A property is NOT implicit — ``obj.attr``
+    IS its by-name site (verified) — so it traces as an ordinary method."""
     name = funcnode.name.value
-    if name.startswith("__") and name.endswith("__"):
-        return True
-    return any(t in PROPERTY_DECORATORS for t in decorator_tails(funcnode))
+    return name.startswith("__") and name.endswith("__")
 
 
 def enclosing_class(funcnode):
@@ -276,19 +305,108 @@ def is_annotation_ref(ctx, ref):
     return False
 
 
-def successors(ctx, ref):
-    """What to trace next from a non-test reference site, as
-    ``(successor_positions, module_level)``:
+def is_monkeypatch_ref(ctx, ref):
+    """Whether a reference is the TARGET of an assignment (``pkg.symbol = ...``): the
+    symbol is being REBOUND, not used. A test that rebinds a production symbol is
+    mocking / monkey-patching it — the real (masked) implementation never runs — so
+    this is not a coverage edge (``FederationHttpClient.post_json_get_nothing = Mock()``
+    does not exercise the real method)."""
+    tree = ctx.parso_tree(Path(ref.module_path))
+    if tree is None:
+        return False
+    try:
+        leaf = tree.get_leaf_for_position((ref.line, ref.column))
+    except Exception:
+        leaf = None
+    if leaf is None:
+        return False
+    node, parent = leaf, leaf.parent
+    while parent is not None and parent.type != "module":
+        if parent.type == "expr_stmt":
+            eqs = [i for i, c in enumerate(parent.children)
+                   if c.type == "operator" and c.value == "="]
+            try:
+                idx = parent.children.index(node)
+            except ValueError:
+                idx = None
+            # a plain `=` and our child sits before the last one -> assignment target
+            return bool(eqs) and idx is not None and idx < eqs[-1]
+        node, parent = parent, parent.parent
+    return False
 
-      - inside a function/class body -> [(abs_path, line, col)] of the innermost
-        enclosing def's name (taint the wrapper), module_level=False. When that
-        innermost def is an implicitly-invoked method (a dunder or property — it
-        has no by-name call site), the trace continues through its CLASS instead,
-        since the method runs when the class is instantiated / its attribute read;
-      - at module top level inside an assignment -> the LHS global name
-        position(s) to trace who uses that global, module_level=True;
-      - at module top level with nothing to continue -> [], module_level=True
-        (the caller may apply the import-reachability backstop)."""
+
+def carrier_names(expr_stmt, leaf):
+    """If ``leaf`` is in the RHS of a MODULE-LEVEL assignment, the
+    ``(global_positions, True)`` of the global name(s) it is bound into
+    (``urlpatterns = [View]`` binds View into urlpatterns), so the trace follows who
+    uses that global; else None (not a module-level assignment, or the leaf is on the
+    LHS). Class-body and function-level bindings are not carried — a class-body
+    reference taints the class and a function-level one taints the function (see
+    ``successors``)."""
+    if definition_scope(expr_stmt) != "module":
+        return None
+    children = expr_stmt.children
+    ann_eq = annassign_value_op(expr_stmt)
+    if ann_eq is not None:
+        eq_pos = ann_eq.start_pos          # `x: T = rhs` -> '=' nested in annassign
+    else:
+        eq = [i for i, c in enumerate(children)
+              if c.type == "operator" and c.value == "="]
+        if not eq:
+            return None
+        eq_pos = children[eq[-1]].start_pos
+    if (leaf.line, leaf.column) < eq_pos:
+        return None   # leaf is on the LHS / annotation, not a use of the bound value
+    names = assignment_lhs_names(expr_stmt)
+    return (names, True) if names else None
+
+
+def enclosing_symbol(leaf):
+    """Innermost referenceable symbol enclosing ``leaf``, as ``(positions, module_level)``
+    where positions are (line, col) of the symbol's name. The SHARED walk-up shared by
+    successor-tainting and containment seeding — same symbol kinds as
+    ``seed_symbol_positions``:
+
+      - bound into a module-level global (``urlpatterns = [target]``) -> the global name(s);
+      - directly in a class body (a base class, a class-variable value) -> the class;
+      - inside a function/method body -> that function (a dunder, lacking a by-name call
+        site, continues through its CLASS instead);
+      - on a decorator of a def -> the decorated def (the decorator is a sibling of the
+        funcdef under ``decorated``, so the plain walk-up would miss it);
+      - nothing left at module top level -> ([], True) (caller may apply the
+        import-reachability backstop)."""
+    node = leaf.parent
+    while node is not None and node.type != "module":
+        if node.type == "expr_stmt":
+            carrier = carrier_names(node, leaf)
+            if carrier is not None:
+                return carrier
+        elif node.type == "classdef":
+            if definition_scope(node) != "function":
+                return [node.name.start_pos], False
+        elif node.type == "funcdef":
+            if definition_scope(node) != "function":   # skip nested functions: not
+                if is_implicit_method(node):            # externally traceable, keep
+                    cls = enclosing_class(node)         # walking up to the outer def
+                    if cls is not None:
+                        return [cls.name.start_pos], False
+                return [node.name.start_pos], False
+        elif node.type == "decorated":
+            inner = node.children[-1]
+            if inner.type in ("funcdef", "classdef") and definition_scope(inner) != "function":
+                if inner.type == "funcdef" and is_implicit_method(inner):
+                    cls = enclosing_class(inner)
+                    if cls is not None:
+                        return [cls.name.start_pos], False
+                return [inner.name.start_pos], False
+        node = node.parent
+    return [], True
+
+
+def successors(ctx, ref):
+    """Innermost referenceable symbol that carries a non-test reference, as
+    ``(successor_positions, module_level)`` — wraps ``enclosing_symbol`` with the
+    reference's file path so the caller can push the successors onto the frontier."""
     abs_path = Path(ref.module_path)
     tree = ctx.parso_tree(abs_path)
     if tree is None:
@@ -299,30 +417,8 @@ def successors(ctx, ref):
         leaf = None
     if leaf is None:
         return [], False
-
-    # Inside a function/class body? Innermost enclosing def is hit first going up.
-    node = leaf.parent
-    while node is not None and node.type != "module":
-        if node.type == "classdef":
-            return [(abs_path,) + node.name.start_pos], False
-        if node.type == "funcdef":
-            if is_implicit_method(node):
-                cls = enclosing_class(node)
-                if cls is not None:
-                    return [(abs_path,) + cls.name.start_pos], False
-            return [(abs_path,) + node.name.start_pos], False
-        node = node.parent
-
-    # Module top level: trace the assignment global(s) this reference feeds, if any.
-    node = leaf.parent
-    while node is not None and node.type != "module":
-        if node.type == "expr_stmt":
-            names = assignment_lhs_names(node)
-            if names:
-                return [(abs_path,) + p for p in names], True
-            break
-        node = node.parent
-    return [], True
+    positions, module_level = enclosing_symbol(leaf)
+    return [(abs_path,) + p for p in positions], module_level
 
 
 def score_for_hop(hop):
@@ -346,8 +442,216 @@ def get_references(ctx, path, line, col):
     return None
 
 
-def score(target, ctx, index, max_depth):
+def goto_defs(ctx, path, line, col):
+    """Definitions a name points to (imports followed), with the same transient-failure
+    retry as get_references. Returns [] if every attempt failed."""
+    for _ in range(SymbolTrace.GET_REFERENCES_RETRIES + 1):
+        try:
+            return ctx.script(path).goto(line, col, follow_imports=True)
+        except Exception:
+            ctx.invalidate(path)
+    return []
+
+
+def classdef_at(tree, line):
+    """The classdef whose name is defined on `line`, or None."""
+    stack = list(getattr(tree, "children", []))
+    while stack:
+        n = stack.pop()
+        if n.type == "classdef" and n.name.start_pos[0] == line:
+            return n
+        if hasattr(n, "children"):
+            stack.extend(n.children)
+    return None
+
+
+def method_named(classdef, name):
+    """A funcdef named `name` directly in `classdef`'s body, or None."""
+    stack = list(getattr(classdef, "children", []))
+    while stack:
+        n = stack.pop()
+        if n.type == "funcdef" and n.name.value == name:
+            return n
+        if hasattr(n, "children"):
+            stack.extend(n.children)
+    return None
+
+
+def base_class_names(classdef):
+    """Name leaves of `classdef`'s base classes (between '(' and ')')."""
+    out, inside = [], False
+    for c in classdef.children:
+        if c.type == "operator" and c.value == "(":
+            inside = True
+        elif c.type == "operator" and c.value == ")":
+            break
+        elif inside:
+            if c.type == "name":
+                out.append(c)
+            elif hasattr(c, "children"):
+                out.extend(lf for lf in leaves(c) if lf.type == "name")
+    return out
+
+
+def leaves(node):
+    stack, out = [node], []
+    while stack:
+        n = stack.pop()
+        if hasattr(n, "children"):
+            stack.extend(n.children)
+        else:
+            out.append(n)
+    return out
+
+
+def overridden_base_methods(ctx, abs_path, line, col):
+    """If the symbol at (line, col) is a method overriding a base-class method, the
+    (abs_path, (line, col)) of the SAME-named method in each base class — possibly
+    cross-file (resolved via jedi goto). A method dispatched polymorphically through
+    a base ``self.m()`` has its call sites attributed to the BASE method, so seeding
+    the base too is what lets the trace follow that dispatch to a test."""
+    tree = ctx.parso_tree(abs_path)
+    if tree is None:
+        return []
+    try:
+        leaf = tree.get_leaf_for_position((line, col))
+    except Exception:
+        return []
+    if leaf is None:
+        return []
+    name = leaf.value
+    node = leaf.parent
+    funcnode = None
+    while node is not None and node.type != "module":
+        if node.type == "funcdef":
+            funcnode = node
+            break
+        node = node.parent
+    if funcnode is None:
+        return []
+    cls = enclosing_class(funcnode)
+    if cls is None:
+        return []
+    out = []
+    for bl in base_class_names(cls):
+        for d in goto_defs(ctx, str(abs_path), bl.start_pos[0], bl.start_pos[1]):
+            mp = getattr(d, "module_path", None)
+            if not mp:
+                continue
+            btree = ctx.parso_tree(Path(mp))
+            if btree is None:
+                continue
+            cd = classdef_at(btree, d.line)
+            if cd is None:
+                continue
+            m = method_named(cd, name)
+            if m is not None:
+                out.append((Path(mp), m.name.start_pos))
+    return out
+
+
+def route_segments(route):
+    """Static leading path segments of a route, params/regex/format tails dropped and
+    lowercased: ``/job/<int:sid>`` -> ['job'], ``/users/{id}`` -> ['users'],
+    ``^api/(?P<x>...)`` -> ['api']."""
+    r = route.strip().lstrip("^").rstrip("$")
+    r = re.split(r"[<({\\?*]", r)[0]
+    return [s for s in r.strip("/").lower().split("/") if s]
+
+
+def url_hits_route(test_url, route):
+    """Whether ``test_url`` contains the route's static segment-run as CONTIGUOUS path
+    segments — a segment-aligned match that tolerates an external mount prefix the route
+    itself does not carry (a blueprint mounted at ``/restore`` makes ``/job/<sid>`` live
+    at ``/restore/job/...``). A too-short stem (<3 chars total) is rejected (FP guard)."""
+    rsegs = route_segments(route)
+    if not rsegs or sum(len(s) for s in rsegs) < 3:
+        return False
+    tsegs = [s for s in test_url.strip("/").lower().split("/") if s]
+    n = len(rsegs)
+    for i in range(len(tsegs) - n + 1):
+        if tsegs[i:i + n] == rsegs:
+            return True
+    return False
+
+
+# Class-based-view dispatch methods Django routes a request to (View.http_method_names).
+CBV_METHODS = frozenset(["get", "post", "put", "patch", "delete", "head", "options"])
+
+
+def cbv_route_hit(index, view_vars):
+    """``(route_label, test_file)`` where a urlconf entry routes one of ``view_vars`` (an
+    ``as_view()`` module var) and a test addresses that route — by name (reverse()) or by
+    literal path; else None."""
+    for rel, f in index.facts.items():
+        if rel in index.test_set or not f["url_patterns"]:
+            continue
+        for kind, route, view, route_name in f["url_patterns"]:
+            if view not in view_vars:
+                continue
+            for tf in index.test_set:
+                tfacts = index.facts[tf]
+                if test_uses_named_route(tfacts["url_names"], kind, route_name) \
+                        or test_hits_route(tfacts["route_paths"], route):
+                    return (route_name or route, tf)
+    return None
+
+
+def route_handler_bridge(ctx, index, path, line, col, depth):
+    """If the symbol at ``(path, line, col)`` is a route handler whose route a test
+    exercises, the evidence ``(score, message)``; else None. Lets the backward walk
+    CONCLUDE at an HTTP-dispatched handler it reached from the change — the runtime
+    route-dispatch edge ``get_references`` cannot cross. Two dispatch shapes:
+      (a) a function a route DECORATOR (``@app.route`` / ``@expose``) in its file targets;
+      (b) an http method (get/post/...) of a CLASS-based view exposed via ``Cls.as_view()``
+          and routed by a urlconf entry."""
+    rel = ctx.rel(path)
+    if rel is None:
+        return None
+    facts = index.facts.get(rel)
+    if not facts or (not facts["route_handlers"] and not facts["as_view_targets"]):
+        return None
+    tree = ctx.parso_tree(path)
+    if tree is None:
+        return None
+    try:
+        leaf = tree.get_leaf_for_position((line, col))
+    except Exception:
+        leaf = None
+    if leaf is None:
+        return None
+    name = leaf.value
+
+    # (a) decorator-route handler
+    routes = [r for r, handlers in facts["route_handlers"].items() if name in handlers]
+    for r in routes:
+        for tf in index.test_set:
+            for test_url in index.facts[tf]["route_paths"]:
+                if url_hits_route(test_url, r):
+                    return (SCORE_ROUTE_BRIDGE,
+                            "[S5] test {0} hits route {1} dispatched to target handler {2} (symbol hop {3})".format(
+                                tf, r, name, depth))
+
+    # (b) class-based-view http method routed via as_view()
+    if name in CBV_METHODS and facts["as_view_targets"]:
+        funcnode = leaf.parent
+        cls = enclosing_class(funcnode) if funcnode is not None and funcnode.type == "funcdef" else None
+        if cls is not None:
+            view_vars = set(v for v, c in facts["as_view_targets"].items() if c == cls.name.value)
+            hit = cbv_route_hit(index, view_vars) if view_vars else None
+            if hit:
+                route_label, tf = hit
+                return (SCORE_ROUTE_BRIDGE,
+                        "[S5] test {0} addresses CBV route {1} -> target {2}.{3} (symbol hop {4})".format(
+                            tf, route_label, cls.name.value, name, depth))
+    return None
+
+
+def score(target, ctx, index, max_depth, seed_names=None):
     """Backward BFS from the target's symbols. Returns ``(evidence, reliable)``.
+
+    ``seed_names`` (when given) narrows the seed to the security_patch's containing
+    symbols (see containment.py) instead of every symbol in the target file.
 
     ``evidence`` is a list with the single strongest (score, message), or [] if no
     test reaches the target. FIFO frontier => hop distance is monotonic => the first
@@ -363,7 +667,7 @@ def score(target, ctx, index, max_depth):
     if ctx.parso_tree(ctx.repo_dir / target) is None:
         return [], False  # target unparseable -> cannot seed the trace -> unknown
 
-    abs_path, seeds = seed_positions(ctx, target)
+    abs_path, seeds = seed_positions(ctx, target, seed_names)
     frontier = deque((abs_path, line, col, 0) for line, col in seeds)
     seen = set()
     backstop = None  # (score, message) — weakest-evidence fallback
@@ -376,11 +680,29 @@ def score(target, ctx, index, max_depth):
             continue
         seen.add(key)
 
+        # Route-handler bridge: this reached symbol is itself an HTTP route handler whose
+        # route a test exercises — the change is covered through that route's runtime
+        # dispatch (the edge get_references cannot cross). A backstop, like S4: a real
+        # direct reference chain found elsewhere is stronger and returns first.
+        bridge = route_handler_bridge(ctx, index, path, line, col, depth)
+        if bridge is not None and (backstop is None or bridge[0] > backstop[0]):
+            backstop = bridge
+
+        # If this symbol is a method overriding a base-class method, also trace the
+        # base method (same hop): polymorphic ``self.m()`` dispatch attributes call
+        # sites to the base. Applied to seeds AND successors uniformly (both flow
+        # through here), so the two stay consistent.
+        for bpath, (bl, bc) in overridden_base_methods(ctx, path, line, col):
+            frontier.append((bpath, bl, bc, depth))
+
         refs = get_references(ctx, path, line, col)
         if refs is None:
             failures += 1   # lost this hop; keep walking other branches
             continue
 
+        # A widely-referenced symbol is a framework/util API, not a coverage chain: check
+        # its refs for a direct test hit but don't expand them (see REFERENCE_EXPAND_LIMIT).
+        expand = len(refs) <= SymbolTrace.REFERENCE_EXPAND_LIMIT
         for ref in refs:
             if ref.is_definition():
                 continue
@@ -389,12 +711,16 @@ def score(target, ctx, index, max_depth):
                 continue
             if is_annotation_ref(ctx, ref):
                 continue  # a type-annotation use (x: T, -> T) never executes the symbol
-            if is_test_file(rel):
+            if is_monkeypatch_ref(ctx, ref):
+                continue  # the symbol is rebound (mock/monkey-patch), not executed
+            if rel in index.test_set:   # content-checked test set (excludes test-ish non-tests)
                 hop = depth + 1
                 hop_score, sid = score_for_hop(hop)
                 return [(hop_score,
                          "[{0}] test {1}:{2} reaches target symbol (symbol hop {3})".format(
                              sid, rel, ref.line, hop))], True
+            if not expand:
+                continue
             succs, module_level = successors(ctx, ref)
             for s in succs:
                 frontier.append(s + (depth + 1,))
@@ -403,10 +729,12 @@ def score(target, ctx, index, max_depth):
             # at file load. A deeper transitive import is too incidental to count
             # (see SymbolTrace.TOPLEVEL_REACH_MAX_DEPTH).
             file_depth = index.bfs_depth.get(rel, 0)
-            if module_level and not succs and backstop is None \
+            if module_level and not succs \
                     and 1 <= file_depth <= SymbolTrace.TOPLEVEL_REACH_MAX_DEPTH:
-                backstop = (SCORE_TOPLEVEL_REACH,
-                            "[S4] target symbol used at top level of test-reachable {0}".format(rel))
+                cand = (SCORE_TOPLEVEL_REACH,
+                        "[S4] target symbol used at top level of test-reachable {0}".format(rel))
+                if backstop is None or cand[0] > backstop[0]:
+                    backstop = cand
 
     if backstop:
         return [backstop], True

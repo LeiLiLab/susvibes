@@ -1,12 +1,15 @@
+import os
 import re
 import sys
 import json
 import yaml
 import logging
+import tempfile
 from tqdm import tqdm
 from pathlib import Path
 
-from susvibes.constants import ARCH, DOCKERHUB_USERNAME
+from susvibes.core.constants import ARCH, DOCKERHUB_USERNAME, ENV_SPECS_DIR, ENV_SPEC_FILE_NAMES
+from susvibes.env_specs import GEN_SEC_TEST_CMD
 
 
 def get_image_name(local_name: str, username: str = DOCKERHUB_USERNAME) -> str:
@@ -38,7 +41,49 @@ def save_file(data, file_path: Path | str):
             yaml.dump(data, f, allow_unicode=True, sort_keys=False)
     else:
         file_path.write_text(data)
-        
+
+def push_dataset_to_hub(records, repo_id, filename, private=False, commit_message=None):
+    """Upload records as a JSONL file to a HuggingFace dataset repo without writing
+    into the local datasets/ tree."""
+    from huggingface_hub import HfApi
+    token = os.environ.get("HF_TOKEN")
+    if not token:
+        raise RuntimeError("HF_TOKEN is not set in the environment.")
+    api = HfApi(token=token)
+    api.create_repo(repo_id=repo_id, repo_type="dataset", private=private, exist_ok=True)
+    with tempfile.TemporaryDirectory() as tmpdir:
+        tmp = Path(tmpdir) / filename
+        save_file(records, tmp)
+        api.upload_file(
+            path_or_fileobj=str(tmp),
+            path_in_repo=filename,
+            repo_id=repo_id,
+            repo_type="dataset",
+            commit_message=commit_message or f"Update {filename}",
+        )
+    return f"{repo_id}/{filename}"
+
+def get_env_specs(run_id: str = "default", required_fields: tuple = tuple(ENV_SPEC_FILE_NAMES)) -> dict:
+    """Per-instance env specs {instance_id: {dev_tools, dockerfile, logs_handler}}, each carrying
+    whichever of the three files list it. required_fields gates the result to instances that have
+    every listed field (a presence filter, not a field selector); the default requires all three."""
+    specs = {}
+    for field in ENV_SPEC_FILE_NAMES:
+        path = ENV_SPECS_DIR / run_id / ENV_SPEC_FILE_NAMES[field]
+        file_map = load_file(path) if path.exists() else {}
+        for instance_id, value in file_map.items():
+            specs.setdefault(instance_id, {})[field] = value
+    return {iid: spec for iid, spec in specs.items()
+        if all(field in spec for field in required_fields)}
+
+def save_env_specs(field: str, env_specs: dict, run_id: str = "default") -> Path:
+    """Persist one env-spec file from per-instance specs, extracting that field."""
+    data = {iid: spec[field] for iid, spec in env_specs.items() if field in spec}
+    path = ENV_SPECS_DIR / run_id / ENV_SPEC_FILE_NAMES[field]
+    path.parent.mkdir(parents=True, exist_ok=True)
+    save_file(data, path)
+    return path
+
 class TqdmStreamHandler(logging.StreamHandler):
     def __init__(self, stream=None):
         super().__init__(stream or sys.stderr) 
@@ -74,6 +119,7 @@ def setup_logger(
     logger_name: str,
     mode: str = "a",
     add_stdout: bool = True,
+    handle_tqdm: bool = False,
 ):
     log_dir = Path(log_dir)
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -87,7 +133,7 @@ def setup_logger(
             "[%(levelname)s] - %(asctime)s - %(message)s"))
         logger.addHandler(file_handler)
         if add_stdout:
-            stream_handler = logging.StreamHandler()
+            stream_handler = logging.StreamHandler() if not handle_tqdm else TqdmStreamHandler()
             stream_handler.setFormatter(logging.Formatter(
                 "[%(levelname)s] - %(asctime)s - %(message)s"))
             logger.addHandler(stream_handler)
@@ -125,13 +171,22 @@ def setup_instance_logger(
         logger.addHandler(handler)
     return logger
 
-def touched_files(patch):
-    """Extract the list of files touched by a patch string."""
+def touched_files(patch, side="post"):
+    """Files touched by a patch, as a set of paths.
+
+    side="post" -> new-side names (the ``+++ b/`` lines, the post-patch tree);
+    side="pre"  -> old-side names (the ``--- a/`` lines, the pre-patch tree).
+    A ``/dev/null`` side (a file added or deleted by the patch) contributes nothing,
+    so "post" yields exactly the files present after the patch and "pre" exactly
+    those present before it."""
+    marker, prefix = ("+++ ", "b/") if side == "post" else ("--- ", "a/")
     file_paths: set[str] = set()
     for line in patch.splitlines():
-        if line.startswith('+++ '):
+        if line.startswith(marker):
             path = line[4:].split('\t', 1)[0]
-            if path.startswith('b/'):
+            if path == "/dev/null":
+                continue
+            if path.startswith(prefix):
                 path = path[2:]
             file_paths.add(path)
     return file_paths
@@ -185,3 +240,21 @@ def parse_instance_id(instance_id):
     project_part, _, base_commit = instance_id.rpartition("_")
     project = project_part.replace("__", "/")
     return project, base_commit
+
+class Route:
+    """Map an instance's flags and a run name to how that run executes — its container command and
+    its logs-handler kind. A synthesized-sec instance (flags["gen_test"]) runs sectests.sh and reads
+    the gen_sec results on its generated-test run — eval's "sec" run or validate's "*_gen_test" runs;
+    every other run uses the image's default command and count parsing."""
+
+    @staticmethod
+    def _gen_test(flags: dict, run_name: str) -> bool:
+        return flags.get("gen_test", False) and (run_name == "sec" or run_name.endswith("_gen_test"))
+
+    @staticmethod
+    def route_test_cmd(flags: dict, run_name: str) -> list | None:
+        return GEN_SEC_TEST_CMD if Route._gen_test(flags, run_name) else None
+
+    @staticmethod
+    def route_logs_kind(flags: dict, run_name: str) -> str:
+        return "gen_sec" if Route._gen_test(flags, run_name) else "count"

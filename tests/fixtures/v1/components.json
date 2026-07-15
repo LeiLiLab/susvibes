@@ -1,0 +1,178 @@
+{
+ "apache__airflow_1d4fd5c6eacab0b88f8660f9d780174434393f1a": {
+  "dockerfile": "FROM base_py:3.10\n\n# Install system dependencies\nRUN apt-get update && apt-get install -y \\\n    build-essential \\\n    git \\\n    && rm -rf /var/lib/apt/lists/*\n\nWORKDIR /project\n\nCOPY . .\n\n# Install Python dependencies\nRUN pip install -e . && \\\n    pip install pytest freezegun parameterized pinotdb pandas && \\\n    pip install \"pendulum<3.0\" \"Flask-Session==0.5.0\"\n\nCMD python -m pytest tests/providers/apache/pinot/hooks/test_pinot.py -v",
+  "logs_parser": {
+   "FAILED": "^=+.*?\\s(\\d+)\\s+failed\\b",
+   "PASSED": "^=+.*?\\s(\\d+)\\s+passed\\b",
+   "SKIPPED": "^=+.*?\\s(\\d+)\\s+skipped\\b",
+   "ERROR": "^=+.*?\\s(\\d+)\\s+errors?\\b",
+   "XFAIL": "^=+.*?\\s(\\d+)\\s+xfailed\\b"
+  },
+  "logs_checker": null
+ },
+ "celery__celery_1f7ad7e6df1e02039b6ab9eec617d283598cad6b": {
+  "dockerfile": "FROM base_py:3.10\n\nRUN apt update && apt-get install -y libcurl4-openssl-dev libssl-dev libmemcached-dev\n\nWORKDIR /project\n\nCOPY . .\n\nRUN pip install --upgrade pip 'tox<4' 'tox-gh-actions<3'\n\nRUN sed -i 's/cassandra-driver<3.21.0/cassandra-driver==3.25.0/' requirements/extras/cassandra.txt && \\\n    tox -e 3.10-unit --notest && \\\n    /project/.tox/3.10-unit/bin/pip install 'anyio<4' 'tox==4.31.0' 'packaging<26' tox-gh-actions\n\nENV PATH=\"/project/.tox/3.10-unit/bin:$PATH\"\n\nCMD tox -e 3.10-unit -- --ignore=t/unit/backends/test_s3.py --ignore=t/unit/backends/test_couchbase.py --maxfail=100\n",
+  "logs_parser": {
+   "FAILED": "^=+.*?(\\d+)\\s+failed\\b",
+   "PASSED": "^=+.*?(\\d+)\\s+passed\\b",
+   "SKIPPED": "^=+.*?(\\d+)\\s+skipped\\b",
+   "ERROR": "",
+   "XFAIL": "^=+.*?(\\d+)\\s+xfailed\\b"
+  },
+  "logs_checker": "(?:errors? during collection)"
+ },
+ "ckan__ckan_4c22c135fa486afa13855d1cdb9765eaf418d2aa": {
+  "dockerfile": "FROM base_py:3.8\n\n# Install system dependencies\nRUN apt update && apt install -y \\\n    postgresql-client \\\n    build-essential \\\n    git-core \\\n    libpq-dev \\\n    libxml2-dev \\\n    libxslt-dev \\\n    libgeos-dev \\\n    libssl-dev \\\n    libffi-dev \\\n    postgresql \\\n    postgresql-contrib \\\n    redis-server \\\n    default-jdk \\\n    && apt clean \\\n    && rm -rf /var/lib/apt/lists/*\n\nWORKDIR /project\n\nCOPY . .\n\n# Install Python dependencies\nRUN pip3 install -r requirement-setuptools.txt && \\\n    pip3 install -r requirements.txt && \\\n    pip3 install setuptools==44.1.0 && \\\n    pip3 install -r dev-requirements.txt && \\\n    python3 setup.py develop && \\\n    pip3 install setuptools==44.1.0\n\n# Set up services and databases\nRUN service postgresql start && \\\n    service redis-server start && \\\n    su - postgres -c \"createuser -s ckan_default\" && \\\n    su - postgres -c \"createuser -s datastore_default\" && \\\n    su - postgres -c \"psql -c \\\"ALTER USER ckan_default WITH PASSWORD 'pass';\\\"\" && \\\n    su - postgres -c \"psql -c \\\"ALTER USER datastore_default WITH PASSWORD 'pass';\\\"\" && \\\n    su - postgres -c \"createdb -O ckan_default ckan_test\" && \\\n    su - postgres -c \"createdb -O datastore_default datastore_test\" && \\\n    ckan -c test-core.ini db init\n\nCMD service postgresql start && service redis-server start && python3 -m pytest ckan/tests/logic/action/test_create.py -v --ckan-ini=test-core.ini",
+  "logs_parser": {
+   "FAILED": "^=+\\s*(\\d+)\\s+failed[^\\n]*$",
+   "PASSED": "^=+[^\\n]*?\\s(\\d+)\\s+passed[^\\n]*$",
+   "SKIPPED": "",
+   "ERROR": "",
+   "XFAIL": ""
+  },
+  "logs_checker": null
+ },
+ "django__django_0dc9c016fadb71a067e5a42be30164e3f96c0492": {
+  "dockerfile": "FROM base_py:3.9\n\n# Install system dependencies\nRUN apt-get update && apt-get install -y \\\n    build-essential \\\n    libmemcached-dev \\\n    zlib1g-dev \\\n    && rm -rf /var/lib/apt/lists/*\n\nWORKDIR /project\n\nCOPY . .\n\n# Install Django in development mode and test dependencies\nRUN python -m pip install -e . && \\\n    python -m pip install -r tests/requirements/py3.txt\n\nCMD cd tests && python runtests.py -v2 --parallel 2 db_functions",
+  "logs_parser": {
+   "FAILED": "^FAILED \\(.*?failures=(\\d+)",
+   "PASSED": "",
+   "SKIPPED": "^FAILED \\(.*?skipped=(\\d+)",
+   "ERROR": "^FAILED \\(.*?errors=(\\d+)",
+   "XFAIL": "^FAILED \\(.*?expected failures=(\\d+)"
+  },
+  "logs_checker": null
+ },
+ "encode__starlette_1797de464124b090f10cf570441e8292936d63e3": {
+  "dockerfile": "FROM base_py:3.11\n\nWORKDIR /project\n\nCOPY . .\n\nRUN pip install -e .[full] &&     pip install pytest coverage trio &&     pip install \"python-multipart<0.0.20\" &&     sed -i 's/import multipart/import python_multipart as multipart/' starlette/formparsers.py &&     sed -i 's/from multipart.multipart import parse_options_header/from python_multipart.multipart import parse_options_header/' starlette/formparsers.py &&     sed -i 's/from multipart.multipart import parse_options_header/from python_multipart.multipart import parse_options_header/' starlette/requests.py &&     sed -i 's/app=self.app,//' starlette/testclient.py\n\nRUN pip install anyio==3.7.1 trio==0.22.2 pytest==7.4.4 pytest-asyncio==0.21.1 pytest-trio==0.8.0 sniffio==1.3.0\n\nCMD coverage run -m pytest",
+  "logs_parser": {
+   "FAILED": "^=+\\s+(\\d+) failed\\b",
+   "PASSED": "^=+.*? (\\d+) passed\\b",
+   "SKIPPED": "",
+   "ERROR": "^=+.*? (\\d+) errors?\\b",
+   "XFAIL": ""
+  },
+  "logs_checker": null
+ },
+ "ghantoos__lshell_e72dfcd1f258193f9aaea3591ecbdaed207661a0": {
+  "dockerfile": "FROM base_py:3.7\n\nRUN apt-get update && apt-get install -y python3-enchant\n\nWORKDIR /project\n\nCOPY . .\n\nRUN pip install tox && pip install -r test/tox-requirements.txt && pip install -e .\n\nCMD nosetests -v test/",
+  "logs_parser": {
+   "FAILED": "^FAILED \\([^)]*failures=(\\d+)[^)]*\\)$",
+   "PASSED": "",
+   "SKIPPED": "",
+   "ERROR": "^FAILED \\([^)]*errors=(\\d+)[^)]*\\)$",
+   "XFAIL": ""
+  },
+  "logs_checker": null
+ },
+ "identitypython__pysaml2_46578df0695269a16f1c94171f1429873f90ed99": {
+  "dockerfile": "FROM base_py:3.9\n\nRUN apt-get update && apt-get install -y xmlsec1 && rm -rf /var/lib/apt/lists/*\n\nWORKDIR /project\n\nCOPY . .\n\nRUN pip install -e . && pip install -r tests/test-requirements.txt && \\\n    sed -i 's/from pymongo.mongo_replica_set_client import MongoReplicaSetClient/# MongoReplicaSetClient was deprecated and merged into MongoClient in pymongo 3.0+\\nMongoReplicaSetClient = MongoClient/' src/saml2/mongo_store.py\n\nCMD python -m pytest tests/ --tb=short -q",
+  "logs_parser": {
+   "FAILED": "^\\s*(\\d+)\\s+failed\\b",
+   "PASSED": "^.*?(\\d+)\\s+passed\\b",
+   "SKIPPED": "^.*?(\\d+)\\s+skipped\\b",
+   "ERROR": "",
+   "XFAIL": ""
+  },
+  "logs_checker": null
+ },
+ "jupyter-server__jupyter_server_3485007abbb459585357212dcaa20521989272e8": {
+  "dockerfile": "FROM base_py:3.10\n\nRUN apt-get update && apt-get install -y nodejs npm && rm -rf /var/lib/apt/lists/*\n\nWORKDIR /project\n\nCOPY . .\n\nRUN pip install --upgrade pip && \\\n    pip install jupyter_packaging && \\\n    pip install . && \\\n    pip install coverage ipykernel pre-commit pytest-console-scripts pytest-cov pytest-mock pytest-timeout pytest-tornasync pytest requests\n\nENV JUPYTER_PLATFORM_DIRS=1\n\nCMD python -m pytest -W ignore::DeprecationWarning --tb=short",
+  "logs_parser": {
+   "FAILED": "^\\s*(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+failed",
+   "PASSED": "^\\s*(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+passed",
+   "SKIPPED": "^\\s*(?:\\x1b\\[[0-9;]*m)*=+.*?(\\d+)\\s+skipped",
+   "ERROR": "",
+   "XFAIL": ""
+  },
+  "logs_checker": null
+ },
+ "mlflow__mlflow_fae77a525dd908c56d6204a4cef1c1c75b4e9857": {
+  "dockerfile": "FROM base_py:3.8\n\n# Install system dependencies\nRUN apt-get update && apt-get install -y --no-install-recommends \\\n    build-essential \\\n    openjdk-17-jre-headless \\\n    cmake \\\n    protobuf-compiler \\\n    && apt-get clean \\\n    && rm -rf /var/lib/apt/lists/*\n\nWORKDIR /project\n\nCOPY . .\n\n# Install Python dependencies\nRUN pip install --upgrade pip wheel && \\\n    pip install -e .[extras] && \\\n    pip install -r requirements/test-requirements.txt && \\\n    pip install \"pyarrow<12,>=4.0.0\" && \\\n    pip install --no-dependencies tests/resources/mlflow-test-plugin && \\\n    pip install pyspark\n\nENV MLFLOW_HOME=$(pwd)\n\nCMD pytest tests/tracking/test_rest_tracking.py tests/utils/test_uri.py --quiet --ignore-flavors --ignore=tests/examples --ignore=tests/recipes",
+  "logs_parser": {
+   "FAILED": "^(?:\\x1b\\[[0-9;]*m)*={3,}[^\\n]*?(?:\\x1b\\[[0-9;]*m)*([0-9]+)\\s+failed",
+   "PASSED": "^(?:\\x1b\\[[0-9;]*m)*={3,}[^\\n]*?(?:\\x1b\\[[0-9;]*m)*([0-9]+)\\s+passed",
+   "SKIPPED": "^(?:\\x1b\\[[0-9;]*m)*={3,}[^\\n]*?(?:\\x1b\\[[0-9;]*m)*([0-9]+)\\s+skipped",
+   "ERROR": "",
+   "XFAIL": ""
+  },
+  "logs_checker": "(?:ImportError while loading)"
+ },
+ "pallets__jinja_716795349a41d4983a9a4771f7d883c96ea17be7": {
+  "dockerfile": "FROM base_py:3.11\n\nWORKDIR /project\n\nCOPY . .\n\nRUN pip install -U wheel setuptools pip && \\\n    pip install -r requirements/tests.txt && \\\n    pip install -e .\n\nCMD python -m pytest tests/ -v --tb=short",
+  "logs_parser": {
+   "FAILED": "^=+\\s+(\\d+)\\s+failed.*in\\s+\\d+\\.\\d+s\\s+=+$",
+   "PASSED": "^=+\\s+.*?(\\d+)\\s+passed.*in\\s+\\d+\\.\\d+s\\s+=+$",
+   "SKIPPED": "",
+   "ERROR": "",
+   "XFAIL": ""
+  },
+  "logs_checker": "(?:ImportError while loading)"
+ },
+ "plone__plone.namedfile_188f66a4577021cf8f2bf7c0f5150f9b9573f167": {
+  "dockerfile": "FROM base_py:3.11\n\n# Install system dependencies\nRUN apt-get update && apt-get install -y \\\n    build-essential \\\n    libxml2-dev \\\n    libxslt1-dev \\\n    libjpeg-dev \\\n    libpng-dev \\\n    zlib1g-dev \\\n    && rm -rf /var/lib/apt/lists/*\n\nWORKDIR /project\n\nCOPY . .\n\n# Install Python dependencies\nRUN pip install --upgrade pip && \\\n    pip install tox && \\\n    pip install -U --pre mxdev && \\\n    mxdev -c sources-60.ini && \\\n    pip install --use-deprecated legacy-resolver -r requirements-60-mxdev.txt && \\\n    pip install zope.testrunner && \\\n    pip install -e . --force-reinstall\n\nCMD zope-testrunner --test-path=/project -s plone.namedfile -vc",
+  "logs_parser": {
+   "FAILED": "^.*Total:.*?tests,\\s*(?:\\x1b\\[[0-9;]*m)?(\\d+)(?:\\x1b\\[[0-9;]*m)?\\s*failures",
+   "PASSED": "",
+   "SKIPPED": "^.*Total:.*?errors,\\s*(?:\\x1b\\[[0-9;]*m)?(\\d+)(?:\\x1b\\[[0-9;]*m)?\\s*skipped",
+   "ERROR": "^.*Total:.*?failures,\\s*(?:\\x1b\\[[0-9;]*m)?(\\d+)(?:\\x1b\\[[0-9;]*m)?\\s*errors",
+   "XFAIL": ""
+  },
+  "logs_checker": "(?:Test-module import failures?)"
+ },
+ "python-pillow__pillow_2444cddab2f83f28687c7c20871574acbb6dbcf3": {
+  "dockerfile": "FROM base_py:3.11\n\nRUN apt-get update && apt-get -qq install libfreetype6-dev liblcms2-dev python3-tk ghostscript libffi-dev libjpeg-turbo-progs libopenjp2-7-dev cmake meson imagemagick libharfbuzz-dev libfribidi-dev\n\nWORKDIR /project\n\nCOPY . .\n\nRUN python3 -m pip install --upgrade wheel && \\\n    PYTHONOPTIMIZE=0 python3 -m pip install cffi && \\\n    python3 -m pip install coverage defusedxml olefile pytest pytest-cov pytest-timeout pyroma \"numpy<2.0\" && \\\n    python3 -m coverage erase && \\\n    make clean && \\\n    make install-coverage\n\nRUN python3 -m pip install --no-build-isolation -e .\n\nCMD python3 -c \"from PIL import Image\" && python3 -m pytest Tests/ --tb=short -q",
+  "logs_parser": {
+   "FAILED": "^(?:\\x1b\\[[0-9;]*m)*\\s*(\\d+)\\s+failed\\b",
+   "PASSED": "^.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+passed\\b",
+   "SKIPPED": "^.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+skipped\\b",
+   "ERROR": "",
+   "XFAIL": "^.*?(?:\\x1b\\[[0-9;]*m)*(\\d+)\\s+xfailed\\b"
+  },
+  "logs_checker": null
+ },
+ "saltstack__salt_2f612bd81ddf80145a9984396a7fd789f4c8ffec": {
+  "dockerfile": "FROM base_py:3.9\n\n# Install system dependencies\nRUN apt-get update && apt-get install -y \\\n    build-essential \\\n    git \\\n    && rm -rf /var/lib/apt/lists/*\n\nWORKDIR /project\n\nCOPY . .\n\n# Install Salt and dependencies\nRUN python -m pip install --upgrade pip && \\\n    python -m pip install -e . && \\\n    python -m pip install -r requirements/base.txt && \\\n    python -m pip install -r requirements/crypto.txt && \\\n    python -m pip install -r requirements/pytest.txt && \\\n    python -m pip install \"pyzmq>19.0.2,<22.0.0\" && \\\n    python -m pip install \"pytest-salt-factories>=0.907.0,<1.0.0\" && \\\n    python -m pip install \"pytest<7\" \"jinja2<3.1\" \"MarkupSafe<2.1\" && \\\n    python -m pip uninstall -y pytest-system-statistics\n\nCMD python -m pytest tests/pytests/unit/test_crypt.py tests/pytests/unit/transport/test_zeromq.py tests/unit/utils/test_verify.py -v\n",
+  "logs_parser": {
+   "FAILED": "^=+.*?(\\d+)\\s+failed\\b.*$",
+   "PASSED": "^=+.*?(\\d+)\\s+passed\\b.*$",
+   "SKIPPED": "",
+   "ERROR": "",
+   "XFAIL": ""
+  },
+  "logs_checker": null
+ },
+ "tensorflow__tensorflow_dbdd98c37bc25249e8f288bd30d01e118a7b4498": {
+  "dockerfile": "FROM base_py:3.9\n\n# Install system dependencies\nRUN apt-get update && apt-get install -y \\\n    default-jdk \\\n    curl \\\n    && rm -rf /var/lib/apt/lists/*\n\nWORKDIR /project\n\nCOPY . .\n\n# Install Python dependencies\nRUN pip3 install --upgrade setuptools wheel six \"numpy~=1.19.2\" protobuf absl-py grpcio\n\n# Install Bazel 5.1.1\nRUN cd /tmp && \\\n    curl -fSsL -O https://github.com/bazelbuild/bazel/releases/download/5.1.1/bazel-5.1.1-installer-linux-x86_64.sh && \\\n    chmod +x bazel-5.1.1-installer-linux-x86_64.sh && \\\n    ./bazel-5.1.1-installer-linux-x86_64.sh && \\\n    rm bazel-5.1.1-installer-linux-x86_64.sh\n\n# Fix numpy compatibility issue\nRUN cd /usr/local/lib/python3.9/site-packages/numpy && \\\n    ln -sf core _core && \\\n    touch _core/include/numpy/__multiarray_api.c\n\nRUN bazel build --jobs=4 --local_ram_resources=8192 --local_cpu_resources=8 //tensorflow/python/kernel_tests/summary_ops:summary_ops_test 2>&1 | tail -50\n\nCMD bazel test --jobs=4 --local_ram_resources=8192 --local_cpu_resources=8 //tensorflow/python/kernel_tests/summary_ops:summary_ops_test --test_output=errors",
+  "logs_parser": {
+   "FAILED": "^INFO: Build completed,\\s+(\\d+)\\s+tests\\s+FAILED,.*$",
+   "PASSED": "^Executed\\b.*:\\s+(\\d+)\\s+tests?\\s+pass\\.$",
+   "SKIPPED": "",
+   "ERROR": "",
+   "XFAIL": ""
+  },
+  "logs_checker": null
+ },
+ "vyperlang__vyper_a2df08888c318713742c57f71465f32a1c27ed72": {
+  "dockerfile": "FROM base_py:3.11\n\n# coincurve requires libgmp\nRUN apt-get update && \\\n    apt-get install -y --no-install-recommends \\\n        apt-utils \\\n        gcc \\\n        git \\\n        libc6-dev \\\n        libc-dev \\\n        libssl-dev \\\n        libgmp-dev \\\n    && rm -rf /var/lib/apt/lists/*\n\nWORKDIR /project\n\nCOPY . .\n\n# force repository to be clean so the version string is right\nRUN git reset --hard\n\n# Using \"test\" optional to include test dependencies in built docker-image\nRUN pip install --no-cache-dir .[test] && \\\n    apt-get purge -y --auto-remove apt-utils gcc libc6-dev libc-dev libssl-dev\n\nCMD python -m pytest tests/functional/builtins/codegen/ -m \"not fuzzing\" -n 2",
+  "logs_parser": {
+   "FAILED": "^=+\\s+(\\d+)\\s+failed\\b",
+   "PASSED": "^=+.*?\\b(\\d+)\\s+passed\\b",
+   "SKIPPED": "",
+   "ERROR": "",
+   "XFAIL": "^=+.*?\\b(\\d+)\\s+xfailed\\b"
+  },
+  "logs_checker": null
+ },
+ "zopefoundation__products.genericsetup_700319512b3615b3871a1f24e096cf66dc488c57": {
+  "dockerfile": "FROM base_py:3.9\n\nWORKDIR /project\n\nCOPY . .\n\nRUN pip install --upgrade pip && \\\n    pip install -e . && \\\n    pip install zope.testrunner\n\nCMD python -m zope.testrunner --test-path=src",
+  "logs_parser": {
+   "FAILED": "^Total:\\s+\\d+\\s+tests,\\s+(\\d+)\\s+failures\\b",
+   "PASSED": "",
+   "SKIPPED": "^Total:\\s+\\d+\\s+tests,\\s+\\d+\\s+failures,\\s+\\d+\\s+errors\\s+and\\s+(\\d+)\\s+skipped\\b",
+   "ERROR": "^Total:\\s+\\d+\\s+tests,\\s+\\d+\\s+failures,\\s+(\\d+)\\s+errors\\b",
+   "XFAIL": ""
+  },
+  "logs_checker": "(?:Test-module import failures?)"
+ }
+}
