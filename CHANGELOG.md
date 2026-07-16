@@ -22,6 +22,9 @@
 - **Opt-in registry override.** Ported `resolve_image_name()` (driven by
   `ACR_REGISTRY_URL`) from the Endor fork into `susvibes/core/utils.py`, applied once
   in `DockerHarnessBase.__init__`; unset = Docker Hub (unchanged upstream behavior).
+- **Gemini trust fix.** Ported `GEMINI_CLI_TRUST_WORKSPACE=true` env injection from
+  endor into `gemini_cli/batch_run_docker.py` — without it Gemini CLI refuses to
+  run in non-interactive Docker containers.
 - **Real-Docker tests (no LLM).** Opt-in `docker`-marked lifecycle tests parametrized
   over both harnesses, offline ACR-resolution unit tests, and a reproduction of the
   pre-existing container cleanup leak (`tests/test_docker_cleanup_leak.py`).

@@ -148,6 +148,7 @@ async def process_instance(instance: Dict[str, Any], index: int, total: int, mod
         env = {}
         env["GEMINI_MODEL"] = os.environ.get("GEMINI_MODEL", "")
         env["GEMINI_API_KEY"] = os.environ.get("GEMINI_API_KEY", "")
+        env["GEMINI_CLI_TRUST_WORKSPACE"] = "true"
         print(f"🔧 Environment: {env}")
         
         problem_statement = apply_safety_hint(problem_statement)
