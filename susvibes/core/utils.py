@@ -241,6 +241,57 @@ def parse_instance_id(instance_id):
     project = project_part.replace("__", "/")
     return project, base_commit
 
+
+# ── Image registry override (opt-in ACR support) ────────────────────
+#
+# When the environment variable ACR_REGISTRY_URL is set, Docker image
+# references are rewritten to pull from that registry instead of Docker
+# Hub.  If the variable is unset the functions are no-ops and upstream
+# behavior is preserved.
+
+ENV_REGISTRY_OVERRIDE = "ACR_REGISTRY_URL"
+
+
+def _normalize_registry_url(registry_url: str | None) -> str | None:
+    if not registry_url:
+        return None
+    registry_url = registry_url.strip()
+    if not registry_url:
+        return None
+    if registry_url.startswith("https://"):
+        registry_url = registry_url[len("https://"):]
+    elif registry_url.startswith("http://"):
+        registry_url = registry_url[len("http://"):]
+    return registry_url.rstrip("/")
+
+
+def get_registry_override() -> str | None:
+    return _normalize_registry_url(os.environ.get(ENV_REGISTRY_OVERRIDE))
+
+
+def _has_registry_prefix(image_name: str) -> bool:
+    first = image_name.split("/", 1)[0]
+    return "." in first or ":" in first or first == "localhost"
+
+
+def strip_registry(image_name: str) -> str:
+    if _has_registry_prefix(image_name) and "/" in image_name:
+        return image_name.split("/", 1)[1]
+    return image_name
+
+
+def rewrite_image_name(image_name: str, registry_url: str | None) -> str:
+    registry_url = _normalize_registry_url(registry_url)
+    if not registry_url:
+        return image_name
+    if image_name.startswith(f"{registry_url}/"):
+        return image_name
+    return f"{registry_url}/{strip_registry(image_name)}"
+
+
+def resolve_image_name(image_name: str) -> str:
+    return rewrite_image_name(image_name, get_registry_override())
+
 class Route:
     """Map an instance's flags and a run name to how that run executes — its container command and
     its logs-handler kind. A synthesized-sec instance (flags["gen_test"]) runs sectests.sh and reads
