@@ -57,12 +57,14 @@ def process_datasets(sources, target_lang, test_lang, require_test=True, shuffle
         logger.info("[%s] %d records collected successfully.", source.name, len(raw_cve_dataset))
         processed_dataset = list(map_filter(raw_cve_dataset,
             lambda r: code_test_split(r, target_lang, test_lang, require_test)))
+        net_new_start = len(accepted)
         for data_record in processed_dataset:
             if known.has_sha(data_record["base_commit"]):
                 collapsed += 1
                 continue
             known.add(data_record)
             accepted.append(data_record)
+        logger.info("[%s] +%d net-new instances (running total %d).", source.name, len(accepted) - net_new_start, len(accepted))
     processed_dataset = accepted
     logger.info("%d records processed successfully from datasets (%d duplicate commits collapsed).", len(processed_dataset), collapsed)
     if shuffle:
