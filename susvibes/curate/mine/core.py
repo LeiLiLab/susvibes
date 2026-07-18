@@ -134,7 +134,7 @@ def build_fix_dataset(sources, target_lang, test_lang, require_test=None, shuffl
     collapsed = 0
     for source in sources:
         raw_cve_dataset = list(source.records(known))
-        logger.info("[%s] %d records collected successfully.", source.name, len(raw_cve_dataset))
+        logger.info("[%s] %d raw cves collected successfully.", source.name, len(raw_cve_dataset))
         fix_dataset = list(map_filter(raw_cve_dataset,
             lambda r: code_test_split(r, target_lang, test_lang, require_test)))
         net_new_start = len(accepted)

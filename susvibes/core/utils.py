@@ -128,7 +128,7 @@ def setup_logger(
     logger.setLevel(logging.INFO)
     logger.propagate = False
     if not logger.handlers:
-        file_handler = logging.FileHandler(log_file, mode=mode)
+        file_handler = logging.FileHandler(log_file, mode=mode, delay=True)
         file_handler.setFormatter(logging.Formatter(
             "[%(levelname)s] - %(asctime)s - %(message)s"))
         logger.addHandler(file_handler)
@@ -154,7 +154,7 @@ def setup_instance_logger(
     log_file.parent.mkdir(parents=True, exist_ok=True)
     logger = logging.getLogger(f"{logger_name}.{instance_id}")
 
-    handler = logging.FileHandler(log_file, mode=mode)
+    handler = logging.FileHandler(log_file, mode=mode, delay=True)
     formatter = logging.Formatter("[%(levelname)s] - %(asctime)s - %(message)s")
     handler.setFormatter(formatter)
     logger.addHandler(handler)
