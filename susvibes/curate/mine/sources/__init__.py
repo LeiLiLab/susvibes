@@ -11,6 +11,7 @@ from typing import Iterator, Protocol
 from susvibes.curate.mine.dedup import KnownSet
 from susvibes.curate.mine.sources.morefixes import MorefixesHandler
 from susvibes.curate.mine.sources.reposvul import ReposVulHandler
+from susvibes.curate.mine.sources.osv import OSVSource
 
 
 class Source(Protocol):
@@ -24,6 +25,7 @@ class Source(Protocol):
         ...
 
 
-# Order is load-bearing: on a same-sha collision the earlier source's record is kept.
-SOURCES = [ReposVulHandler, MorefixesHandler]
+# Order is load-bearing: on a same-sha collision the earlier source's record is kept, and
+# the deterministic OSV source runs last so it dedups against Morefixes + ReposVul.
+SOURCES = [ReposVulHandler, MorefixesHandler, OSVSource]
 SOURCE_BY_NAME = {source.__name__: source for source in SOURCES}
