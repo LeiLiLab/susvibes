@@ -274,12 +274,13 @@ if __name__ == "__main__":
         "--force",
         type=json.loads,
         default=[],
-        help='JSON list of source names whose cache to rebuild (fetch) before reading, e.g. \'["OSVSource"]\'; others read their cache, building only if missing.'
+        help='JSON list of source names whose cache to rebuild from scratch before reading, e.g. \'["OSVSource"]\' (every source supports it); others read their cache, building only if missing.'
     )
     parser.add_argument(
         "--resume",
-        action="store_true",
-        help="For discovery sources (finder), re-run only the cached outcomes that errored; keep concluded pins and misses. Ignored by deterministic sources."
+        type=json.loads,
+        default=[],
+        help='JSON list of discovery-source names to resume, e.g. \'["OSVResidualSource"]\' (only discovery sources support it): re-run just the finder outcomes that errored, keeping concluded pins and misses. If a source is in both --force and --resume, --force wins (rebuild-all supersedes rerun-errors).'
     )
     parser.add_argument(
         "--run_id",
@@ -302,11 +303,16 @@ if __name__ == "__main__":
     for name in args.force:
         SOURCE_BY_NAME[name].force = True
 
-    for source in dataset_sources:
-        if hasattr(source, "run_id"):        # discovery sources route their finder trajectories
+    for name in args.resume:
+        source = SOURCE_BY_NAME.get(name)
+        if source is None or not hasattr(source, "resume"):
+            resumable = [n for n, s in SOURCE_BY_NAME.items() if hasattr(s, "resume")]
+            parser.error(f"--resume: {name} is not a resume-capable source; supported: {resumable}")
+        source.resume = True
+
+    for source in dataset_sources:              # discovery sources route their finder trajectories
+        if hasattr(source, "run_id"):
             source.run_id = args.run_id
-        if hasattr(source, "resume"):        # ...and re-run only their errored outcomes on --resume
-            source.resume = args.resume
 
     require_test = args.require_test
     fix_dataset = build_fix_dataset(

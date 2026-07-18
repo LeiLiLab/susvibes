@@ -269,6 +269,8 @@ class OSVResidualSource:
 
     @classmethod
     def records(cls, known: KnownSet):
+        # force = re-run the finder on every CVE (discard the cache); resume = re-run only the
+        # errored entries (keep concluded pins/misses); neither = read the cache as-is. force wins.
         if cls.force or not cls.cache_path.exists():
             results = cls._fetch()
             save_file(results, cls.cache_path)
