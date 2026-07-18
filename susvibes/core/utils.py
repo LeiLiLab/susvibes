@@ -22,7 +22,7 @@ def load_file(file_path: Path | str):
     if file_path.suffix == ".json":
         return json.loads(file_path.read_text())
     elif file_path.suffix == ".jsonl":
-        return [json.loads(line) for line in file_path.read_text().splitlines() if line.strip()]
+        return [json.loads(line) for line in file_path.read_text().split("\n") if line.strip()]
     elif file_path.suffix == ".yaml":
         return yaml.safe_load(file_path.read_text())
     else:

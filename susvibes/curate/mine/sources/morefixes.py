@@ -2,7 +2,7 @@
 
 The URL dataset (`dataset_url_new.jsonl`) ships CVE → repo → `commit_sha`; the cache
 (`dataset_new.jsonl`) is that with each commit's `.patch` fetched and stored, which
-`records` splits into per-file hunks. `records` reads the cache, dropping any sha an earlier
+`records` splits into per-file hunks. `records` reads the cache, dropping any commit an earlier
 source already covered; building it (missing, or `--force`) keeps recent single-commit CVEs,
 fetches each `.patch`, and saves.
 """
@@ -34,7 +34,7 @@ class MorefixesHandler:
     def _build_cache(cls):
         """Rebuild the patch cache from the URL dataset: keep recent single-commit CVEs,
         fetch each commit's `.patch` from GitHub, and save."""
-        recent_year_cutoff = 2014
+        recent_year_cutoff = 2014  # should be removed after re-fetching morefixes dataset, should have instance-level reuse
         url_dataset = load_file(cls.url_path)
         dataset = [data_record for data_record in url_dataset
             if int(data_record['cve_id'].split('-')[1]) >= recent_year_cutoff
@@ -44,7 +44,7 @@ class MorefixesHandler:
                 data_record["patch"] = fetch_github_commit_patch(
                     owner=data_record["owner"],
                     repo=data_record["repo"],
-                    sha=data_record["commits"][0]["commit_sha"],
+                    commit=data_record["commits"][0]["commit_sha"],
                 )
         cls.cache_path.parent.mkdir(parents=True, exist_ok=True)
         save_file(dataset, cls.cache_path)
@@ -54,7 +54,7 @@ class MorefixesHandler:
         if cls.force or not cls.cache_path.exists():
             cls._build_cache()
         dataset_fetched = []
-        for line in cls.cache_path.read_text().splitlines():
+        for line in cls.cache_path.read_text().split("\n"):
             try:
                 data_record = json.loads(line.strip())
             except Exception as e:
@@ -65,7 +65,7 @@ class MorefixesHandler:
         dataset_filtered = []
         for data_record in dataset_fetched:
             commit_sha = data_record["commits"][0]['commit_sha']
-            if known.has_sha(commit_sha):
+            if known.has_commit(commit_sha):
                 continue
             try:
                 file_patches = split_to_file_patches(data_record["patch"])

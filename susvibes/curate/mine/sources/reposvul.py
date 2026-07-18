@@ -3,7 +3,7 @@
 The raw dataset already carries the patches; the expensive step is confirming each fix
 PR/commit is still reachable on GitHub (`remotely_active`). That network pass runs once when
 building the cache (`ReposVul_<lang>_active.jsonl`, the still-reachable records with their
-patch assembled); `records` then reads it, dropping any sha an earlier source already
+patch assembled); `records` then reads it, dropping any commit an earlier source already
 covered. No per-file rename/create/delete check, so an "adds a file" commit survives here
 but dies later in `apply_patch` — see B7 in docs/mine-filters. `_python` in the filename is
 the CVE's tag, not the repo's, so language filtering is entirely `code_test_split`'s job.
@@ -56,4 +56,4 @@ class ReposVulHandler:
         if cls.force or not cls.cache_path.exists():
             cls._build_cache()
         return [record for record in load_file(cls.cache_path)
-            if not known.has_sha(record["commit_id"])]
+            if not known.has_commit(record["commit_id"])]

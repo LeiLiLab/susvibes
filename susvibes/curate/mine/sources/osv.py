@@ -1,11 +1,11 @@
 """OSV source (M1) — deterministic CVE → fix commit from the OSV PyPI feed.
 
 For each PyPI advisory in OSV's `all.zip` the fix commit is read straight from the data:
-GIT-range `fixed` shas and reference `/commit/` URLs. Building the cache (`osv_fixes.jsonl`,
+GIT-range `fixed` commits and reference `/commit/` URLs. Building the cache (`osv_fixes.jsonl`,
 missing or `--force`) keeps the commits Morefixes + ReposVul don't already have (their raw
-shas) — the sha-new residual — fetches each `.patch` from GitHub (no clone) resolving the
-full 40-char sha from the patch's `From` header, and saves. `records` reads the cache and
-never re-fetches, skipping any sha already covered by an earlier source. PyPI-scoped, so the
+commits) — the commit-new residual — fetches each `.patch` from GitHub (no clone) resolving the
+full 40-char commit from the patch's `From` header, and saves. `records` reads the cache and
+never re-fetches, skipping any commit already covered by an earlier source. PyPI-scoped, so the
 ~80% cross-language waste of the Morefixes crawl doesn't apply, and a rebuild stays fresh
 (GHSA is filled at disclosure). See docs/mine-filters M1.
 """
@@ -22,14 +22,14 @@ from susvibes.curate.mine.sources.utils import fetch_github_commit_patch
 from susvibes.curate.mine.sources.morefixes import MorefixesHandler
 from susvibes.curate.mine.sources.reposvul import ReposVulHandler
 from susvibes.curate.mine.utils import split_to_file_patches
-from susvibes.curate.mine.dedup import KnownSet, normalize_sha
+from susvibes.curate.mine.dedup import KnownSet, normalize_commit
 
 OSV_ZIP_PATH = get_dataset_path('raw_cve_records') / 'OSV' / 'pypi.zip'
 OSV_CACHE_PATH = get_dataset_path('raw_cve_records') / 'OSV' / 'osv_fixes.jsonl'
 
 COMMIT_URL = re.compile(r'https?://github\.com/([^/\s]+)/([^/\s]+)/commit/([0-9a-f]{7,40})')
 REPO_URL = re.compile(r'github\.com/([^/\s]+)/([^/\s]+?)(?:\.git)?/?$')
-FROM_SHA = re.compile(r'^From ([0-9a-f]{40}) ', re.MULTILINE)
+FROM_COMMIT = re.compile(r'^From ([0-9a-f]{40}) ', re.MULTILINE)
 
 
 def read_osv_fix_commits(zip_path) -> dict[str, set]:
@@ -68,25 +68,25 @@ def read_osv_fix_commits(zip_path) -> dict[str, set]:
     return commits
 
 
-def known_source_shas() -> set:
-    """Full commit shas Morefixes + ReposVul already cover (their raw datasets), so OSV only
-    fetches the sha-new residual. Read from Morefixes' small URL dataset and ReposVul's raw
+def known_source_commits() -> set:
+    """Full commits Morefixes + ReposVul already cover (their raw datasets), so OSV only
+    fetches the commit-new residual. Read from Morefixes' small URL dataset and ReposVul's raw
     dataset — the same base the offline M1 model used."""
-    shas = set()
+    commits = set()
     if MorefixesHandler.url_path.exists():
-        for line in MorefixesHandler.url_path.read_text().splitlines():
+        for line in MorefixesHandler.url_path.read_text().split("\n"):
             try:
                 record = json.loads(line)
             except Exception:
                 continue
             for commit in record.get("commits", []):
                 if commit.get("commit_sha"):
-                    shas.add(normalize_sha(commit["commit_sha"]))
+                    commits.add(normalize_commit(commit["commit_sha"]))
     if ReposVulHandler.raw_path.exists():
         for record in load_file(ReposVulHandler.raw_path):
             if record.get("commit_id"):
-                shas.add(normalize_sha(record["commit_id"]))
-    return shas
+                commits.add(normalize_commit(record["commit_id"]))
+    return commits
 
 
 class OSVSource:
@@ -98,27 +98,27 @@ class OSVSource:
     @classmethod
     def _build_cache(cls):
         """Extract each CVE's fix commit, drop the ones Morefixes/ReposVul already have,
-        fetch the rest's `.patch` (resolving the full sha), and save."""
-        skip = known_source_shas()
+        fetch the rest's `.patch` (resolving the full commit), and save."""
+        skip = known_source_commits()
         fix_commits = read_osv_fix_commits(cls.zip_path)
         candidates = []
         for cve, fixes in fix_commits.items():
             if not fixes:
                 continue
-            owner, repo, sha = sorted(fixes)[0]
-            if normalize_sha(sha) in skip:
+            owner, repo, commit = sorted(fixes)[0]
+            if normalize_commit(commit) in skip:
                 continue
-            candidates.append((cve, owner, repo, sha))
+            candidates.append((cve, owner, repo, commit))
         records = []
-        for cve, owner, repo, sha in tqdm(candidates, desc="OSV: building cache (fetch)", dynamic_ncols=True):
-            patch_text = fetch_github_commit_patch(owner, repo, sha)
+        for cve, owner, repo, commit in tqdm(candidates, desc="OSV: building cache (fetch)", dynamic_ncols=True):
+            patch_text = fetch_github_commit_patch(owner, repo, commit)
             if not patch_text:
                 continue
-            m = FROM_SHA.search(patch_text)
-            full_sha = m.group(1) if m else normalize_sha(sha)
+            m = FROM_COMMIT.search(patch_text)
+            full_commit = m.group(1) if m else normalize_commit(commit)
             records.append({
                 "cve_id": cve,
-                "commit_id": full_sha,
+                "commit_id": full_commit,
                 "owner": owner,
                 "repo": repo,
                 "repo_url": f"https://github.com/{owner}/{repo}",
@@ -132,7 +132,7 @@ class OSVSource:
         if cls.force or not cls.cache_path.exists():
             cls._build_cache()
         for record in load_file(cls.cache_path):
-            if known.has_sha(record["commit_id"]):
+            if known.has_commit(record["commit_id"]):
                 continue
             try:
                 patch = split_to_file_patches(record["patch"])

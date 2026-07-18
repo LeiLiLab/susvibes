@@ -136,7 +136,7 @@ def build_fix_dataset(sources, target_lang, test_lang, require_test=None, shuffl
             lambda r: code_test_split(r, target_lang, test_lang, require_test)))
         net_new_start = len(accepted)
         for data_record in fix_dataset:
-            if known.has_sha(data_record["base_commit"]):
+            if known.has_commit(data_record["base_commit"]):
                 collapsed += 1
                 continue
             known.add(data_record)

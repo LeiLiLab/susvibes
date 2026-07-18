@@ -30,7 +30,7 @@ class Source(Protocol):
         ...
 
 
-# Order is load-bearing: on a same-sha collision the earlier source's record is kept, and
+# Order is load-bearing: on a same-commit collision the earlier source's record is kept, and
 # the deterministic OSV source runs last so it dedups against Morefixes + ReposVul.
 SOURCES = [ReposVulHandler, MorefixesHandler, OSVSource]
 SOURCE_BY_NAME = {source.__name__: source for source in SOURCES}

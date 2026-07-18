@@ -2,7 +2,7 @@
 
 Both Morefixes (when rebuilding its patch dataset) and OSV need a commit's unified patch
 from GitHub; this is that one helper. Tries the REST API's patch media type, then the public
-HTML `.patch` URL. Returns the patch text (git format-patch, so the full 40-char sha is on
+HTML `.patch` URL. Returns the patch text (git format-patch, so the full 40-char commit is on
 its `From` line) or None on failure.
 """
 
@@ -12,7 +12,7 @@ import requests
 from susvibes.curate.mine.constants import GITHUB_HEADERS
 
 
-def fetch_github_commit_patch(owner: str, repo: str, sha: str,
+def fetch_github_commit_patch(owner: str, repo: str, commit: str,
     timeout: int = 10, max_retries: int = 3) -> str:
     session = requests.Session()
     session.headers.update({
@@ -22,7 +22,7 @@ def fetch_github_commit_patch(owner: str, repo: str, sha: str,
     })
     session.headers.update(GITHUB_HEADERS)
 
-    api_url = f"https://api.github.com/repos/{owner}/{repo}/commits/{sha}"
+    api_url = f"https://api.github.com/repos/{owner}/{repo}/commits/{commit}"
     backoff = 1.5
     last_err = None
 
@@ -46,7 +46,7 @@ def fetch_github_commit_patch(owner: str, repo: str, sha: str,
         time.sleep(backoff ** retry)
 
     # Fallback
-    html_patch_url = f"https://github.com/{owner}/{repo}/commit/{sha}.patch"
+    html_patch_url = f"https://github.com/{owner}/{repo}/commit/{commit}.patch"
     fallback_headers = {"User-Agent": "morefixes-tools/patch-fetch"}
     fallback_headers.update(GITHUB_HEADERS)
     try:
@@ -57,5 +57,5 @@ def fetch_github_commit_patch(owner: str, repo: str, sha: str,
     except requests.RequestException as e:
         last_err = f"HTML .patch error: {e}"
 
-    print(f"Failed to fetch patch for {owner}/{repo}@{sha}: {last_err}")
+    print(f"Failed to fetch patch for {owner}/{repo}@{commit}: {last_err}")
     return None
