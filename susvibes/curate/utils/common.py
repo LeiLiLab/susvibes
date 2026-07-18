@@ -54,10 +54,11 @@ def is_clean_git_repo(repo_dir):
     return True 
 
 def get_repo_dir(project, root_dir):
-    """Get the local directory of a GitHub repository ("owner/repo")."""
+    """Local directory for a GitHub repository ("owner/repo"), named "owner__repo"
+    so different owners sharing a repo name never collide on disk."""
     root_dir = Path(root_dir)
-    repo_name = project.split("/", 1)[1]
-    return root_dir / repo_name
+    owner, repo = project.split("/", 1)
+    return root_dir / f"{owner}__{repo}"
 
 def clone_github_repo(project, root_dir, force=False, max_retries=3, timeout=None):
     """Clone a GitHub repository ("owner/repo") into the root directory."""

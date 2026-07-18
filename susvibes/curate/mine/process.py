@@ -1,14 +1,12 @@
 import argparse
 import random
-import requests
 import json
 from tqdm import tqdm
 from pathlib import Path
-from typing import TypedDict
 
 from susvibes.core.constants import get_dataset_path
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir
-from susvibes.core.utils import load_file, save_file, get_instance_id, setup_logger
+from susvibes.core.utils import load_file, save_file, setup_logger
 from susvibes.curate.utils import (
     get_repo_dir,
     clone_github_repo,
@@ -17,7 +15,6 @@ from susvibes.curate.utils import (
     commit_changes,
     get_diff_patch,
     get_commit_date,
-    len_patch
 )
 
 from susvibes.curate.mine.utils import (
@@ -26,18 +23,15 @@ from susvibes.curate.mine.utils import (
     merge_file_patches,
     split_to_file_patches,
     is_test_file,
-    path_has_keyword,
 )
 from susvibes.curate.mine.constants import (
-    GITHUB_HEADERS,
     TARGET_LANG,
     LANG_EXTENSIONS,
-    INSTALL_TEST_KEYWORDS,
-    RECENT_YR_CUTOFF,
-    PATCH_MAX_LENGTH,
-    PATCH_MAX_FILE_COUNT,
     REPO_MAX_SIZE_KB,
 )
+from susvibes.curate.mine.dedup import KnownSet
+from susvibes.curate.mine.cve_record import CVERecord, code_test_split
+from susvibes.curate.mine.sources import SOURCES, SOURCE_BY_NAME
 
 logger = None
 detail_logger = None
@@ -47,184 +41,30 @@ def init_loggers(log_dir):
     logger = setup_logger(log_dir, "process.log", f"{__name__}.summary", add_stdout=True, handle_tqdm=True, mode="w")
     detail_logger = setup_logger(log_dir, "process_details.log", f"{__name__}.detail", add_stdout=False, mode="w")
 
-RAW_CVE_RECORDS_DIR = get_dataset_path('cve_records')
-RAW_REPOSVUL_DATASET_PATH = RAW_CVE_RECORDS_DIR / f'ReposVul/ReposVul_{TARGET_LANG}.jsonl'
-RAW_MOREFIXES_DATASET_PATH = RAW_CVE_RECORDS_DIR / 'Morefixes/dataset_new.jsonl'
-
-class CVERecord(TypedDict):
-    instance_id: str
-    project: str
-    base_commit: str
-    security_patch: str
-    test_patch: str
-    test_files: list[str]
-    cwe_id: str
-    cve_id: str
-    cve_fix_date: str
-    language: str
-    info_page: str 
-
-def is_recent(data_record):
-    return int(data_record['cve_id'].split('-')[1]) >= RECENT_YR_CUTOFF
-
-# Cache of remote PR-status lookups; lives with the ReposVul dataset it caches.
-LOG_REMOTE_STATUS_CACHE_PATH = RAW_CVE_RECORDS_DIR / "ReposVul" / "remote_status_cache.json"
-
-class ReposVulHandler():
-    dataset_path = RAW_REPOSVUL_DATASET_PATH
-    cached_remote_status = None
-
-    @classmethod
-    def _load_cache(cls):
-        if cls.cached_remote_status is not None:
-            return
-        cache_file = LOG_REMOTE_STATUS_CACHE_PATH
-        if cache_file.exists():
-            cls.cached_remote_status = json.loads(cache_file.read_text())
-        else:
-            cls.cached_remote_status = {}
-
-    @classmethod
-    def _save_cache(cls):
-        LOG_REMOTE_STATUS_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        LOG_REMOTE_STATUS_CACHE_PATH.write_text(json.dumps(cls.cached_remote_status))
-
-    @classmethod
-    def remotely_active(cls, data_record, max_retries=3) -> bool:
-        cls._load_cache()
-        diff_url = data_record['html_url'] + '.patch'
-        if diff_url in cls.cached_remote_status:
-            return cls.cached_remote_status[diff_url]
-        while max_retries > 0:
-            max_retries -= 1
-            try:
-                r = requests.get(diff_url, headers=GITHUB_HEADERS, allow_redirects=True, timeout=10)
-                if r.status_code == 200:
-                    cls.cached_remote_status[diff_url] = True
-                    cls._save_cache()
-                    return True
-            except requests.RequestException as e:
-                continue
-        cls.cached_remote_status[diff_url] = False
-        cls._save_cache()
-        return False
-
-    @classmethod
-    def get_dataset(cls):
-        dataset = load_file(cls.dataset_path)
-        dataset_filtered = list(filter(cls.remotely_active, filter(is_recent, dataset)))
-        for data_record in dataset_filtered:
-            data_record["patch"] = {}
-            for file_change in data_record["details"]:
-                data_record["patch"][file_change["file_name"]] = file_change["patch"]
-            data_record["cwe_ids"] = data_record.pop("cwe_id")
-        logger.info("[ReposVul] %d records collected successfully.", len(dataset_filtered))
-        return dataset_filtered
- 
-class MorefixesHandler():
-    dataset_path = RAW_MOREFIXES_DATASET_PATH
-    target_lang = TARGET_LANG
-    test_lang = TARGET_LANG
-    
-    @classmethod
-    def get_dataset(cls):
-        dataset_text = cls.dataset_path.read_text()
-        dataset_crawled = []
-        for line in dataset_text.splitlines():
-            try:
-                data_record = json.loads(line.strip())
-            except Exception as e:
-                continue
-            if data_record["patch"]:
-                dataset_crawled.append(data_record)
-                
-        dataset_filtered = []
-        for data_record in dataset_crawled:
-            try:
-                file_patches = split_to_file_patches(data_record["patch"])
-            except ValueError as e:
-                continue
-            data_record["patch"] = file_patches
-            commit = data_record["commits"][0]
-            data_record["commit_id"] = commit['commit_sha']
-            dataset_filtered.append(data_record)
-        logger.info("[MoreFixes] %d records collected successfully.", len(dataset_filtered))
-        return dataset_filtered
-    
-def code_test_split(data_record, target_lang, test_lang, require_test=True) -> CVERecord | bool:
-    is_target_lang, with_test = True, False
-    code_patch, test_patch, test_files = {}, {}, []
-    for file_path, file_patch in data_record['patch'].items():
-        file_path = Path(file_path)
-        if file_path.suffix in sum(LANG_EXTENSIONS.values(), []):
-            if path_has_keyword(file_path, INSTALL_TEST_KEYWORDS):
-                test_patch[file_path] = file_patch
-                if is_test_file(file_path, LANG_EXTENSIONS.get(test_lang, [])):
-                    test_files.append(str(file_path))
-                    with_test = True
-                continue
-            code_patch[file_path] = file_patch
-            if file_path.suffix not in LANG_EXTENSIONS.get(target_lang, []):
-                is_target_lang = False
-        else:
-            test_patch[file_path] = file_patch
-
-    if not code_patch:
-        raise ValueError("No code patch (all files classified as test/config).")
-    code_patch = merge_file_patches(code_patch)
-    test_patch = merge_file_patches(test_patch)
-    num_files, num_lines = len_patch(code_patch)
-    if num_lines > PATCH_MAX_LENGTH or num_files > PATCH_MAX_FILE_COUNT:
-        raise ValueError(f"Patch exceeds length limits.")
-
-    if not is_target_lang:
-        raise ValueError("Patch doesn't contain target language.")
-    if require_test and not with_test:
-        raise ValueError("Patch doesn't contain test files.")
-    if not require_test and with_test:
-        raise ValueError("Patch contains test files.")
-
-    cve_fix_date = data_record.get('commit_date')
-    project = data_record.get('project',
-        f"{data_record.get('owner', '')}/{data_record.get('repo', '')}").lower()
-    base_commit = data_record['commit_id']
-    instance_id = get_instance_id(project, base_commit)
-    info_page = data_record.get('html_url',
-        data_record.get('repo_url', '') + f"/commit/{base_commit}")
-    result_data_record = dict(
-        instance_id=instance_id,
-        project=project,
-        base_commit=data_record['commit_id'],
-        security_patch=code_patch,
-        cwe_ids=data_record['cwe_ids'],
-        cve_id=data_record['cve_id'],
-        cve_fix_date=cve_fix_date,
-        language=target_lang,
-        info_page=info_page
-    )
-    if require_test:
-        result_data_record['test_patch'] = test_patch
-        result_data_record['test_files'] = test_files
-    return result_data_record
-
-def process_datasets(dataset_handlers, target_lang, test_lang, require_test=True, shuffle=False, max_records = None) -> list[CVERecord]:
+def process_datasets(sources, target_lang, test_lang, require_test=True, shuffle=False, max_records = None) -> list[CVERecord]:
     def map_filter(iterable, func):
         for item in iterable:
             try:
                 result = func(item)
             except ValueError as e:
                 continue
-            yield result  
-    assembled_by_id = {}
-    for handler in dataset_handlers:
-        raw_cve_dataset = handler.get_dataset()                
-        processed_dataset = list(map_filter(raw_cve_dataset, 
+            yield result
+    known = KnownSet()
+    accepted = []
+    collapsed = 0
+    for source in sources:
+        raw_cve_dataset = list(source.records(known))
+        logger.info("[%s] %d records collected successfully.", source.name, len(raw_cve_dataset))
+        processed_dataset = list(map_filter(raw_cve_dataset,
             lambda r: code_test_split(r, target_lang, test_lang, require_test)))
         for data_record in processed_dataset:
-            if data_record["instance_id"] not in assembled_by_id:
-                assembled_by_id[data_record["instance_id"]] = data_record
-    processed_dataset = list(assembled_by_id.values())
-    logger.info("%d records processed successfully from datasets.", len(processed_dataset))
+            if known.has_sha(data_record["base_commit"]):
+                collapsed += 1
+                continue
+            known.add(data_record)
+            accepted.append(data_record)
+    processed_dataset = accepted
+    logger.info("%d records processed successfully from datasets (%d duplicate commits collapsed).", len(processed_dataset), collapsed)
     if shuffle:
         random.shuffle(processed_dataset)
     if max_records is not None:
@@ -359,17 +199,13 @@ if __name__ == "__main__":
     processed_dataset_path = get_dataset_path('processed_dataset', args.run_id)
 
     if args.use_handlers:
-        handler_map = {
-            'ReposVulHandler': ReposVulHandler,
-            'MorefixesHandler': MorefixesHandler
-        }
-        dataset_handlers = [handler_map[name] for name in args.use_handlers if name in handler_map]
+        dataset_sources = [SOURCE_BY_NAME[name] for name in args.use_handlers if name in SOURCE_BY_NAME]
     else:
-        dataset_handlers = (ReposVulHandler, MorefixesHandler)
+        dataset_sources = SOURCES
 
     require_test = args.require_test
     processed_dataset = process_datasets(
-        dataset_handlers=dataset_handlers,
+        sources=dataset_sources,
         target_lang=TARGET_LANG,
         test_lang=TARGET_LANG,
         require_test=require_test,
