@@ -11,6 +11,7 @@ always returns a result dict (encoding "not found" as `commit=""`) so the source
 outcome and never pay for the same agent run twice.
 """
 
+import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from tqdm import tqdm
@@ -141,6 +142,8 @@ def finder_single(record, run_id):
     output, meta = run_agent_retrying(prompt, options, log_path=log_path)
     if output is None:
         return finder_miss(record, meta.get("error", "agent produced no result"), meta)
+    if not re.fullmatch(r"[0-9a-f]{40}", output["commit"].strip()):
+        output["commit"] = ""       # the model sometimes emits a malformed "no commit" (e.g. '""')
     return {**record, **output, "error": None, "_meta": meta}
 
 
