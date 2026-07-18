@@ -134,8 +134,6 @@ class OSVSource:
         if cls.force or not cls.cache_path.exists():
             cls._build_cache()
         for record in load_file(cls.cache_path):
-            if len(record["commit_id"]) != 40:
-                continue        # guard a stale cache entry whose commit didn't fully resolve
             if known.has_commit(record["commit_id"]):
                 continue
             try:

@@ -1,5 +1,6 @@
 import argparse
 import random
+import re
 import json
 from tqdm import tqdm
 from pathlib import Path
@@ -98,6 +99,8 @@ def code_test_split(data_record, target_lang, test_lang, require_test=None) -> C
     project = data_record.get('project',
         f"{data_record.get('owner', '')}/{data_record.get('repo', '')}").lower()
     base_commit = data_record['commit_id']
+    if not re.fullmatch(r'[0-9a-f]{40}', base_commit):
+        raise ValueError("base_commit is not a full 40-char commit.")
     instance_id = get_instance_id(project, base_commit)
     info_page = data_record.get('html_url',
         data_record.get('repo_url', '') + f"/commit/{base_commit}")
