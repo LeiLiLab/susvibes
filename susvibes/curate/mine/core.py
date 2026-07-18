@@ -150,7 +150,7 @@ def build_fix_dataset(sources, target_lang, test_lang, require_test=None, shuffl
         fix_dataset = fix_dataset[:max_records]
     return fix_dataset 
 
-def clone_repos_and_verify_patches(fix_dataset, root_dir):
+def clone_repos_and_verify_fixes(fix_dataset, root_dir):
     projects = set(data_record['project'] for data_record in fix_dataset)
     skipped_projects = set()
     with tqdm(total=len(projects), dynamic_ncols=True) as pbar:
@@ -308,7 +308,7 @@ if __name__ == "__main__":
     if args.skip_verify:
         logger.info("--skip_verify: saving %d text-level (unverified) records; skipping clone, apply-verify, and test-mask expansion.", len(fix_dataset))
     else:
-        fix_dataset = clone_repos_and_verify_patches(fix_dataset, LOCAL_REPOS_DIR)
+        fix_dataset = clone_repos_and_verify_fixes(fix_dataset, LOCAL_REPOS_DIR)
         if require_test:
             fix_dataset = expand_test_mask(fix_dataset, TARGET_LANG)
     fix_dataset_path.parent.mkdir(parents=True, exist_ok=True)

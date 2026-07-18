@@ -5,9 +5,9 @@ GIT-range `fixed` shas and reference `/commit/` URLs. Building the cache (`osv_f
 missing or `--force`) keeps the commits Morefixes + ReposVul don't already have (their raw
 shas) — the sha-new residual — fetches each `.patch` from GitHub (no clone) resolving the
 full 40-char sha from the patch's `From` header, and saves. `records` reads the cache and
-never re-fetches; it re-applies the sha dedup against the run's KnownSet before yielding to
-`code_test_split`. PyPI-scoped, so the ~80% cross-language waste of the Morefixes crawl
-doesn't apply, and a rebuild stays fresh (GHSA is filled at disclosure). See docs/mine-filters M1.
+never re-fetches, skipping any sha already covered by an earlier source. PyPI-scoped, so the
+~80% cross-language waste of the Morefixes crawl doesn't apply, and a rebuild stays fresh
+(GHSA is filled at disclosure). See docs/mine-filters M1.
 """
 
 import json
@@ -24,12 +24,12 @@ from susvibes.curate.mine.sources.reposvul import ReposVulHandler
 from susvibes.curate.mine.utils import split_to_file_patches
 from susvibes.curate.mine.dedup import KnownSet, normalize_sha
 
-RAW_OSV_PYPI_PATH = get_dataset_path('raw_cve_records') / 'OSV' / 'pypi.zip'
+OSV_ZIP_PATH = get_dataset_path('raw_cve_records') / 'OSV' / 'pypi.zip'
 OSV_CACHE_PATH = get_dataset_path('raw_cve_records') / 'OSV' / 'osv_fixes.jsonl'
 
-_COMMIT_URL = re.compile(r'https?://github\.com/([^/\s]+)/([^/\s]+)/commit/([0-9a-f]{7,40})')
-_REPO_URL = re.compile(r'github\.com/([^/\s]+)/([^/\s]+?)(?:\.git)?/?$')
-_FROM_SHA = re.compile(r'^From ([0-9a-f]{40}) ', re.MULTILINE)
+COMMIT_URL = re.compile(r'https?://github\.com/([^/\s]+)/([^/\s]+)/commit/([0-9a-f]{7,40})')
+REPO_URL = re.compile(r'github\.com/([^/\s]+)/([^/\s]+?)(?:\.git)?/?$')
+FROM_SHA = re.compile(r'^From ([0-9a-f]{40}) ', re.MULTILINE)
 
 
 def read_osv_fix_commits(zip_path) -> dict[str, set]:
@@ -53,14 +53,14 @@ def read_osv_fix_commits(zip_path) -> dict[str, set]:
                 for rng in affected.get("ranges", []):
                     if rng.get("type") != "GIT":
                         continue
-                    m = _REPO_URL.search(rng.get("repo", "") or "")
+                    m = REPO_URL.search(rng.get("repo", "") or "")
                     if not m:
                         continue
                     for event in rng.get("events", []):
                         if event.get("fixed"):
                             fixes.add((m.group(1), m.group(2), event["fixed"]))
             for ref in advisory.get("references", []):
-                m = _COMMIT_URL.search(ref.get("url", ""))
+                m = COMMIT_URL.search(ref.get("url", ""))
                 if m:
                     fixes.add((m.group(1), m.group(2).removesuffix(".git"), m.group(3)))
             for cve in cves:
@@ -68,7 +68,7 @@ def read_osv_fix_commits(zip_path) -> dict[str, set]:
     return commits
 
 
-def _known_source_shas() -> set:
+def known_source_shas() -> set:
     """Full commit shas Morefixes + ReposVul already cover (their raw datasets), so OSV only
     fetches the sha-new residual. Read from Morefixes' small URL dataset and ReposVul's raw
     dataset — the same base the offline M1 model used."""
@@ -91,7 +91,7 @@ def _known_source_shas() -> set:
 
 class OSVSource:
     name = "OSV"
-    zip_path = RAW_OSV_PYPI_PATH
+    zip_path = OSV_ZIP_PATH
     cache_path = OSV_CACHE_PATH
     force = False
 
@@ -99,7 +99,7 @@ class OSVSource:
     def _build_cache(cls):
         """Extract each CVE's fix commit, drop the ones Morefixes/ReposVul already have,
         fetch the rest's `.patch` (resolving the full sha), and save."""
-        skip = _known_source_shas()
+        skip = known_source_shas()
         fix_commits = read_osv_fix_commits(cls.zip_path)
         candidates = []
         for cve, fixes in fix_commits.items():
@@ -114,7 +114,7 @@ class OSVSource:
             patch_text = fetch_github_commit_patch(owner, repo, sha)
             if not patch_text:
                 continue
-            m = _FROM_SHA.search(patch_text)
+            m = FROM_SHA.search(patch_text)
             full_sha = m.group(1) if m else normalize_sha(sha)
             records.append({
                 "cve_id": cve,

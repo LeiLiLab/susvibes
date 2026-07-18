@@ -42,8 +42,7 @@ TEST_KEYWORDS = ["tests", "test", "testing", "testsuite", "conftest"]
 # so every test file is also routed out of the security_patch.
 INSTALL_TEST_KEYWORDS = ["install", "version", "meta", "setup"] + TEST_KEYWORDS
 
-# Patch-size limits for an acceptable security_patch (process.py).
-RECENT_YR_CUTOFF = 2014
+# Patch-size limits for an acceptable security_patch (core.py).
 PATCH_MAX_LENGTH = 500
 PATCH_MAX_FILE_COUNT = 10
 REPO_MAX_SIZE_KB = 2 * 1024 * 1024  # 2 GB

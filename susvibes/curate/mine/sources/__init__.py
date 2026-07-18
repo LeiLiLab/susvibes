@@ -24,9 +24,9 @@ class Source(Protocol):
     def records(self, known: KnownSet) -> Iterator[dict]:
         """Yield raw CVE records (`{cve_id, cwe_ids, commit_id, patch:{path:hunk}, owner+repo
         or project, ...}`) for `code_test_split`, read from `cache_path` — (re)built via the
-        source's network work when the cache is missing or `force` is set. The sha dedup runs
-        at assembly on the resulting base_commit; a source may also use `known` to skip
-        already-covered work (OSV re-applies it before yielding)."""
+        source's network work when the cache is missing or `force` is set. Skip any record
+        `known` already covers before doing its per-record work — cheap here (a split), but it
+        saves the finder for a discovery source (M2/M3)."""
         ...
 
 
