@@ -1,13 +1,10 @@
 """Morefixes source — CVE → repo → single fix commit, patch fetched from GitHub.
 
 The URL dataset (`dataset_url_new.jsonl`) ships CVE → repo → `commit_sha`; the cache
-(`dataset_new.jsonl`) is that with each commit's `.patch` fetched and stored, which
-`records` splits into per-file hunks. `records` reads the cache, dropping any commit an earlier
-source already covered; building it (missing, or `--force`) keeps recent single-commit CVEs,
-fetches each `.patch`, and saves.
+(`dataset_new.jsonl`) is that with each commit's `.patch` fetched and stored, which `records`
+splits into per-file hunks. `records` reads the cache (or `_fetch` + save on first use /
+`--force`), dropping any commit an earlier source already covered.
 """
-
-import json
 
 from tqdm import tqdm
 
@@ -31,9 +28,9 @@ class MorefixesHandler:
     force = False
 
     @classmethod
-    def _build_cache(cls):
-        """Rebuild the patch cache from the URL dataset: keep recent single-commit CVEs,
-        fetch each commit's `.patch` from GitHub, and save."""
+    def _fetch(cls):
+        """Keep recent single-commit CVEs from the URL dataset and fetch each commit's
+        `.patch`; return the records to cache."""
         recent_year_cutoff = 2014  # should be removed after re-fetching morefixes dataset, should have instance-level reuse
         url_dataset = load_file(cls.url_path)
         dataset = [data_record for data_record in url_dataset
@@ -46,24 +43,19 @@ class MorefixesHandler:
                     repo=data_record["repo"],
                     commit=data_record["commits"][0]["commit_sha"],
                 )
-        cls.cache_path.parent.mkdir(parents=True, exist_ok=True)
-        save_file(dataset, cls.cache_path)
+        return dataset
 
     @classmethod
     def records(cls, known: KnownSet):
-        if cls.force or not cls.cache_path.exists():
-            cls._build_cache()
-        dataset_fetched = []
-        for line in cls.cache_path.read_text().split("\n"):
-            try:
-                data_record = json.loads(line.strip())
-            except Exception as e:
-                continue
-            if data_record["patch"]:
-                dataset_fetched.append(data_record)
-
+        if not cls.force and cls.cache_path.exists():
+            dataset = load_file(cls.cache_path)
+        else:
+            dataset = cls._fetch()
+            save_file(dataset, cls.cache_path)
         dataset_filtered = []
-        for data_record in dataset_fetched:
+        for data_record in dataset:
+            if not data_record["patch"]:
+                continue
             commit_sha = data_record["commits"][0]['commit_sha']
             if known.has_commit(commit_sha):
                 continue

@@ -1,13 +1,12 @@
 """OSV source (M1) — deterministic CVE → fix commit from the OSV PyPI feed.
 
 For each PyPI advisory in OSV's `all.zip` the fix commit is read straight from the data:
-GIT-range `fixed` commits and reference `/commit/` URLs. Building the cache (`osv_fixes.jsonl`,
-missing or `--force`) keeps the commits Morefixes + ReposVul don't already have (their raw
-commits) — the commit-new residual — fetches each `.patch` from GitHub (no clone) resolving the
-full 40-char commit from the patch's `From` header, and saves. `records` reads the cache and
-never re-fetches, skipping any commit already covered by an earlier source. PyPI-scoped, so the
-~80% cross-language waste of the Morefixes crawl doesn't apply, and a rebuild stays fresh
-(GHSA is filled at disclosure). See docs/mine-filters M1.
+GIT-range `fixed` commits and reference `/commit/` URLs, with the advisory's CWE ids. `_fetch`
+keeps the commits Morefixes + ReposVul don't already have (their raw commits) — the commit-new
+residual — and fetches each `.patch` from GitHub (no clone), resolving the full 40-char commit
+from the patch's `From` header. `records` reads the cache (or `_fetch` + save on first use /
+`--force`), skipping any commit an earlier source already covered. PyPI-scoped, so the ~80%
+cross-language waste of the Morefixes crawl doesn't apply. See docs/mine-filters M1.
 """
 
 import json
@@ -32,12 +31,12 @@ REPO_URL = re.compile(r'github\.com/([^/\s]+)/([^/\s]+?)(?:\.git)?/?$')
 FROM_COMMIT = re.compile(r'^From ([0-9a-f]{40}) ', re.MULTILINE)
 
 
-def read_osv_fix_commits(zip_path) -> dict[str, set]:
-    """Parse OSV PyPI `all.zip` → `{cve_id: {(owner, repo, fixed_sha), ...}}`. A CVE may map
-    to several fix commits (backport branches); the source picks one per the single-commit
-    model. Advisories with no CVE alias (MAL/PYSEC-only) are skipped — the pipeline is
-    CVE-keyed."""
-    commits: dict[str, set] = {}
+def read_osv_fix_commits(zip_path) -> dict:
+    """Parse OSV PyPI `all.zip` → `{cve_id: {"commits": {(owner, repo, commit), ...},
+    "cwe_ids": [...]}}`. A CVE may map to several fix commits (backport branches); the source
+    picks one per the single-commit model. CWE ids come from `database_specific.cwe_ids`.
+    Advisories with no CVE alias (MAL/PYSEC-only) are skipped — the pipeline is CVE-keyed."""
+    fix_data: dict = {}
     with zipfile.ZipFile(zip_path) as z:
         for name in z.namelist():
             if not name.endswith(".json"):
@@ -48,7 +47,7 @@ def read_osv_fix_commits(zip_path) -> dict[str, set]:
                 cves.append(advisory["id"])
             if not cves:
                 continue
-            fixes = set()
+            commits = set()
             for affected in advisory.get("affected", []):
                 for rng in affected.get("ranges", []):
                     if rng.get("type") != "GIT":
@@ -58,14 +57,19 @@ def read_osv_fix_commits(zip_path) -> dict[str, set]:
                         continue
                     for event in rng.get("events", []):
                         if event.get("fixed"):
-                            fixes.add((m.group(1), m.group(2), event["fixed"]))
+                            commits.add((m.group(1), m.group(2), event["fixed"]))
             for ref in advisory.get("references", []):
                 m = COMMIT_URL.search(ref.get("url", ""))
                 if m:
-                    fixes.add((m.group(1), m.group(2).removesuffix(".git"), m.group(3)))
+                    commits.add((m.group(1), m.group(2).removesuffix(".git"), m.group(3)))
+            cwe_ids = advisory.get("database_specific", {}).get("cwe_ids") or []
             for cve in cves:
-                commits.setdefault(cve, set()).update(fixes)
-    return commits
+                entry = fix_data.setdefault(cve, {"commits": set(), "cwe_ids": []})
+                entry["commits"].update(commits)
+                for cwe in cwe_ids:
+                    if cwe not in entry["cwe_ids"]:
+                        entry["cwe_ids"].append(cwe)
+    return fix_data
 
 
 def known_source_commits() -> set:
@@ -96,44 +100,46 @@ class OSVSource:
     force = False
 
     @classmethod
-    def _build_cache(cls):
-        """Extract each CVE's fix commit, drop the ones Morefixes/ReposVul already have,
-        fetch the rest's `.patch` (resolving the full commit), and save."""
+    def _fetch(cls):
+        """Drop the commits Morefixes/ReposVul already have, fetch the rest's `.patch`
+        (keeping only those whose full commit resolves), and return the records to cache."""
         skip = known_source_commits()
-        fix_commits = read_osv_fix_commits(cls.zip_path)
+        fix_data = read_osv_fix_commits(cls.zip_path)
         candidates = []
-        for cve, fixes in fix_commits.items():
-            if not fixes:
+        for cve, entry in fix_data.items():
+            if not entry["commits"]:
                 continue
-            owner, repo, commit = sorted(fixes)[0]
+            owner, repo, commit = sorted(entry["commits"])[0]
             if normalize_commit(commit) in skip:
                 continue
-            candidates.append((cve, owner, repo, commit))
+            candidates.append((cve, owner, repo, commit, entry["cwe_ids"]))
         records = []
-        for cve, owner, repo, commit in tqdm(candidates, desc="OSV: building cache (fetch)", dynamic_ncols=True):
+        for cve, owner, repo, commit, cwe_ids in tqdm(candidates, desc="OSV: fetching patches", dynamic_ncols=True):
             patch_text = fetch_github_commit_patch(owner, repo, commit)
             if not patch_text:
                 continue
             m = FROM_COMMIT.search(patch_text)
             if not m:
                 continue        # couldn't resolve the full commit (short/unreliable) — drop
-            full_commit = m.group(1)
             records.append({
                 "cve_id": cve,
-                "commit_id": full_commit,
+                "commit_id": m.group(1),
+                "cwe_ids": cwe_ids,
                 "owner": owner,
                 "repo": repo,
                 "repo_url": f"https://github.com/{owner}/{repo}",
                 "patch": patch_text,
             })
-        cls.cache_path.parent.mkdir(parents=True, exist_ok=True)
-        save_file(records, cls.cache_path)
+        return records
 
     @classmethod
     def records(cls, known: KnownSet):
-        if cls.force or not cls.cache_path.exists():
-            cls._build_cache()
-        for record in load_file(cls.cache_path):
+        if not cls.force and cls.cache_path.exists():
+            records = load_file(cls.cache_path)
+        else:
+            records = cls._fetch()
+            save_file(records, cls.cache_path)
+        for record in records:
             if known.has_commit(record["commit_id"]):
                 continue
             try:
@@ -144,7 +150,7 @@ class OSVSource:
                 "patch": patch,
                 "commit_id": record["commit_id"],
                 "cve_id": record["cve_id"],
-                "cwe_ids": [],
+                "cwe_ids": record["cwe_ids"],
                 "owner": record["owner"],
                 "repo": record["repo"],
                 "repo_url": record["repo_url"],

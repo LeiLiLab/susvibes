@@ -1,12 +1,12 @@
 """ReposVul source — CVE → repo, patches already present per file in `details[]`.
 
 The raw dataset already carries the patches; the expensive step is confirming each fix
-PR/commit is still reachable on GitHub (`remotely_active`). That network pass runs once when
-building the cache (`ReposVul_<lang>_active.jsonl`, the still-reachable records with their
-patch assembled); `records` then reads it, dropping any commit an earlier source already
-covered. No per-file rename/create/delete check, so an "adds a file" commit survives here
-but dies later in `apply_patch` — see B7 in docs/mine-filters. `_python` in the filename is
-the CVE's tag, not the repo's, so language filtering is entirely `code_test_split`'s job.
+PR/commit is still reachable on GitHub (`remotely_active`). `_fetch` does that network pass
+once, keeping the still-reachable records with their patch assembled; `records` reads the
+cache (or `_fetch` + save on first use / `--force`), dropping any commit an earlier source
+already covered. No per-file rename/create/delete check, so an "adds a file" commit survives
+here but dies later in `apply_patch` — see B7 in docs/mine-filters. `_python` in the filename
+is the CVE's tag, not the repo's, so language filtering is entirely `code_test_split`'s job.
 """
 
 import requests
@@ -40,20 +40,22 @@ class ReposVulHandler:
         return False
 
     @classmethod
-    def _build_cache(cls):
-        """Keep still-reachable records, assemble each patch from details[], and save."""
+    def _fetch(cls):
+        """Keep the still-reachable records, assemble each patch from details[], and return
+        the records to cache."""
         dataset = list(filter(cls.remotely_active, load_file(cls.raw_path)))
         for data_record in dataset:
             data_record["patch"] = {}
             for file_change in data_record["details"]:
                 data_record["patch"][file_change["file_name"]] = file_change["patch"]
             data_record["cwe_ids"] = data_record.pop("cwe_id")
-        cls.cache_path.parent.mkdir(parents=True, exist_ok=True)
-        save_file(dataset, cls.cache_path)
+        return dataset
 
     @classmethod
     def records(cls, known: KnownSet):
-        if cls.force or not cls.cache_path.exists():
-            cls._build_cache()
-        return [record for record in load_file(cls.cache_path)
-            if not known.has_commit(record["commit_id"])]
+        if not cls.force and cls.cache_path.exists():
+            dataset = load_file(cls.cache_path)
+        else:
+            dataset = cls._fetch()
+            save_file(dataset, cls.cache_path)
+        return [record for record in dataset if not known.has_commit(record["commit_id"])]
