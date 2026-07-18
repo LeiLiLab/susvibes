@@ -4,7 +4,7 @@ Uniform interface so `core.py` treats every source identically (records → code
 → dedup → funnel). Each source materialises its expensive network work (patch fetch /
 liveness check) into a cached dataset (`cache_path`) that `records` reads; the cache is
 (re)built on first use or `--force`, so a normal run does no network. Discovery sources
-(NVD — added by M3) run the finder; same output shape either way.
+(OSV-residual — M2; NVD — M3) run the finder; same output shape either way.
 """
 
 from pathlib import Path
@@ -13,7 +13,7 @@ from typing import Iterator, Protocol
 from susvibes.curate.mine.dedup import KnownSet
 from susvibes.curate.mine.sources.morefixes import MorefixesHandler
 from susvibes.curate.mine.sources.reposvul import ReposVulHandler
-from susvibes.curate.mine.sources.osv import OSVSource
+from susvibes.curate.mine.sources.osv import OSVSource, OSVResidualSource
 
 
 class Source(Protocol):
@@ -30,7 +30,8 @@ class Source(Protocol):
         ...
 
 
-# Order is load-bearing: on a same-commit collision the earlier source's record is kept, and
-# the deterministic OSV source runs last so it dedups against Morefixes + ReposVul.
-SOURCES = [ReposVulHandler, MorefixesHandler, OSVSource]
+# Order is load-bearing: on a same-commit collision the earlier source's record is kept. The
+# deterministic OSV source runs after Morefixes + ReposVul so it dedups against them, and the
+# OSV residual finder (M2) runs last — most speculative, dedups against every source above.
+SOURCES = [ReposVulHandler, MorefixesHandler, OSVSource, OSVResidualSource]
 SOURCE_BY_NAME = {source.__name__: source for source in SOURCES}

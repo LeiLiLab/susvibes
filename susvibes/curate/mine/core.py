@@ -297,6 +297,10 @@ if __name__ == "__main__":
     for name in args.force:
         SOURCE_BY_NAME[name].force = True
 
+    for source in dataset_sources:
+        if hasattr(source, "run_id"):        # discovery sources route their finder trajectories
+            source.run_id = args.run_id
+
     require_test = args.require_test
     fix_dataset = build_fix_dataset(
         sources=dataset_sources,

@@ -22,12 +22,15 @@ from susvibes.curate.mine.sources.morefixes import MorefixesHandler
 from susvibes.curate.mine.sources.reposvul import ReposVulHandler
 from susvibes.curate.mine.utils import split_to_file_patches
 from susvibes.curate.mine.dedup import KnownSet, normalize_commit
+from susvibes.curate.mine.find_commit import finder_threadpool
 
 OSV_ZIP_PATH = get_dataset_path('raw_cve') / 'OSV' / 'pypi.zip'
 OSV_CACHE_PATH = get_dataset_path('raw_cve') / 'OSV' / 'osv_fixes.jsonl'
+OSV_RESIDUAL_CACHE_PATH = get_dataset_path('raw_cve') / 'OSV' / 'osv_residual_fixes.jsonl'
 
 COMMIT_URL = re.compile(r'https?://github\.com/([^/\s]+)/([^/\s]+)/commit/([0-9a-f]{7,40})')
 REPO_URL = re.compile(r'github\.com/([^/\s]+)/([^/\s]+?)(?:\.git)?/?$')
+REF_REPO = re.compile(r'github\.com/([^/\s]+)/([^/\s?#]+)')
 FROM_COMMIT = re.compile(r'^From ([0-9a-f]{40}) ', re.MULTILINE)
 
 
@@ -72,6 +75,62 @@ def read_osv_fix_commits(zip_path) -> dict:
     return fix_data
 
 
+def read_osv_residual(zip_path) -> dict:
+    """Parse OSV PyPI `all.zip` → `{cve_id: {owner, repo, ghsa, cwe_ids, fixed_versions,
+    summary}}` for the CVEs that name a GitHub repository but carry NO fix commit — the M2
+    finder's input. A commit anywhere (GIT-range `fixed` sha or a reference `/commit/` URL, in
+    ANY of the CVE's advisories) removes it from the residual; the repo comes from a GIT-range
+    `repo` or, failing that, a non-advisory github.com reference. Aggregated per CVE so a
+    commit in one advisory suppresses a repo-only sibling advisory."""
+    cve_commits: dict = {}
+    cve_meta: dict = {}
+    with zipfile.ZipFile(zip_path) as z:
+        for name in z.namelist():
+            if not name.endswith(".json"):
+                continue
+            advisory = json.loads(z.read(name))
+            cves = [alias for alias in advisory.get("aliases", []) if alias.startswith("CVE-")]
+            if advisory["id"].startswith("CVE-"):
+                cves.append(advisory["id"])
+            if not cves:
+                continue
+            commits, repo, fixed_versions = set(), None, []
+            for affected in advisory.get("affected", []):
+                for rng in affected.get("ranges", []):
+                    if rng.get("type") == "GIT":
+                        m = REPO_URL.search(rng.get("repo", "") or "")
+                        if m:
+                            repo = (m.group(1), m.group(2))
+                        for event in rng.get("events", []):
+                            if event.get("fixed"):
+                                commits.add(event["fixed"])
+                    else:
+                        for event in rng.get("events", []):
+                            if event.get("fixed"):
+                                fixed_versions.append(event["fixed"])
+            for ref in advisory.get("references", []):
+                if COMMIT_URL.search(ref.get("url", "")):
+                    commits.add(ref["url"])
+                elif repo is None and "github.com/" in ref.get("url", ""):
+                    m = REF_REPO.search(ref["url"])
+                    if m and m.group(2) not in ("advisories", "security"):
+                        repo = (m.group(1), m.group(2).removesuffix(".git"))
+            ghsa = next((a for a in advisory.get("aliases", []) if a.startswith("GHSA-")), "")
+            cwe_ids = advisory.get("database_specific", {}).get("cwe_ids") or []
+            for cve in cves:
+                cve_commits.setdefault(cve, set()).update(commits)
+                if repo is not None:
+                    cve_meta[cve] = {
+                        "owner": repo[0],
+                        "repo": repo[1],
+                        "ghsa": ghsa,
+                        "cwe_ids": cwe_ids,
+                        "fixed_versions": sorted(set(fixed_versions)),
+                        "summary": advisory.get("summary", ""),
+                    }
+    return {cve: meta for cve, meta in cve_meta.items() if not cve_commits.get(cve)}
+
+
 def known_source_commits() -> set:
     """Full commits Morefixes + ReposVul already cover (their raw datasets), so OSV only
     fetches the commit-new residual. Read from Morefixes' small URL dataset and ReposVul's raw
@@ -91,6 +150,25 @@ def known_source_commits() -> set:
             if record.get("commit_id"):
                 commits.add(normalize_commit(record["commit_id"]))
     return commits
+
+
+def known_source_cves() -> set:
+    """CVE ids Morefixes + ReposVul already cover (their raw datasets), so the M2 finder never
+    runs on a CVE an existing source may already pin — the same static base as M1's commit skip."""
+    cves = set()
+    if MorefixesHandler.url_path.exists():
+        for line in MorefixesHandler.url_path.read_text().split("\n"):
+            try:
+                record = json.loads(line)
+            except Exception:
+                continue
+            if record.get("cve_id"):
+                cves.add(record["cve_id"])
+    if ReposVulHandler.raw_path.exists():
+        for record in load_file(ReposVulHandler.raw_path):
+            if record.get("cve_id"):
+                cves.add(record["cve_id"])
+    return cves
 
 
 class OSVSource:
@@ -154,4 +232,59 @@ class OSVSource:
                 "owner": record["owner"],
                 "repo": record["repo"],
                 "repo_url": record["repo_url"],
+            }
+
+
+class OSVResidualSource:
+    """M2 — OSV PyPI CVEs with a repo but no commit in any source. The S2 finder pins each fix
+    commit by fact; the finder outcome (pinned commit + evidence, or `commit=""`) is cached so
+    the agent never runs twice. `run_id` (set by `core` alongside `force`) routes the per-CVE
+    trajectories under `logs/curate/<run_id>/mine/find_commit/`."""
+    name = "OSV-residual"
+    zip_path = OSV_ZIP_PATH
+    cache_path = OSV_RESIDUAL_CACHE_PATH
+    force = False
+    run_id = None
+
+    @classmethod
+    def _fetch(cls):
+        """Build the residual pool (skipping CVEs Morefixes/ReposVul already cover, before paying
+        the finder), run the finder over it, and fetch the `.patch` for each single-commit pin —
+        returning every outcome (pins and misses) to cache."""
+        residual = read_osv_residual(cls.zip_path)
+        skip = known_source_cves()
+        pool = [{"cve_id": cve, **meta} for cve, meta in residual.items() if cve not in skip]
+        results = finder_threadpool(pool, cls.run_id)
+        for result in results:
+            if result["commit"] and not result["multi_commit"]:
+                result["patch"] = fetch_github_commit_patch(
+                    result["owner"], result["repo"], result["commit"])
+        return results
+
+    @classmethod
+    def records(cls, known: KnownSet):
+        if not cls.force and cls.cache_path.exists():
+            results = load_file(cls.cache_path)
+        else:
+            results = cls._fetch()
+            save_file(results, cls.cache_path)
+        for result in results:
+            if not result["commit"] or result["multi_commit"]:
+                continue
+            if known.has_commit(result["commit"]):
+                continue
+            if not result.get("patch"):
+                continue
+            try:
+                patch = split_to_file_patches(result["patch"])
+            except ValueError:
+                continue
+            yield {
+                "patch": patch,
+                "commit_id": result["commit"],
+                "cve_id": result["cve_id"],
+                "cwe_ids": result["cwe_ids"],
+                "owner": result["owner"],
+                "repo": result["repo"],
+                "repo_url": f"https://github.com/{result['owner']}/{result['repo']}",
             }
