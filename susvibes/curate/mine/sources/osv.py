@@ -237,37 +237,46 @@ class OSVSource:
 
 class OSVResidualSource:
     """M2 — OSV PyPI CVEs with a repo but no commit in any source. The S2 finder pins each fix
-    commit by fact; the finder outcome (pinned commit + evidence, or `commit=""`) is cached so
-    the agent never runs twice. `run_id` (set by `core` alongside `force`) routes the per-CVE
-    trajectories under `logs/curate/<run_id>/mine/find_commit/`."""
+    commit by fact; every finder outcome (a pinned commit + evidence, a real miss, or an errored
+    run) is cached so the agent never runs twice, and `--resume` re-runs only the errored ones.
+    `run_id` (set by `core` alongside `force`/`resume`) routes the per-CVE trajectories under
+    `logs/curate/<run_id>/mine/find_commit/`."""
     name = "OSV-residual"
     zip_path = OSV_ZIP_PATH
     cache_path = OSV_RESIDUAL_CACHE_PATH
     force = False
+    resume = False
     run_id = None
 
     @classmethod
-    def _fetch(cls):
+    def _fetch(cls, prior=None):
         """Build the residual pool (skipping CVEs Morefixes/ReposVul already cover, before paying
-        the finder), run the finder over it, and fetch the `.patch` for each single-commit pin —
-        returning every outcome (pins and misses) to cache."""
+        the finder), run the finder over the CVEs `prior` hasn't already concluded, fetch the
+        `.patch` for each new single-commit pin, and return every outcome to cache. `prior` (the
+        cached results on a `resume`) carries concluded pins/misses through untouched; only its
+        `error` entries fall back into the finder."""
         residual = read_osv_residual(cls.zip_path)
         skip = known_source_cves()
         pool = [{"cve_id": cve, **meta} for cve, meta in residual.items() if cve not in skip]
-        results = finder_threadpool(pool, cls.run_id)
-        for result in results:
+        done = {r["cve_id"]: r for r in (prior or []) if not r.get("error")}
+        todo = [record for record in pool if record["cve_id"] not in done]
+        fresh = finder_threadpool(todo, cls.run_id)
+        for result in fresh:
             if result["commit"] and not result["multi_commit"]:
                 result["patch"] = fetch_github_commit_patch(
                     result["owner"], result["repo"], result["commit"])
-        return results
+        return list(done.values()) + fresh
 
     @classmethod
     def records(cls, known: KnownSet):
-        if not cls.force and cls.cache_path.exists():
-            results = load_file(cls.cache_path)
-        else:
+        if cls.force or not cls.cache_path.exists():
             results = cls._fetch()
             save_file(results, cls.cache_path)
+        elif cls.resume:
+            results = cls._fetch(load_file(cls.cache_path))
+            save_file(results, cls.cache_path)
+        else:
+            results = load_file(cls.cache_path)
         for result in results:
             if not result["commit"] or result["multi_commit"]:
                 continue

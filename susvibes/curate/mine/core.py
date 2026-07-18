@@ -277,6 +277,11 @@ if __name__ == "__main__":
         help='JSON list of source names whose cache to rebuild (fetch) before reading, e.g. \'["OSVSource"]\'; others read their cache, building only if missing.'
     )
     parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="For discovery sources (finder), re-run only the cached outcomes that errored; keep concluded pins and misses. Ignored by deterministic sources."
+    )
+    parser.add_argument(
         "--run_id",
         type=str,
         default="default",
@@ -300,6 +305,8 @@ if __name__ == "__main__":
     for source in dataset_sources:
         if hasattr(source, "run_id"):        # discovery sources route their finder trajectories
             source.run_id = args.run_id
+        if hasattr(source, "resume"):        # ...and re-run only their errored outcomes on --resume
+            source.resume = args.resume
 
     require_test = args.require_test
     fix_dataset = build_fix_dataset(

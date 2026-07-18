@@ -35,6 +35,32 @@ from claude_agent_sdk import (
 
 READONLY_TOOLS = ["Bash", "Read", "Grep", "WebFetch"]  # read-only investigation, no Write/Edit
 
+# Shared agent-subprocess hardening. `AGENT_ENV` is overlaid on os.environ (which carries the
+# Bedrock creds), so it only adds ANTHROPIC_MAX_RETRIES — the CLI then honours retry-after on
+# 429/5xx before surfacing an error. The 1 MB default read buffer overflows on large tool results
+# (a big `git show` diff) and crashes the CLI subprocess, so bump it.
+AGENT_ENV = {"ANTHROPIC_MAX_RETRIES": "10"}
+MAX_BUFFER_SIZE = 10 * 1024 * 1024
+
+# Substrings marking an agent-run failure worth retrying (transient API/network/subprocess) rather
+# than terminal (max turns, a refusal). Matched against str(exc); widen as new shapes surface.
+RETRYABLE_ERRORS = (
+    "Command failed with exit code",
+    "rate_limit", "rate limit", "Rate limit", "429",
+    "overloaded", "Overloaded", "503", "504",
+    "Service Unavailable", "Gateway Timeout",
+    "connection reset", "ECONNRESET", "ETIMEDOUT", "EAI_AGAIN",
+    "APIConnectionError", "APITimeoutError",
+)
+
+
+def is_retryable_error(exc) -> bool:
+    """Whether an agent-run exception is worth retrying (a transient API/network/subprocess
+    failure) rather than terminal (max turns, a refusal). Shared by the finder's per-item retry
+    and any future docker-run resume that reuses the same retryable/terminal split."""
+    text = str(exc)
+    return any(sub in text for sub in RETRYABLE_ERRORS)
+
 
 def _block_to_dict(block) -> dict:
     if isinstance(block, TextBlock):
@@ -78,15 +104,18 @@ async def _run(prompt: str, options: ClaudeAgentOptions, log_path):
     finally:
         if trajectory:
             trajectory.close()
-    if result is None or result.is_error:
-        return None
-    return result.structured_output
+    meta = {"cost_usd": result.total_cost_usd, "num_turns": result.num_turns} if result else {}
+    output = result.structured_output if result and not result.is_error else None
+    return output, meta
 
 
 def run_agent(prompt: str, options: ClaudeAgentOptions, *, log_path=None):
-    """Run the agent to completion, streaming its trajectory to `log_path` (jsonl, one message
-    per line, flushed live), and return the schema-validated structured output that
-    `options.output_format` produced — or None if the run errored."""
+    """Run the agent to completion, streaming its trajectory to `log_path` (jsonl, one message per
+    line, flushed live), and return `(output, meta)`: `output` is the schema-validated structured
+    output `options.output_format` produced (None if the run produced no valid result); `meta`
+    carries `cost_usd` / `num_turns` from the SDK's ResultMessage. Raises whatever the SDK raises
+    on an aborted run (max turns, API/subprocess failure) — the caller decides retry vs. terminal
+    via `is_retryable_error`."""
     if log_path:
         Path(log_path).parent.mkdir(parents=True, exist_ok=True)
     return asyncio.run(_run(prompt, options, log_path))
