@@ -1,26 +1,19 @@
+"""Shared GitHub patch fetch for the sources.
+
+Both Morefixes (when rebuilding its patch dataset) and OSV need a commit's unified patch
+from GitHub; this is that one helper. Tries the REST API's patch media type, then the public
+HTML `.patch` URL. Returns the patch text (git format-patch, so the full 40-char sha is on
+its `From` line) or None on failure.
+"""
+
 import time
-import argparse
 import requests
 
-from tqdm import tqdm
-
-from susvibes.core.constants import get_dataset_path
 from susvibes.curate.mine.constants import GITHUB_HEADERS
-from susvibes.core.utils import load_file, save_file
 
-RECENT_YR_CUTOFF = 2014
-
-RAW_MOREFIXES_DIR = get_dataset_path('cve_records') / 'Morefixes'
-URL_DATASET_FILE_NAME = "dataset_url.jsonl"
-DATASET_FILE_NAME = "dataset.jsonl"
 
 def fetch_github_commit_patch(owner: str, repo: str, sha: str,
     timeout: int = 10, max_retries: int = 3) -> str:
-    """
-    Fetch a commit's unified patch from GitHub. Tries REST API, 
-    then falls back to the public HTML .patch URL.
-    Returns the patch text (unified diff format).
-    """
     session = requests.Session()
     session.headers.update({
         "User-Agent": "morefixes-tools/patch-fetch",
@@ -66,35 +59,3 @@ def fetch_github_commit_patch(owner: str, repo: str, sha: str,
 
     print(f"Failed to fetch patch for {owner}/{repo}@{sha}: {last_err}")
     return None
-
-if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Fetch GitHub commit patches for a Morefixes URL dataset."
-    )
-    parser.add_argument(
-        "--input_file",
-        type=str,
-        default=URL_DATASET_FILE_NAME,
-        help="Input URL-dataset filename under the Morefixes directory.",
-    )
-    parser.add_argument(
-        "--output_file",
-        type=str,
-        default=DATASET_FILE_NAME,
-        help="Output dataset filename under the Morefixes directory.",
-    )
-    args = parser.parse_args()
-
-    url_dataset = load_file(RAW_MOREFIXES_DIR / args.input_file)
-    dataset = []
-    for data_record in url_dataset:
-        if int(data_record['cve_id'].split('-')[1]) >= RECENT_YR_CUTOFF and len(data_record['commits']) == 1:
-            dataset.append(data_record)
-    for data_record in tqdm(dataset, total=len(dataset), desc="Fetching patches"):
-        if "patch" not in data_record:
-            data_record["patch"] = fetch_github_commit_patch(
-                owner=data_record["owner"],
-                repo=data_record["repo"],
-                sha=data_record["commits"][0]["commit_sha"],
-            )
-    save_file(dataset, RAW_MOREFIXES_DIR / args.output_file)

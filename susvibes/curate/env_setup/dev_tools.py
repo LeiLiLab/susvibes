@@ -34,13 +34,13 @@ def init_loggers(log_dir):
     logger = setup_logger(log_dir, "dev_tools.log", f"{__name__}.summary", add_stdout=True, mode="w")
     detail_logger = setup_logger(log_dir, "dev_tools_details.log", f"{__name__}.detail", add_stdout=False, mode="w")
 
-def prologue(processed_dataset_path: Path, instance_ids: list = None):
+def prologue(fix_dataset_path: Path, instance_ids: list = None):
     port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")), run_name=__spec__.name)
-    processed_dataset = load_file(processed_dataset_path)
+    fix_dataset = load_file(fix_dataset_path)
     if instance_ids is not None:
-        processed_dataset = [data_record for data_record in processed_dataset
+        fix_dataset = [data_record for data_record in fix_dataset
             if data_record["instance_id"] in set(instance_ids)]
-    for data_record in processed_dataset:
+    for data_record in fix_dataset:
         repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
         reset_to_commit(repo_dir, data_record["base_commit"])
         security_files = sorted(touched_files(data_record["security_patch"]))
@@ -111,9 +111,9 @@ def epilogue(agent_output_dir: Path, run_id: str = "default", instance_ids: list
     dev_tools_path = save_env_specs("dev_tools", env_specs, run_id)
     print(f"Dev tools saved to {dev_tools_path}.")
 
-def pipeline(processed_dataset_path: Path, run_id: str = "default", instance_ids: list = None):
+def pipeline(fix_dataset_path: Path, run_id: str = "default", instance_ids: list = None):
     logger.info("Dev tools pipeline started.")
-    port = prologue(processed_dataset_path, instance_ids=instance_ids)
+    port = prologue(fix_dataset_path, instance_ids=instance_ids)
     agent_output_dir = port.run_batch()
     epilogue(agent_output_dir, run_id=run_id, instance_ids=instance_ids)
     logger.info("Dev tools pipeline finished.")
@@ -151,14 +151,14 @@ if __name__ == "__main__":
     env_setup_log_dir = get_log_dir(args.run_id, "env_setup")
     init_loggers(env_setup_log_dir)
 
-    processed_dataset_path = get_dataset_path('processed_dataset', args.run_id)
-    if not processed_dataset_path.exists():
-        print(f"processed_dataset not found: {processed_dataset_path}")
+    fix_dataset_path = get_dataset_path('fix_dataset', args.run_id)
+    if not fix_dataset_path.exists():
+        print(f"fix_dataset not found: {fix_dataset_path}")
         exit(1)
 
     if args.prologue:
-        prologue(processed_dataset_path, instance_ids=args.instance_ids)
+        prologue(fix_dataset_path, instance_ids=args.instance_ids)
     elif args.epilogue:
         epilogue(args.agent_output_dir, run_id=args.run_id, instance_ids=args.instance_ids)
     else:
-        pipeline(processed_dataset_path, run_id=args.run_id, instance_ids=args.instance_ids)
+        pipeline(fix_dataset_path, run_id=args.run_id, instance_ids=args.instance_ids)

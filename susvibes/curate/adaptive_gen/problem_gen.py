@@ -8,8 +8,7 @@ from jinja2 import Template
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_agent_setting_path
 from susvibes.curate.adaptive_gen.prompts import PROBLEM_GEN_PROMPT_TEMPLATE
 from susvibes.core.agents.ports import SWEAgentPort
-from susvibes.curate.adaptive_gen.utils import module_setup_logger
-from susvibes.core.utils import load_file, save_file
+from susvibes.core.utils import load_file, save_file, setup_logger
 from susvibes.curate.utils import (
     get_repo_dir,
     apply_patch,
@@ -32,9 +31,9 @@ TEST_REF_PATTERN = re.compile(
     r")"
 )
 
-def init_logger():
+def init_logger(adaptive_gen_log_dir):
     global logger
-    logger = module_setup_logger("problem_gen.log", __name__, add_stdout=False)
+    logger = setup_logger(adaptive_gen_log_dir, "problem_gen.log", __name__, add_stdout=False)
 
 def prologue(task_dataset_path: Path, instance_ids: list = None, require_test: bool = True):
     port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")), run_name=__spec__.name)

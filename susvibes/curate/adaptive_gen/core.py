@@ -6,9 +6,12 @@ from pathlib import Path
 from susvibes.core.constants import get_dataset_path
 from susvibes.curate.constants import get_log_dir
 from susvibes.curate.adaptive_gen import mask, problem_gen, verifier
-from susvibes.curate.adaptive_gen import utils as module_utils
-from susvibes.curate.adaptive_gen.utils import set_log_dir, module_setup_logger
-from susvibes.core.utils import load_file, save_file, confirm_overwrite_logs
+from susvibes.core.utils import (
+    load_file,
+    save_file,
+    confirm_overwrite_logs,
+    setup_logger,
+)
 from susvibes.curate.utils import len_patch, dump_task
 from susvibes.curate.mine.check_cov.engine.constants import CoverageLabel
 
@@ -18,39 +21,39 @@ MASK_RATIO_TOLERANCE = 0.5
 
 logger = None
 
-def init_loggers(log_dir):
+def init_loggers(adaptive_gen_log_dir):
     global logger
-    set_log_dir(log_dir)
-    logger = module_setup_logger("pipeline.log", __name__)
-    mask.init_logger()
-    problem_gen.init_logger()
-    verifier.init_logger()
+    logger = setup_logger(adaptive_gen_log_dir, "core.log", __name__)
+    mask.init_logger(adaptive_gen_log_dir)
+    problem_gen.init_logger(adaptive_gen_log_dir)
+    verifier.init_logger(adaptive_gen_log_dir)
 
 def adaptive_task_gen(
-    processed_dataset_path: Path,
+    fix_dataset_path: Path,
     task_dataset_path: Path,
     coverage_report_path: Path,
+    adaptive_gen_log_dir: Path,
     instance_ids: list = None,
     max_iters: int = None,
     start_iter: int = 0,
     require_test: bool = True,
     debug: bool = False,
 ):
-    processed_dataset = load_file(processed_dataset_path)
+    fix_dataset = load_file(fix_dataset_path)
     # Only keep instances check_cov found (likely/maybe) test-covered.
     covered_ids = {r["instance_id"] for r in load_file(coverage_report_path)
         if r["label"] in (CoverageLabel.LIKELY, CoverageLabel.MAYBE)}
-    processed_dataset = [data_record for data_record in processed_dataset
+    fix_dataset = [data_record for data_record in fix_dataset
         if data_record["instance_id"] in covered_ids]
     if instance_ids is not None:
-        processed_dataset = [data_record for data_record in processed_dataset
+        fix_dataset = [data_record for data_record in fix_dataset
             if data_record["instance_id"] in set(instance_ids)]
-    instance_ids = [data_record["instance_id"] for data_record in processed_dataset]
+    instance_ids = [data_record["instance_id"] for data_record in fix_dataset]
     total_instances = len(instance_ids)
     total_verified = 0
     total_cost = 0
 
-    if not confirm_overwrite_logs(module_utils._log_dir):
+    if not confirm_overwrite_logs(adaptive_gen_log_dir):
         logger.info("Aborted by user.")
         return
 
@@ -65,7 +68,7 @@ def adaptive_task_gen(
     logger.info("Adaptive task generation started with %d instances.%s",
                 total_instances, " (debug mode)" if debug else "")
 
-    processed_dataset_by_id = {r["instance_id"]: r for r in processed_dataset}
+    fix_dataset_by_id = {r["instance_id"]: r for r in fix_dataset}
 
     def _avg_mask_stats(ids, task_dataset_by_id):
         ratios, mask_lines_list, diff_lines_list = [], [], []
@@ -73,7 +76,7 @@ def adaptive_task_gen(
             if iid not in task_dataset_by_id or "mask_patch" not in task_dataset_by_id[iid]:
                 continue
             _, mask_lines = len_patch(task_dataset_by_id[iid]["mask_patch"])
-            _, diff_lines = len_patch(processed_dataset_by_id[iid]["security_patch"])
+            _, diff_lines = len_patch(fix_dataset_by_id[iid]["security_patch"])
             mask_lines_list.append(mask_lines)
             diff_lines_list.append(diff_lines)
             if diff_lines > 0:
@@ -94,7 +97,7 @@ def adaptive_task_gen(
 
         # ---- Stage 1: Mask generation ----
         successful_instance_ids, mask_cost = mask.pipeline(
-            processed_dataset_path=processed_dataset_path,
+            fix_dataset_path=fix_dataset_path,
             task_dataset_path=task_dataset_path,
             length_ratio=LENGTH_RATIO_FUNC[iter_id],
             max_length=TASK_MAX_LENGTH,
@@ -189,9 +192,7 @@ def adaptive_task_gen(
     save_file(task_dataset, task_dataset_path)
     logger.info("=== Final: %d / %d tasks successfully created  |  total cost=$%.2f ===",
                 len(task_dataset), total_instances, total_cost)
-    logger.info("Logs saved to %s", module_utils._log_dir)
-    print(f"Task dataset saved to {task_dataset_path}.")
-    
+
 def get_task_stats(task_dataset_path: Path, stats_path: Path):
     task_dataset = load_file(task_dataset_path)
     stats = load_file(stats_path) if stats_path.exists() else {}
@@ -202,7 +203,6 @@ def get_task_stats(task_dataset_path: Path, stats_path: Path):
             "num_lines_edited": num_lines,
         }
     save_file(stats, stats_path)
-    print(f"Stats saved to {stats_path}.")
 
 
 if __name__ == "__main__":
@@ -253,16 +253,17 @@ if __name__ == "__main__":
     adaptive_gen_log_dir = get_log_dir(args.run_id, "adaptive_gen")
     init_loggers(adaptive_gen_log_dir)
 
-    processed_dataset_path = get_dataset_path('processed_dataset', args.run_id)
+    fix_dataset_path = get_dataset_path('fix_dataset', args.run_id)
     task_dataset_path = get_dataset_path('task_dataset', args.run_id)
     coverage_report_path = get_dataset_path('coverage_report', args.run_id)
     stats_path = get_dataset_path('stats', args.run_id)
     examples_path = get_dataset_path('examples', args.run_id)
 
     adaptive_task_gen(
-        processed_dataset_path=processed_dataset_path,
+        fix_dataset_path=fix_dataset_path,
         task_dataset_path=task_dataset_path,
         coverage_report_path=coverage_report_path,
+        adaptive_gen_log_dir=adaptive_gen_log_dir,
         instance_ids=args.instance_ids,
         max_iters=args.max_iters,
         start_iter=args.start_iter,
@@ -273,6 +274,9 @@ if __name__ == "__main__":
         task_dataset_path=task_dataset_path,
         stats_path=stats_path
     )
+    print(f"Task dataset saved to {task_dataset_path}.")
+    print(f"Stats saved to {stats_path}.")
+    print(f"Logs saved to {adaptive_gen_log_dir}.")
 
     if args.preview > 0:
         task_dataset = load_file(task_dataset_path)

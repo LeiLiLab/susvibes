@@ -1,7 +1,7 @@
 # check_cov — static file-level test-coverage analysis
 
 `check_cov` runs **after `process`**. For each instance in
-`datasets/<run_id>/processed_dataset.jsonl` it decides — at `base_commit`, by static
+`datasets/<run_id>/fix_dataset.jsonl` it decides — at `base_commit`, by static
 analysis only (no execution) — whether the repo's own test suite covers the files
 touched by the `security_patch`, at the **file level**: does any test reach any one of
 them. The design goal is to **minimize false negatives** (a file that really is tested
@@ -45,4 +45,4 @@ Each instance's label is `likely_covered` / `maybe_covered` / `unlikely_covered`
 `unknown` (see [`engine/README.md`](engine/README.md)). An instance that could not run
 at all — no `dev_tools` version, no `.py` target in the patch, or a container failure
 — is reported as a failure in the summary, not in the report. `check_cov` does not
-modify `processed_dataset.jsonl`.
+modify `fix_dataset.jsonl`.

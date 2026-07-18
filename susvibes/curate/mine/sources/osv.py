@@ -17,11 +17,11 @@ import zipfile
 from tqdm import tqdm
 
 from susvibes.core.constants import get_dataset_path
-from susvibes.curate.mine.crawl import fetch_github_commit_patch
+from susvibes.curate.mine.sources.utils import fetch_github_commit_patch
 from susvibes.curate.mine.utils import split_to_file_patches
 from susvibes.curate.mine.dedup import KnownSet, normalize_sha
 
-RAW_OSV_PYPI_PATH = get_dataset_path('cve_records') / 'OSV' / 'pypi.zip'
+RAW_OSV_PYPI_PATH = get_dataset_path('raw_cve_records') / 'OSV' / 'pypi.zip'
 
 _COMMIT_URL = re.compile(r'https?://github\.com/([^/\s]+)/([^/\s]+)/commit/([0-9a-f]{7,40})')
 _REPO_URL = re.compile(r'github\.com/([^/\s]+)/([^/\s]+?)(?:\.git)?/?$')

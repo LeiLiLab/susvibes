@@ -7,8 +7,7 @@ from jinja2 import Template
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_agent_setting_path
 from susvibes.curate.adaptive_gen.prompts import MASK_GEN_PROMPT_TEMPLATE
 from susvibes.core.agents.ports import SWEAgentPort
-from susvibes.curate.adaptive_gen.utils import module_setup_logger
-from susvibes.core.utils import load_file, save_file, touched_files, filter_target_files
+from susvibes.core.utils import load_file, save_file, touched_files, filter_target_files, setup_logger
 from susvibes.curate.utils import (
     get_repo_dir,
     apply_patch,
@@ -19,23 +18,23 @@ from susvibes.curate.utils import (
 
 logger = None
 
-def init_logger():
+def init_logger(adaptive_gen_log_dir):
     global logger
-    logger = module_setup_logger("mask.log", __name__, add_stdout=False)
+    logger = setup_logger(adaptive_gen_log_dir, "mask.log", __name__, add_stdout=False)
 
 def prologue(
-    processed_dataset_path: Path,
+    fix_dataset_path: Path,
     length_ratio: int = 1,
     max_length: int = None,
     instance_ids: list = None,
     require_test: bool = True,
 ):
     port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")), run_name=__spec__.name)
-    processed_dataset = load_file(processed_dataset_path)
+    fix_dataset = load_file(fix_dataset_path)
     if instance_ids is not None:
-        processed_dataset = [data_record for data_record in processed_dataset
+        fix_dataset = [data_record for data_record in fix_dataset
             if data_record["instance_id"] in set(instance_ids)]
-    for data_record in tqdm(processed_dataset, desc="Preparing agent run"):
+    for data_record in tqdm(fix_dataset, desc="Preparing agent run"):
         instance_id = data_record["instance_id"]
         repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
         try:
@@ -64,7 +63,7 @@ def prologue(
 
 def epilogue(
     agent_output_dir: Path,
-    processed_dataset_path: Path,
+    fix_dataset_path: Path,
     task_dataset_path: Path,
     length_ratio: int = 1,
     max_length: int = None,
@@ -72,8 +71,8 @@ def epilogue(
     require_test: bool = True,
 ):
     predictions, total_cost = SWEAgentPort.after_completion(agent_output_dir, submitted_only=True)
-    processed_dataset_by_id = {data_record["instance_id"]: data_record
-        for data_record in load_file(processed_dataset_path)}
+    fix_dataset_by_id = {data_record["instance_id"]: data_record
+        for data_record in load_file(fix_dataset_path)}
     task_dataset = load_file(task_dataset_path) if task_dataset_path.exists() else []
     task_dataset_by_id = {data_record["instance_id"]: data_record
         for data_record in task_dataset}
@@ -81,7 +80,7 @@ def epilogue(
     successful_instance_ids = []
     for pred in tqdm(predictions, desc="Processing agent submissions"):
         instance_id = pred["instance_id"]
-        data_record = processed_dataset_by_id[instance_id]
+        data_record = fix_dataset_by_id[instance_id]
         repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
         test_patch = data_record["test_patch"] if require_test else None
         rollback_commit = rollback(repo_dir, data_record["base_commit"],
@@ -136,7 +135,7 @@ def epilogue(
     return successful_instance_ids, total_cost
 
 def pipeline(
-    processed_dataset_path: Path,
+    fix_dataset_path: Path,
     task_dataset_path: Path,
     length_ratio: int = 1,
     max_length: int = None,
@@ -148,7 +147,7 @@ def pipeline(
     logger.info("=== Mask generation pipeline started (iter=%s, ratio=%.1fx) ===",
                 iter_id, length_ratio)
     port = prologue(
-        processed_dataset_path=processed_dataset_path,
+        fix_dataset_path=fix_dataset_path,
         length_ratio=length_ratio,
         max_length=max_length,
         instance_ids=instance_ids,
@@ -157,7 +156,7 @@ def pipeline(
     agent_output_dir = port.run_batch()
     successful_instance_ids, total_cost = epilogue(
         agent_output_dir=agent_output_dir,
-        processed_dataset_path=processed_dataset_path,
+        fix_dataset_path=fix_dataset_path,
         task_dataset_path=task_dataset_path,
         length_ratio=length_ratio,
         max_length=max_length,
@@ -185,7 +184,7 @@ if __name__ == "__main__":
         help="Run the epilogue of mask generation.",
     )
     parser.add_argument(
-        "--processed_dataset_path",
+        "--fix_dataset_path",
         type=Path,
         required=True,
         help="Path to the dataset file containing cve records.",
@@ -208,10 +207,10 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
     if args.prologue:
-        prologue(args.processed_dataset_path, require_test=args.require_test)
+        prologue(args.fix_dataset_path, require_test=args.require_test)
     elif args.epilogue:
-        epilogue(args.agent_output_dir, args.processed_dataset_path,
+        epilogue(args.agent_output_dir, args.fix_dataset_path,
             task_dataset_path=args.task_dataset_path, require_test=args.require_test)
     else:
-        pipeline(processed_dataset_path=args.processed_dataset_path,
+        pipeline(fix_dataset_path=args.fix_dataset_path,
             task_dataset_path=args.task_dataset_path, require_test=args.require_test)

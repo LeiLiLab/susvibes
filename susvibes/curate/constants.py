@@ -10,7 +10,7 @@ AGENT_SETTINGS_DIR = Path(__file__).parent / "utils/agents/settings"
 def get_log_dir(run_id: str, *module: str) -> Path:
     """Log dir for a run, grouped by run_id first then module:
     ``logs/curate/<run_id>/<module...>/`` — e.g.
-    get_log_dir("v2", "mine", "process") -> logs/curate/v2/mine/process.
+    get_log_dir("v2", "mine", "core") -> logs/curate/v2/mine/core.
     Keeping every module's logs for one run together (instead of one dir per
     module) makes a single run's artifacts easy to find and clean up."""
     return CURATE_LOG_DIR.joinpath(run_id, *module)

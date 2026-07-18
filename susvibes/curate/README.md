@@ -4,7 +4,7 @@ This directory contains the SusVibes task-curation pipeline: mining vulnerabilit
 
 The pipeline runs in this order (all artifacts land under `datasets/<run_id>/` and `env_specs/<run_id>/`):
 
-1. [`mine/process`](mine/) — mine vulnerability-fixing commits → `processed_dataset.jsonl`
+1. [`mine/core`](mine/) — mine vulnerability-fixing commits → `fix_dataset.jsonl`
 2. [`env_setup/dev_tools`](env_setup/) — identify each repo's Python version → `dev_tools.json`
 3. [`env_setup/build_base`](env_setup/) `--mode pull` — pull the `base_py` / `dind_py` / `cov_py` images for those versions
 4. [`mine/check_cov`](mine/check_cov/) — label each instance's test coverage → `coverage_report.jsonl`
@@ -16,20 +16,20 @@ Several stages drive [SWE-agent (sv)](https://github.com/songwen6968/SWE-agent/t
 
 ## 1. Collecting Vulnerability Records
 
-Retrieve data on historically observed software vulnerabilities from existing datasets. We provide the ReposVul dataset as an example; download it from [Google Drive](https://drive.google.com/file/d/1vk_WAPW3DvRsRKT7mfb4lpZWtVEGED0M/view?usp=share_link) and place it at `datasets/cve_records/ReposVul/`. Then run:
+Retrieve data on historically observed software vulnerabilities from existing datasets. We provide the ReposVul dataset as an example; download it from [Google Drive](https://drive.google.com/file/d/1vk_WAPW3DvRsRKT7mfb4lpZWtVEGED0M/view?usp=share_link) and place it at `datasets/raw_cve_records/ReposVul/`. Then run:
 
 ```bash
-python -m susvibes.curate.mine.process \
+python -m susvibes.curate.mine.core \
     --max_records 3 \
     --use_handlers '["ReposVulHandler"]' \
     --run_id playground
 ```
 
-This produces `processed_dataset.jsonl` — an assembled dataset of vulnerability-fixing commits.
+This produces `fix_dataset.jsonl` — an assembled dataset of vulnerability-fixing commits.
 
 ## 2. Identifying Developer Tools
 
-An agent identifies the Python version each project requires and maps it to an available base-image version, producing `env_specs/<run_id>/dev_tools.json` (see [`env_specs/default/dev_tools.json`](../env_specs/default/dev_tools.json) for an example). It reads `processed_dataset.jsonl` (SWE-agent config: [`utils/agents/configs/curate.yaml`](utils/agents/configs/curate.yaml)):
+An agent identifies the Python version each project requires and maps it to an available base-image version, producing `env_specs/<run_id>/dev_tools.json` (see [`env_specs/default/dev_tools.json`](../env_specs/default/dev_tools.json) for an example). It reads `fix_dataset.jsonl` (SWE-agent config: [`utils/agents/configs/curate.yaml`](utils/agents/configs/curate.yaml)):
 
 ```bash
 python -m susvibes.curate.env_setup.dev_tools \
@@ -130,7 +130,7 @@ The seven steps above are the **main pipeline**: each task's security `test_patc
 
 The second pipeline reuses the same stages, differing only in three points:
 
-- Steps 1, 5, 6 (`mine.process`, `adaptive_gen.core`, `build_repo --prologue`) take `--require_test false` — keeping only the test-less records; steps 2–4 are unchanged.
+- Steps 1, 5, 6 (`mine.core`, `adaptive_gen.core`, `build_repo --prologue`) take `--require_test false` — keeping only the test-less records; steps 2–4 are unchanged.
 - A test-synthesis stage is inserted before validation: `test.gen_prologue` drives a SWE-agent to author the security tests.
 - Step 7 validation uses `validate.no_test` instead of `validate.with_test`; `wrap_up` is shared.
 

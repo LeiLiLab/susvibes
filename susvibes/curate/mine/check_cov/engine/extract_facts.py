@@ -36,7 +36,7 @@ def is_test_file(path, exts=TARGET_EXTENSIONS):
     """Whether a path is a test file: its suffix is a test-language extension and
     some "/"- or "_"-delimited token of its (lowercased) path is a test keyword.
 
-    This is the PATH-only signal (shared with mine.process). It over-matches files
+    This is the PATH-only signal (shared with mine.core). It over-matches files
     that merely have a test-ish name/dir but contain no tests (a production
     ``hit_testing_service.py``, a ``test/`` utility script): check_cov pairs it with
     ``has_test_def`` to exclude those from its coverage test set."""

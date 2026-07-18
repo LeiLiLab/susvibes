@@ -69,7 +69,7 @@ This is for instances where the original commit had no usable test_patch — a S
 
 This path expects the upstream pipeline to have been run in `--require_test false` mode, i.e.:
 
-- `python -m susvibes.curate.mine.process --require_test false ...` — keeps vulnerability records that have no associated test files
+- `python -m susvibes.curate.mine.core --require_test false ...` — keeps vulnerability records that have no associated test files
 - `python -m susvibes.curate.adaptive_gen.core --require_test false ...` — produces tasks without requiring a `test_patch` field
 - `python -m susvibes.curate.env_setup.build_repo --prologue --require_test false ...` — instructs SWE-agent (sv-env-setup) to run the full repo test suite instead of a designated set of test files
 

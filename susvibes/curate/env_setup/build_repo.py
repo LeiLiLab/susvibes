@@ -183,7 +183,7 @@ def prologue(
         dockerfile_template = dockerfiles.DOCKERFILE_ENV_PY_TEMPLATE.format_map(
             SafeDict(base_image=f'base_py:{dev_tool["version"]}'))
         test_files = data_record["test_files"] if require_test else []
-        # Fall back to security_patch files when task_patch is absent (processed_dataset mode).
+        # Fall back to security_patch files when task_patch is absent (fix_dataset mode).
         coverage_files = sorted(touched_files(
             data_record.get("task_patch") or data_record.get("security_patch", "")))
         port.add_task(
@@ -393,7 +393,7 @@ if __name__ == "__main__":
 
     task_dataset_path = get_dataset_path('task_dataset', args.run_id)
     if not task_dataset_path.exists():
-        fallback_path = get_dataset_path('processed_dataset', args.run_id)
+        fallback_path = get_dataset_path('fix_dataset', args.run_id)
         if fallback_path.exists():
             answer = input(
                 f"task_dataset not found. Use {fallback_path} instead? "
@@ -409,13 +409,13 @@ if __name__ == "__main__":
                 covered = {r["instance_id"] for r in load_file(get_dataset_path('coverage_report', args.run_id))
                     if r["label"] in (CoverageLabel.LIKELY, CoverageLabel.MAYBE)}
                 processed = [r for r in processed if r["instance_id"] in covered]
-                task_dataset_path = fallback_path.parent / "processed_dataset_cov.jsonl"
+                task_dataset_path = fallback_path.parent / "fix_dataset_cov.jsonl"
                 save_file(processed, task_dataset_path)
             else:
                 print("Aborted.")
                 exit(1)
         else:
-            print(f"Neither task_dataset nor processed_dataset found under {task_dataset_path.parent}.")
+            print(f"Neither task_dataset nor fix_dataset found under {task_dataset_path.parent}.")
             exit(1)
 
     if args.prologue:

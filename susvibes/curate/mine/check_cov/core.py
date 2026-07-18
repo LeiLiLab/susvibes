@@ -1,6 +1,6 @@
 """Static file-level test-coverage analysis for collected CVE instances.
 
-Runs after `process`. For each instance in ``processed_dataset.jsonl`` it decides, by
+Runs after `process`. For each instance in ``fix_dataset.jsonl`` it decides, by
 static analysis only (no execution), whether the repo's own test suite covers the
 ``security_patch`` files — at the FILE level. Analysis runs on the rollback tree
 (``base_commit`` + reverse(security_patch), the vulnerable state), so targets are the
@@ -173,7 +173,7 @@ def build_cov_deployment(data_record: dict, version: str, context_path: Path,
 
 # --- orchestration ---------------------------------------------------------
 
-def check_cov_single(data_record: dict, log_dir: Path, dev_tools: dict,
+def check_cov_single(data_record: dict, check_cov_log_dir: Path, dev_tools: dict,
                      max_depth: int = SymbolTrace.MAX_DEPTH,
                      force: bool = False) -> tuple[dict | None, str | None]:
     """Analyze one instance's file-level test coverage on the rollback tree
@@ -183,13 +183,13 @@ def check_cov_single(data_record: dict, log_dir: Path, dev_tools: dict,
     project = data_record["project"]
     base_commit = data_record["base_commit"]
 
-    log_file = Path(log_dir) / instance_id / LOG_INSTANCE
+    log_file = Path(check_cov_log_dir) / instance_id / LOG_INSTANCE
     logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
     logger.info(f"Checking test coverage for {instance_id}...")
 
     # Reuse a prior run's saved container logs if present — re-parsing them reproduces the
     # result with no rebuild/rerun; --force re-runs from scratch.
-    cov_output_path = Path(log_dir) / instance_id / LOG_COV_OUTPUT
+    cov_output_path = Path(check_cov_log_dir) / instance_id / LOG_COV_OUTPUT
     if not force and cov_output_path.exists():
         logger.info("Container logs found; reusing.")
         result = parse_cov_result(load_file(cov_output_path))
@@ -247,8 +247,8 @@ def check_cov_single(data_record: dict, log_dir: Path, dev_tools: dict,
     return result, None
 
 
-def check_cov_threadpool(processed_dataset: list, max_workers: int, coverage_report_path: Path,
-                         log_dir: Path, dev_tools: dict,
+def check_cov_threadpool(fix_dataset: list, max_workers: int, coverage_report_path: Path,
+                         check_cov_log_dir: Path, dev_tools: dict,
                          instance_ids: list = None,
                          max_depth: int = SymbolTrace.MAX_DEPTH,
                          force: bool = False) -> dict:
@@ -259,7 +259,7 @@ def check_cov_threadpool(processed_dataset: list, max_workers: int, coverage_rep
     One container per worker thread; the host imports no jedi, so threads (not
     processes) suffice. Per-repo resets are serialized by RepoLocks; distinct repos
     run concurrently."""
-    records = processed_dataset
+    records = fix_dataset
     if instance_ids is not None:
         wanted = set(instance_ids)
         records = [r for r in records if r["instance_id"] in wanted]
@@ -267,7 +267,7 @@ def check_cov_threadpool(processed_dataset: list, max_workers: int, coverage_rep
     # Cov images are a hard dependency for instances that will run — an instance reused
     # from its existing cov_output.txt needs none. Fail fast if a needed version is missing.
     versions = {v for r in records
-                if (force or not (Path(log_dir) / r["instance_id"] / LOG_COV_OUTPUT).exists())
+                if (force or not (Path(check_cov_log_dir) / r["instance_id"] / LOG_COV_OUTPUT).exists())
                 and (v := (dev_tools.get(r["instance_id"]) or {}).get("version"))}
     for version in versions:
         cov_py_image = f'{get_image_name("cov_py")}:{version}'
@@ -278,7 +278,7 @@ def check_cov_threadpool(processed_dataset: list, max_workers: int, coverage_rep
 
     results, succeeded, failed = [], [], {}
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(check_cov_single, r, log_dir, dev_tools, max_depth, force):
+        futures = {executor.submit(check_cov_single, r, check_cov_log_dir, dev_tools, max_depth, force):
                    r["instance_id"] for r in records}
         with tqdm(total=len(futures), dynamic_ncols=True,
                   desc=f"Checking coverage [{max_workers} threads]") as pbar:
@@ -300,7 +300,7 @@ def check_cov_threadpool(processed_dataset: list, max_workers: int, coverage_rep
                 save_file(results, coverage_report_path)
 
     summary = get_summary(succeeded, failed)
-    summary_path = Path(log_dir) / LOG_SUMMARY
+    summary_path = Path(check_cov_log_dir) / LOG_SUMMARY
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(summary, summary_path)
     print_summary(summary)
@@ -315,7 +315,7 @@ def main() -> None:
         "--run_id",
         type=str,
         default="default",
-        help="Run ID locating datasets/<run_id>/processed_dataset.jsonl",
+        help="Run ID locating datasets/<run_id>/fix_dataset.jsonl",
     )
     parser.add_argument(
         "--max_workers",
@@ -342,20 +342,20 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    mine_log_dir = get_log_dir(args.run_id, "mine", "check_cov")
-    processed_dataset_path = get_dataset_path('processed_dataset', args.run_id)
+    check_cov_log_dir = get_log_dir(args.run_id, "mine", "check_cov")
+    fix_dataset_path = get_dataset_path('fix_dataset', args.run_id)
     coverage_report_path = get_dataset_path('coverage_report', args.run_id)
     coverage_report_path.parent.mkdir(parents=True, exist_ok=True)
 
-    processed_dataset = load_file(processed_dataset_path)
+    fix_dataset = load_file(fix_dataset_path)
     dev_tools = {iid: spec["dev_tools"]
         for iid, spec in get_env_specs(args.run_id, ("dev_tools",)).items()}
 
     check_cov_threadpool(
-        processed_dataset,
+        fix_dataset,
         max_workers=args.max_workers,
         coverage_report_path=coverage_report_path,
-        log_dir=mine_log_dir,
+        check_cov_log_dir=check_cov_log_dir,
         dev_tools=dev_tools,
         instance_ids=args.instance_ids,
         max_depth=args.max_depth,

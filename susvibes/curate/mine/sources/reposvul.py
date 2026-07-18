@@ -15,9 +15,9 @@ from susvibes.core.utils import load_file
 from susvibes.curate.mine.constants import GITHUB_HEADERS, TARGET_LANG, RECENT_YR_CUTOFF
 from susvibes.curate.mine.dedup import KnownSet
 
-RAW_REPOSVUL_DATASET_PATH = get_dataset_path('cve_records') / f'ReposVul/ReposVul_{TARGET_LANG}.jsonl'
+RAW_REPOSVUL_DATASET_PATH = get_dataset_path('raw_cve_records') / f'ReposVul/ReposVul_{TARGET_LANG}.jsonl'
 # Cache of remote PR-status lookups; lives with the ReposVul dataset it caches.
-LOG_REMOTE_STATUS_CACHE_PATH = get_dataset_path('cve_records') / "ReposVul" / "remote_status_cache.json"
+LOG_REMOTE_STATUS_CACHE_PATH = get_dataset_path('raw_cve_records') / "ReposVul" / "remote_status_cache.json"
 
 
 def is_recent(data_record):
