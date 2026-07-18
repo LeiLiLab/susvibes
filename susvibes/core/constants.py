@@ -23,7 +23,7 @@ DATASETS_DIR = root_dir / "datasets"
 def get_dataset_path(name: str, run_id: str = "default") -> Path:
     base = DATASETS_DIR / run_id
     paths = {
-        'raw_cve_records': DATASETS_DIR / 'raw_cve_records',
+        'raw_cve': DATASETS_DIR / 'raw_cve',
         'fix_dataset': base / 'fix_dataset.jsonl',
         'coverage_report': base / 'coverage_report.jsonl',
         'task_dataset': base / 'task_dataset.jsonl',

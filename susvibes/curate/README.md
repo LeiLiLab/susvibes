@@ -16,7 +16,7 @@ Several stages drive [SWE-agent (sv)](https://github.com/songwen6968/SWE-agent/t
 
 ## 1. Collecting Vulnerability Records
 
-Retrieve data on historically observed software vulnerabilities from existing datasets. We provide the ReposVul dataset as an example; download it from [Google Drive](https://drive.google.com/file/d/1vk_WAPW3DvRsRKT7mfb4lpZWtVEGED0M/view?usp=share_link) and place it at `datasets/raw_cve_records/ReposVul/`. Then run:
+Retrieve data on historically observed software vulnerabilities from existing datasets. We provide the ReposVul dataset as an example; download it from [Google Drive](https://drive.google.com/file/d/1vk_WAPW3DvRsRKT7mfb4lpZWtVEGED0M/view?usp=share_link) and place it at `datasets/raw_cve/ReposVul/`. Then run:
 
 ```bash
 python -m susvibes.curate.mine.core \

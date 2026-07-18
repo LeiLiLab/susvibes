@@ -16,8 +16,8 @@ from susvibes.core.utils import load_file, save_file
 from susvibes.curate.mine.constants import GITHUB_HEADERS, TARGET_LANG
 from susvibes.curate.mine.dedup import KnownSet
 
-REPOSVUL_RAW_PATH = get_dataset_path('raw_cve_records') / f'ReposVul/ReposVul_{TARGET_LANG}.jsonl'
-REPOSVUL_CACHE_PATH = get_dataset_path('raw_cve_records') / f'ReposVul/ReposVul_{TARGET_LANG}_active.jsonl'
+REPOSVUL_RAW_PATH = get_dataset_path('raw_cve') / f'ReposVul/ReposVul_{TARGET_LANG}.jsonl'
+REPOSVUL_CACHE_PATH = get_dataset_path('raw_cve') / f'ReposVul/ReposVul_{TARGET_LANG}_active.jsonl'
 
 
 class ReposVulHandler:

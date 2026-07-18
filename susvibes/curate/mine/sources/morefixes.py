@@ -15,8 +15,8 @@ from susvibes.curate.mine.utils import split_to_file_patches
 from susvibes.curate.mine.dedup import KnownSet
 from susvibes.curate.mine.sources.utils import fetch_github_commit_patch
 
-MOREFIXES_URL_PATH = get_dataset_path('raw_cve_records') / 'Morefixes/dataset_url_new.jsonl'
-MOREFIXES_CACHE_PATH = get_dataset_path('raw_cve_records') / 'Morefixes/dataset_new.jsonl'
+MOREFIXES_URL_PATH = get_dataset_path('raw_cve') / 'Morefixes/dataset_url_new.jsonl'
+MOREFIXES_CACHE_PATH = get_dataset_path('raw_cve') / 'Morefixes/dataset_new.jsonl'
 
 
 class MorefixesHandler:

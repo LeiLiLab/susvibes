@@ -23,8 +23,8 @@ from susvibes.curate.mine.sources.reposvul import ReposVulHandler
 from susvibes.curate.mine.utils import split_to_file_patches
 from susvibes.curate.mine.dedup import KnownSet, normalize_commit
 
-OSV_ZIP_PATH = get_dataset_path('raw_cve_records') / 'OSV' / 'pypi.zip'
-OSV_CACHE_PATH = get_dataset_path('raw_cve_records') / 'OSV' / 'osv_fixes.jsonl'
+OSV_ZIP_PATH = get_dataset_path('raw_cve') / 'OSV' / 'pypi.zip'
+OSV_CACHE_PATH = get_dataset_path('raw_cve') / 'OSV' / 'osv_fixes.jsonl'
 
 COMMIT_URL = re.compile(r'https?://github\.com/([^/\s]+)/([^/\s]+)/commit/([0-9a-f]{7,40})')
 REPO_URL = re.compile(r'github\.com/([^/\s]+)/([^/\s]+?)(?:\.git)?/?$')

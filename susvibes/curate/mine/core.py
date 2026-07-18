@@ -40,12 +40,10 @@ from susvibes.curate.mine.dedup import KnownSet
 from susvibes.curate.mine.sources import SOURCES, SOURCE_BY_NAME
 
 logger = None
-detail_logger = None
 
 def init_loggers(core_log_dir):
-    global logger, detail_logger
-    logger = setup_logger(core_log_dir, "core.log", f"{__name__}.summary", add_stdout=True, handle_tqdm=True, mode="w")
-    detail_logger = setup_logger(core_log_dir, "core_details.log", f"{__name__}.detail", add_stdout=False, mode="w")
+    global logger
+    logger = setup_logger(core_log_dir, "core.log", __name__, add_stdout=True, handle_tqdm=True, mode="w")
 
 
 class CVEFixRecord(TypedDict):
@@ -175,13 +173,13 @@ def clone_repos_and_verify_fixes(fix_dataset, root_dir):
     for data_record in tqdm(fix_dataset, desc="Verifying patches"):
         instance_id = data_record['instance_id']
         if data_record['project'] in skipped_projects:
-            detail_logger.warning("%s skipped: project not cloned or too large", instance_id)
+            logger.warning("%s skipped: project not cloned or too large", instance_id)
             continue
         repo_dir = get_repo_dir(data_record['project'], root_dir)
         try:
             reset_to_commit(repo_dir, data_record['base_commit'], new_branch=False)
         except Exception as e:
-            detail_logger.error("%s reset_to_commit failed: %s", instance_id, e)
+            logger.error("%s reset_to_commit failed: %s", instance_id, e)
             continue
         if not data_record.get('cve_fix_date'):
             data_record['cve_fix_date'] = get_commit_date(repo_dir, data_record['base_commit'])
@@ -195,7 +193,7 @@ def clone_repos_and_verify_fixes(fix_dataset, root_dir):
                 apply_patch(repo_dir, patch, reverse=True)
                 apply_patch(repo_dir, patch)
             except Exception as e:
-                detail_logger.error("%s apply_patch (%s) failed: %s", instance_id, patch_name, e)
+                logger.error("%s apply_patch (%s) failed: %s", instance_id, patch_name, e)
                 is_valid = False
                 break
         if is_valid:
