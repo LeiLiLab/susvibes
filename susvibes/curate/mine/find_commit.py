@@ -26,7 +26,7 @@ FINDER_MODEL = "us.anthropic.claude-sonnet-5"
 FINDER_WORKERS = 8
 FINDER_MAX_TURNS = 50
 FINDER_RETRIES = 2               # extra attempts on a retryable failure (CLI already retries 429/5xx)
-FINDER_BACKOFF_SEC = 30          # backoff grows 30s, 60s across the retries
+FINDER_BACKOFF_SEC = 30          # exponential backoff base: 30s, 60s, 120s, ... per attempt
 
 FINDER_SCHEMA = {
     "type": "object",
@@ -144,7 +144,7 @@ def finder_single(record, run_id):
             output, meta = run_agent(prompt, options, log_path=log_path)
         except Exception as e:
             if is_retryable_error(e) and attempt < FINDER_RETRIES:
-                time.sleep(FINDER_BACKOFF_SEC * (attempt + 1))
+                time.sleep(FINDER_BACKOFF_SEC * (2 ** attempt))
                 continue
             return _miss(record, str(e)[:200])
         if output is None:
