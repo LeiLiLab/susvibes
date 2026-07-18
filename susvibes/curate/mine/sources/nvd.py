@@ -40,7 +40,8 @@ def github_repos(record) -> list:
     """The (owner, repo) GitHub source repos an NVD record references — advisory/data URLs
     (advisories/, */advisory-database) filtered out, mirroring read_osv_residual."""
     repos = []
-    for url in record.get("refs", []):
+    for ref in record.get("refs", []):
+        url = ref["url"] if isinstance(ref, dict) else ref     # refs are {url, tags}; tolerate bare str
         if "github.com/" not in (url or ""):
             continue
         m = REF_REPO.search(url)
@@ -66,10 +67,11 @@ def covered_cves() -> set:
 
 def nvd_universe() -> list:
     """The M3 haystack: NVD CVEs that reference a GitHub source repo and are uncovered by
-    OSV/Morefixes/ReposVul (~48k). Each entry keeps `{cve_id, desc, repos, cpe_products}`."""
+    OSV/Morefixes/ReposVul (~48k). Each entry keeps `{cve_id, desc, cwe_ids, repos,
+    cpe_products}` — cwe_ids/cpe_products carry through to the mined record."""
     covered = covered_cves()
     universe = []
-    for line in open(NVD_PATH):                 # 305M / 366k lines — stream, not a whole-file load
+    for line in open(NVD_PATH):                 # 426M / 366k lines — stream, not a whole-file load
         record = json.loads(line)
         if record["id"] in covered:
             continue
@@ -79,6 +81,7 @@ def nvd_universe() -> list:
         universe.append({
             "cve_id": record["id"],
             "desc": record.get("desc", ""),
+            "cwe_ids": record.get("cwe_ids", []),
             "repos": repos,
             "cpe_products": record.get("cpe_products", []),
         })
