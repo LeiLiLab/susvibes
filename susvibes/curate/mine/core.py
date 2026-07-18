@@ -3,7 +3,7 @@ import random
 import json
 from tqdm import tqdm
 from pathlib import Path
-from typing import TypedDict
+from typing import TypedDict, NotRequired
 
 from susvibes.core.constants import get_dataset_path
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir
@@ -52,16 +52,16 @@ class CVEFixRecord(TypedDict):
     project: str
     base_commit: str
     security_patch: str
-    test_patch: str
-    test_files: list[str]
-    cwe_id: str
+    cwe_ids: list[str]
     cve_id: str
     cve_fix_date: str
     language: str
     info_page: str
+    test_patch: NotRequired[str]        # present iff the fix ships a test
+    test_files: NotRequired[list[str]]
 
 
-def code_test_split(data_record, target_lang, test_lang, require_test=True) -> CVEFixRecord | bool:
+def code_test_split(data_record, target_lang, test_lang, require_test=None) -> CVEFixRecord:
     is_target_lang, with_test = True, False
     code_patch, test_patch, test_files = {}, {}, []
     for file_path, file_patch in data_record['patch'].items():
@@ -89,9 +89,9 @@ def code_test_split(data_record, target_lang, test_lang, require_test=True) -> C
 
     if not is_target_lang:
         raise ValueError("Patch doesn't contain target language.")
-    if require_test and not with_test:
+    if require_test is True and not with_test:
         raise ValueError("Patch doesn't contain test files.")
-    if not require_test and with_test:
+    if require_test is False and with_test:
         raise ValueError("Patch contains test files.")
 
     cve_fix_date = data_record.get('commit_date')
@@ -112,13 +112,13 @@ def code_test_split(data_record, target_lang, test_lang, require_test=True) -> C
         language=target_lang,
         info_page=info_page
     )
-    if require_test:
+    if with_test:
         result_data_record['test_patch'] = test_patch
         result_data_record['test_files'] = test_files
     return result_data_record
 
 
-def build_fix_dataset(sources, target_lang, test_lang, require_test=True, shuffle=False, max_records = None) -> list[CVEFixRecord]:
+def build_fix_dataset(sources, target_lang, test_lang, require_test=None, shuffle=False, max_records = None) -> list[CVEFixRecord]:
     def map_filter(iterable, func):
         for item in iterable:
             try:
@@ -150,7 +150,7 @@ def build_fix_dataset(sources, target_lang, test_lang, require_test=True, shuffl
         fix_dataset = fix_dataset[:max_records]
     return fix_dataset 
 
-def clone_repos_and_verify_patches(fix_dataset, root_dir, require_test=True):
+def clone_repos_and_verify_patches(fix_dataset, root_dir):
     projects = set(data_record['project'] for data_record in fix_dataset)
     skipped_projects = set()
     with tqdm(total=len(projects), dynamic_ncols=True) as pbar:
@@ -184,7 +184,7 @@ def clone_repos_and_verify_patches(fix_dataset, root_dir, require_test=True):
             data_record['cve_fix_date'] = get_commit_date(repo_dir, data_record['base_commit'])
         is_valid = True
         patches_to_verify = [("security_patch", data_record['security_patch'])]
-        if require_test:
+        if 'test_patch' in data_record:
             patches_to_verify.append(("test_patch", data_record['test_patch']))
         for patch_name, patch in patches_to_verify:
             assert patch
@@ -256,8 +256,8 @@ if __name__ == "__main__":
     parser.add_argument(
         '--require_test',
         type=json.loads,
-        default=True,
-        help='Require repo-provided test files (default True); false keeps only records without tests.'
+        default=None,
+        help='true keeps only records with a repo test, false only those without; omit to keep both (a record carries test_patch iff the fix ships a test).'
     )
     parser.add_argument(
         '--shuffle',
@@ -270,9 +270,10 @@ if __name__ == "__main__":
         help='Stop after the text-level funnel: save the unverified records and skip repo clone, patch apply-verify, and test-mask expansion.'
     )
     parser.add_argument(
-        '--morefixes_fetch',
-        action='store_true',
-        help='Rebuild the Morefixes patch dataset from its URL dataset (fetch each .patch from GitHub) before reading; default reads the pre-fetched dataset_new.jsonl.'
+        '--force',
+        type=json.loads,
+        default=[],
+        help='JSON list of source names whose cache to rebuild (fetch) before reading, e.g. \'["OSVSource"]\'; others read their cache, building only if missing.'
     )
     parser.add_argument(
         '--run_id',
@@ -292,8 +293,8 @@ if __name__ == "__main__":
     else:
         dataset_sources = SOURCES
 
-    if args.morefixes_fetch:
-        SOURCE_BY_NAME['MorefixesHandler'].fetch = True
+    for name in args.force:
+        SOURCE_BY_NAME[name].force = True
 
     require_test = args.require_test
     fix_dataset = build_fix_dataset(
@@ -307,10 +308,10 @@ if __name__ == "__main__":
     if args.skip_verify:
         logger.info("--skip_verify: saving %d text-level (unverified) records; skipping clone, apply-verify, and test-mask expansion.", len(fix_dataset))
     else:
-        fix_dataset = clone_repos_and_verify_patches(fix_dataset, LOCAL_REPOS_DIR, require_test)
+        fix_dataset = clone_repos_and_verify_patches(fix_dataset, LOCAL_REPOS_DIR)
         if require_test:
             fix_dataset = expand_test_mask(fix_dataset, TARGET_LANG)
     fix_dataset_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(fix_dataset, fix_dataset_path)
-    print(f"Processed dataset saved to {fix_dataset_path}.")
+    print(f"Fix dataset saved to {fix_dataset_path}.")
     print(f"Logs saved to {core_log_dir}.")
