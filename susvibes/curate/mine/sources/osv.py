@@ -33,6 +33,14 @@ REPO_URL = re.compile(r'github\.com/([^/\s]+)/([^/\s]+?)(?:\.git)?/?$')
 REF_REPO = re.compile(r'github\.com/([^/\s]+)/([^/\s?#]+)')
 FROM_COMMIT = re.compile(r'^From ([0-9a-f]{40}) ', re.MULTILINE)
 
+# GitHub first-path segments that are site sections, not repo owners — a `github.com/advisories/
+# GHSA-…` reference URL is the advisory itself, never the project source.
+GITHUB_NON_OWNER = {"advisories", "security", "sponsors", "marketplace", "orgs", "collections",
+                    "topics", "about", "pricing", "settings", "notifications"}
+# Advisory-database repos (`pypa/advisory-database`, `github/advisory-database`, …) are the CVE
+# data source, not the vulnerable project — a reference to one is not a source repo.
+GITHUB_NON_REPO = {"advisory-database", "advisory-db", "security-advisories"}
+
 
 def read_osv_fix_commits(zip_path) -> dict:
     """Parse OSV PyPI `all.zip` → `{cve_id: {"commits": {(owner, repo, commit), ...},
@@ -113,7 +121,8 @@ def read_osv_residual(zip_path) -> dict:
                     commits.add(ref["url"])
                 elif repo is None and "github.com/" in ref.get("url", ""):
                     m = REF_REPO.search(ref["url"])
-                    if m and m.group(2) not in ("advisories", "security"):
+                    if m and m.group(1) not in GITHUB_NON_OWNER \
+                            and m.group(2).removesuffix(".git").lower() not in GITHUB_NON_REPO:
                         repo = (m.group(1), m.group(2).removesuffix(".git"))
             ghsa = next((a for a in advisory.get("aliases", []) if a.startswith("GHSA-")), "")
             cwe_ids = advisory.get("database_specific", {}).get("cwe_ids") or []
