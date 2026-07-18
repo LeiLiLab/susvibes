@@ -16,10 +16,18 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 
 from susvibes.core.constants import get_dataset_path
+from susvibes.core.utils import load_file, save_file
 from susvibes.curate.mine.constants import TARGET_LANG, LANG_EXTENSIONS
-from susvibes.curate.mine.utils import get_repo_language
+from susvibes.curate.mine.utils import get_repo_language, split_to_file_patches
+from susvibes.curate.mine.dedup import KnownSet
+from susvibes.curate.mine.inspect import inspect_threadpool
+from susvibes.curate.mine.find_commit import finder_threadpool
 from susvibes.curate.mine.sources.constants import REF_REPO, GITHUB_NON_OWNER, GITHUB_NON_REPO
+from susvibes.curate.mine.sources.utils import fetch_github_commit_patch
 from susvibes.curate.mine.sources.osv import known_source_cves, read_osv_fix_commits, OSV_ZIP_PATH
+
+NVD_INSPECT_CACHE_PATH = get_dataset_path('raw_cve') / 'NVD' / 'nvd_inspect.jsonl'
+NVD_CACHE_PATH = get_dataset_path('raw_cve') / 'NVD' / 'nvd_fixes.jsonl'
 
 NVD_PATH = get_dataset_path('raw_cve') / 'NVD' / 'nvd.jsonl'
 NVD_REPO_LANG_CACHE_PATH = get_dataset_path('raw_cve') / 'NVD' / 'nvd_repo_language.json'
@@ -169,3 +177,88 @@ def route(record) -> str:
     if not langs or (langs & TARGET):
         return "stage2"
     return "drop:non_target"
+
+
+# --- NVDSource: prefilter → inspect → route → finder → records ---------------------------------
+
+def finder_record(inspected) -> dict:
+    """A finder input record from an inspect result: split the repo, carry the NVD desc and the
+    advisory-named files as hints, and the NVD cwe_ids through to the mined record."""
+    owner, repo = inspected["repo"].split("/", 1)
+    return {"cve_id": inspected["cve_id"], "owner": owner, "repo": repo, "ghsa": "",
+            "cwe_ids": inspected.get("cwe_ids", []), "summary": inspected["desc"],
+            "vulnerable_files": inspected["vulnerable_files"]}
+
+
+class NVDSource:
+    """M3 — NVD github-linked CVEs uncovered by OSV/Morefixes/ReposVul, dug out of the ~48k
+    haystack: prefilter (deterministic) → inspect (Haiku) → route → finder (Sonnet). The two agent
+    stages each cache (inspect at NVD_INSPECT_CACHE_PATH, finder at cache_path) so a re-run never
+    re-pays, and `--resume` re-runs only the errored ones. `run_id` (set by `core` alongside
+    `force`/`resume`) routes both agents' trajectories under `logs/curate/<run_id>/mine/`."""
+    name = "NVD"
+    cache_path = NVD_CACHE_PATH
+    force = False
+    resume = False
+    run_id = None
+
+    @classmethod
+    def _inspect_cached(cls, survivors):
+        """Run inspect over the prefilter survivors, caching outcomes; force re-inspects all,
+        resume re-runs only the errored, neither reads the cache."""
+        if cls.force or not NVD_INSPECT_CACHE_PATH.exists():
+            inspected = inspect_threadpool(survivors, cls.run_id)
+        elif cls.resume:
+            done = {r["cve_id"]: r for r in load_file(NVD_INSPECT_CACHE_PATH) if not r.get("error")}
+            todo = [s for s in survivors if s["cve_id"] not in done]
+            inspected = list(done.values()) + inspect_threadpool(todo, cls.run_id)
+        else:
+            return load_file(NVD_INSPECT_CACHE_PATH)
+        save_file(inspected, NVD_INSPECT_CACHE_PATH)
+        return inspected
+
+    @classmethod
+    def _fetch(cls, prior=None):
+        """prefilter → inspect (cached) → route → finder over the stage2 CVEs `prior` hasn't
+        concluded, fetching each single-commit pin's `.patch`. Returns every finder outcome."""
+        _, survivors = prefilter(force=cls.force)
+        inspected = cls._inspect_cached(survivors)
+        stage2 = [finder_record(r) for r in inspected if route(r) == "stage2"]
+        done = {r["cve_id"]: r for r in (prior or []) if not r.get("error")}
+        fresh = finder_threadpool([r for r in stage2 if r["cve_id"] not in done], cls.run_id)
+        for result in fresh:
+            if result["commit"] and not result["multi_commit"]:
+                result["patch"] = fetch_github_commit_patch(
+                    result["owner"], result["repo"], result["commit"])
+        return list(done.values()) + fresh
+
+    @classmethod
+    def records(cls, known: KnownSet):
+        if cls.force or not cls.cache_path.exists():
+            results = cls._fetch()
+            save_file(results, cls.cache_path)
+        elif cls.resume:
+            results = cls._fetch(load_file(cls.cache_path))
+            save_file(results, cls.cache_path)
+        else:
+            results = load_file(cls.cache_path)
+        for result in results:
+            if not result["commit"] or result["multi_commit"]:
+                continue
+            if known.has_commit(result["commit"]):
+                continue
+            if not result.get("patch"):
+                continue
+            try:
+                patch = split_to_file_patches(result["patch"])
+            except ValueError:
+                continue
+            yield {
+                "patch": patch,
+                "commit_id": result["commit"],
+                "cve_id": result["cve_id"],
+                "cwe_ids": result["cwe_ids"],
+                "owner": result["owner"],
+                "repo": result["repo"],
+                "repo_url": f"https://github.com/{result['owner']}/{result['repo']}",
+            }

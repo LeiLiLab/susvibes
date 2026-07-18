@@ -14,6 +14,7 @@ from susvibes.curate.mine.dedup import KnownSet
 from susvibes.curate.mine.sources.morefixes import MorefixesHandler
 from susvibes.curate.mine.sources.reposvul import ReposVulHandler
 from susvibes.curate.mine.sources.osv import OSVSource, OSVResidualSource
+from susvibes.curate.mine.sources.nvd import NVDSource
 
 
 class Source(Protocol):
@@ -31,7 +32,8 @@ class Source(Protocol):
 
 
 # Order is load-bearing: on a same-commit collision the earlier source's record is kept. The
-# deterministic OSV source runs after Morefixes + ReposVul so it dedups against them, and the
-# OSV residual finder (M2) runs last — most speculative, dedups against every source above.
-SOURCES = [ReposVulHandler, MorefixesHandler, OSVSource, OSVResidualSource]
+# deterministic OSV source runs after Morefixes + ReposVul so it dedups against them; the discovery
+# finders run last — OSV residual (M2), then NVD beyond-ecosystem (M3) — dedup against every source
+# above and are the most speculative.
+SOURCES = [ReposVulHandler, MorefixesHandler, OSVSource, OSVResidualSource, NVDSource]
 SOURCE_BY_NAME = {source.__name__: source for source in SOURCES}

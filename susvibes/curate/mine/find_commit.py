@@ -101,6 +101,8 @@ def finder_hints(record) -> str:
     lines = []
     if record.get("fixed_versions"):
         lines.append(f"Fixed in version(s): {', '.join(record['fixed_versions'])}")
+    if record.get("vulnerable_files"):
+        lines.append(f"Advisory-named vulnerable files: {', '.join(record['vulnerable_files'])}")
     if record.get("summary"):
         lines.append(f"Advisory summary: {record['summary']}")
     return "\n".join(lines) + "\n" if lines else ""
