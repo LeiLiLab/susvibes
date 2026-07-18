@@ -16,9 +16,9 @@ from tqdm import tqdm
 
 from susvibes.core.constants import get_dataset_path
 from susvibes.core.utils import load_file, save_file
-from susvibes.curate.mine.sources.utils import (
-    fetch_github_commit_patch, COMMIT_URL, REPO_URL, REF_REPO, FROM_COMMIT,
-    GITHUB_NON_OWNER, GITHUB_NON_REPO)
+from susvibes.curate.mine.sources.constants import (
+    COMMIT_URL, REPO_URL, REF_REPO, FROM_COMMIT, GITHUB_NON_OWNER, GITHUB_NON_REPO)
+from susvibes.curate.mine.sources.utils import fetch_github_commit_patch
 from susvibes.curate.mine.sources.morefixes import MorefixesHandler
 from susvibes.curate.mine.sources.reposvul import ReposVulHandler
 from susvibes.curate.mine.utils import split_to_file_patches

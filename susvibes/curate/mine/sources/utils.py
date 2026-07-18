@@ -1,33 +1,16 @@
-"""Shared GitHub helpers for the sources: a commit's unified patch, and the URL/identity parsing
-every source uses to pull owner/repo/commit out of advisory references.
+"""Shared GitHub patch fetch for the sources.
 
-`fetch_github_commit_patch` — Morefixes (rebuilding its patch dataset) and OSV both need a commit's
-patch from GitHub; tries the REST API's patch media type, then the public HTML `.patch` URL, and
-returns the patch text (git format-patch, so the full 40-char commit is on its `From` line) or None.
-
-The regexes + non-owner/repo sets identify a project's source repo in a reference URL: a
-`github.com/advisories/GHSA-…` or `pypa/advisory-database` link is the advisory/data, never the
-source, so it is filtered out.
+Both Morefixes (when rebuilding its patch dataset) and OSV need a commit's unified patch
+from GitHub; this is that one helper. Tries the REST API's patch media type, then the public
+HTML `.patch` URL. Returns the patch text (git format-patch, so the full 40-char commit is on
+its `From` line) or None on failure. The GitHub URL-parsing constants it pairs with live in
+`mine/constants.py` beside `GITHUB_HEADERS`.
 """
 
-import re
 import time
 import requests
 
 from susvibes.curate.mine.constants import GITHUB_HEADERS
-
-COMMIT_URL = re.compile(r'https?://github\.com/([^/\s]+)/([^/\s]+)/commit/([0-9a-f]{7,40})')
-REPO_URL = re.compile(r'github\.com/([^/\s]+)/([^/\s]+?)(?:\.git)?/?$')
-REF_REPO = re.compile(r'github\.com/([^/\s]+)/([^/\s?#]+)')
-FROM_COMMIT = re.compile(r'^From ([0-9a-f]{40}) ', re.MULTILINE)
-
-# GitHub first-path segments that are site sections, not repo owners — a `github.com/advisories/
-# GHSA-…` reference URL is the advisory itself, never the project source.
-GITHUB_NON_OWNER = {"advisories", "security", "sponsors", "marketplace", "orgs", "collections",
-                    "topics", "about", "pricing", "settings", "notifications"}
-# Advisory-database repos (`pypa/advisory-database`, `github/advisory-database`, …) are the CVE
-# data source, not the vulnerable project — a reference to one is not a source repo.
-GITHUB_NON_REPO = {"advisory-database", "advisory-db", "security-advisories"}
 
 
 def fetch_github_commit_patch(owner: str, repo: str, commit: str,

@@ -18,7 +18,7 @@ from tqdm import tqdm
 from susvibes.core.constants import get_dataset_path
 from susvibes.curate.mine.constants import TARGET_LANG, LANG_EXTENSIONS
 from susvibes.curate.mine.utils import get_repo_language
-from susvibes.curate.mine.sources.utils import REF_REPO, GITHUB_NON_OWNER, GITHUB_NON_REPO
+from susvibes.curate.mine.sources.constants import REF_REPO, GITHUB_NON_OWNER, GITHUB_NON_REPO
 from susvibes.curate.mine.sources.osv import known_source_cves, read_osv_fix_commits, OSV_ZIP_PATH
 
 NVD_PATH = get_dataset_path('raw_cve') / 'NVD' / 'nvd.jsonl'
