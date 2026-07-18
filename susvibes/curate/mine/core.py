@@ -148,7 +148,7 @@ def build_fix_dataset(sources, target_lang, test_lang, require_test=None, shuffl
         random.shuffle(fix_dataset)
     if max_records is not None:
         fix_dataset = fix_dataset[:max_records]
-    return fix_dataset 
+    return fix_dataset
 
 def clone_repos_and_verify_fixes(fix_dataset, root_dir):
     projects = set(data_record['project'] for data_record in fix_dataset)
@@ -224,62 +224,62 @@ def expand_test_mask(fix_dataset, test_lang):
                     apply_patch(repo_dir, merge_file_patches({file_path: mask_patch}))
             else:
                 apply_patch(repo_dir, merge_file_patches({file_path: file_patch}), reverse=True)
-                    
+
         if not is_syntax_error:
             test_mask_commit = commit_changes(repo_dir, f'Test mask at {base_commit}')
             data_record["test_patch"] = get_diff_patch(repo_dir, test_mask_commit, base_commit)
             expanded.append(data_record)
-                  
+
     logger.info("%d test masks expanded successfully.", len(expanded))
     return expanded
 
-    
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
-        '--debug', 
-        action='store_true', 
-        help='Use debug dataset path'
+        "--debug",
+        action="store_true",
+        help="Use debug dataset path"
     )
     parser.add_argument(
-        '--max_records', 
-        type=int, 
-        default=None, 
-        help='Maximum number of records to process'
+        "--max_records",
+        type=int,
+        default=None,
+        help="Maximum number of records to process"
     )
     parser.add_argument(
-        '--use_handlers', 
-        type=json.loads, 
-        default=[], 
-        help='List of handlers to use (JSON format)'
+        "--use_handlers",
+        type=json.loads,
+        default=[],
+        help="List of handlers to use (JSON format)"
     )
     parser.add_argument(
-        '--require_test',
+        "--require_test",
         type=json.loads,
         default=None,
-        help='true keeps only records with a repo test, false only those without; omit to keep both (a record carries test_patch iff the fix ships a test).'
+        help="true keeps only records with a repo test, false only those without; omit to keep both (a record carries test_patch iff the fix ships a test)."
     )
     parser.add_argument(
-        '--shuffle',
-        action='store_true',
-        help='Randomly shuffle records before applying max_records'
+        "--shuffle",
+        action="store_true",
+        help="Randomly shuffle records before applying max_records"
     )
     parser.add_argument(
-        '--skip_verify',
-        action='store_true',
-        help='Stop after the text-level funnel: save the unverified records and skip repo clone, patch apply-verify, and test-mask expansion.'
+        "--skip_verify",
+        action="store_true",
+        help="Stop after the text-level funnel: save the unverified records and skip repo clone, patch apply-verify, and test-mask expansion."
     )
     parser.add_argument(
-        '--force',
+        "--force",
         type=json.loads,
         default=[],
         help='JSON list of source names whose cache to rebuild (fetch) before reading, e.g. \'["OSVSource"]\'; others read their cache, building only if missing.'
     )
     parser.add_argument(
-        '--run_id',
+        "--run_id",
         type=str,
-        default='default',
-        help='Run ID for output subdirectory (datasets/<run_id>/...)'
+        default="default",
+        help="Run ID for output subdirectory (datasets/<run_id>/...)"
     )
     args = parser.parse_args()
 
