@@ -25,6 +25,18 @@ def get_repo_size(project) -> int | None:
     return None
 
 
+def get_repo_language(project) -> str | None:
+    """Return the repo's primary language via GitHub API: the language name, "" if GitHub detected
+    none, or None on failure (network / rate-limit / 404). Callers retry None, cache "" and names."""
+    try:
+        r = requests.get(f"https://api.github.com/repos/{project}", headers=GITHUB_HEADERS, timeout=10)
+        if r.status_code == 200:
+            return r.json().get("language") or ""
+    except requests.RequestException:
+        pass
+    return None
+
+
 def merge_file_patches(file_patches):
     """
     Merge multiple file patches into a single patch string.
