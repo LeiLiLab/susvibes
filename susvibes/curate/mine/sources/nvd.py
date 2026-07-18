@@ -15,6 +15,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 
 from susvibes.core.constants import get_dataset_path
+from susvibes.curate.mine.constants import TARGET_LANG
 from susvibes.curate.mine.utils import get_repo_language
 from susvibes.curate.mine.sources.osv import (
     REF_REPO, GITHUB_NON_OWNER, GITHUB_NON_REPO, known_source_cves,
@@ -33,10 +34,6 @@ PYTHON_KEYWORDS = re.compile(
 # GitHub repo names that are PoC/writeup dumps, not the vulnerable project — kept (passed to
 # inspect, which decides) but never trusted as a positive repo-language signal.
 POC_REPO = re.compile(r'(cve[-_]?\d|poc|exploit|proof.?of.?concept|writeup|vuln.?report|advisor)', re.I)
-
-# GitHub primary languages that count as Python for the recall-first keep — GitHub labels
-# notebook-heavy Python repos "Jupyter Notebook", so a repo tagged that is Python in practice.
-PYTHON_LANGS = {"python", "jupyter notebook"}
 
 
 def github_repos(record) -> list:
@@ -121,9 +118,9 @@ def fetch_repo_languages(projects, force=False):
 
 
 def should_drop(cve, lang_cache) -> bool:
-    """Recall-first: drop ONLY when every referenced repo has a known, non-Python primary language.
-    A Python keyword hit, a PoC repo, or any repo whose language is unknown/uncached/none keeps it
-    (ambiguity is passed to inspect, never dropped here)."""
+    """Recall-first: drop ONLY when every referenced repo has a known, non-target primary language.
+    A target-language keyword hit, a PoC repo, or any repo whose language is unknown/uncached/none
+    keeps it (ambiguity is passed to inspect, never dropped here)."""
     if PYTHON_KEYWORDS.search(cve["desc"]):
         return False
     langs = set()
@@ -134,7 +131,7 @@ def should_drop(cve, lang_cache) -> bool:
         if not lang:                            # None (uncached/failed) or "" (no language) → keep
             return False
         langs.add(lang.lower())
-    return not (langs & PYTHON_LANGS)           # every repo known and non-Python-ish → drop
+    return TARGET_LANG not in langs             # every repo known and non-target → drop
 
 
 def prefilter(force=False):
