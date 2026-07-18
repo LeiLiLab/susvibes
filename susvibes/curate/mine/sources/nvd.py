@@ -1,25 +1,25 @@
 """NVD source (M3) — beyond-ecosystem CVEs: NVD CVEs that reference a GitHub repo and are
 uncovered by OSV/Morefixes/ReposVul, dug out of a ~48k low-signal haystack (other languages +
-PoC/writeup repos). Internally: prefilter (deterministic, recall-first) → inspect (Haiku, extract
-repo + vulnerable_files + languages) → route → finder (Sonnet). All in this file per the design;
-see docs/mine-filters Issue C.
+PoC/writeup repos). The pipeline: prefilter (deterministic, recall-first) → inspect (Haiku, extract
+repo + vulnerable_files + languages) → route → finder (Sonnet). See docs/mine-filters Issue C.
 
-This file so far = the deterministic prefilter: `nvd_universe()` (366k → github-linked ∩ uncovered)
-+ `prefilter()` (recall-first drop of the clearly-non-Python). inspect/route/finder land next.
+This file = the deterministic prefilter (`nvd_universe` + `prefilter`) and `route`; the inspect
+agent is in `mine/inspect.py` and the finder in `mine/find_commit.py`. Wiring them into an
+`NVDSource` (prefilter → inspect → route → finder) lands next.
 """
 
 import json
 import re
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from tqdm import tqdm
 
 from susvibes.core.constants import get_dataset_path
-from susvibes.curate.mine.constants import TARGET_LANG
+from susvibes.curate.mine.constants import TARGET_LANG, LANG_EXTENSIONS
 from susvibes.curate.mine.utils import get_repo_language
-from susvibes.curate.mine.sources.osv import (
-    REF_REPO, GITHUB_NON_OWNER, GITHUB_NON_REPO, known_source_cves,
-    read_osv_fix_commits, OSV_ZIP_PATH)
+from susvibes.curate.mine.sources.utils import REF_REPO, GITHUB_NON_OWNER, GITHUB_NON_REPO
+from susvibes.curate.mine.sources.osv import known_source_cves, read_osv_fix_commits, OSV_ZIP_PATH
 
 NVD_PATH = get_dataset_path('raw_cve') / 'NVD' / 'nvd.jsonl'
 NVD_REPO_LANG_CACHE_PATH = get_dataset_path('raw_cve') / 'NVD' / 'nvd_repo_language.json'
@@ -141,3 +141,28 @@ def prefilter(force=False):
     lang_cache = fetch_repo_languages(repos_to_language(universe), force=force)
     survivors = [cve for cve in universe if not should_drop(cve, lang_cache)]
     return universe, survivors
+
+
+# --- route (code, language-configurable): decide stage2 / drop from the extracted facts ---
+
+TARGET = {TARGET_LANG}                                                   # policy — swap/extend
+EXT_LANG = {ext: lang for lang, exts in LANG_EXTENSIONS.items() for ext in exts}
+
+
+def fix_languages(record) -> set:
+    """The fix's languages, fullest: the extracted `languages` ∪ the languages of the named
+    vulnerable files (extension → language, the bias-free signal)."""
+    from_files = {EXT_LANG[Path(f).suffix] for f in record["vulnerable_files"]
+                  if Path(f).suffix in EXT_LANG}
+    return {lang.lower() for lang in record["languages"]} | from_files
+
+
+def route(record) -> str:
+    """Recall-first routing: no repo → drop; a target-language fix or an undeterminable one →
+    stage2 (the finder); a fix determined to be entirely non-target → drop."""
+    if not record["repo"]:
+        return "drop:no_repo"
+    langs = fix_languages(record)
+    if not langs or (langs & TARGET):
+        return "stage2"
+    return "drop:non_target"

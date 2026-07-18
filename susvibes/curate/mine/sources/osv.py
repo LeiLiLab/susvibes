@@ -10,14 +10,15 @@ cross-language waste of the Morefixes crawl doesn't apply. See docs/mine-filters
 """
 
 import json
-import re
 import zipfile
 
 from tqdm import tqdm
 
 from susvibes.core.constants import get_dataset_path
 from susvibes.core.utils import load_file, save_file
-from susvibes.curate.mine.sources.utils import fetch_github_commit_patch
+from susvibes.curate.mine.sources.utils import (
+    fetch_github_commit_patch, COMMIT_URL, REPO_URL, REF_REPO, FROM_COMMIT,
+    GITHUB_NON_OWNER, GITHUB_NON_REPO)
 from susvibes.curate.mine.sources.morefixes import MorefixesHandler
 from susvibes.curate.mine.sources.reposvul import ReposVulHandler
 from susvibes.curate.mine.utils import split_to_file_patches
@@ -27,19 +28,6 @@ from susvibes.curate.mine.find_commit import finder_threadpool
 OSV_ZIP_PATH = get_dataset_path('raw_cve') / 'OSV' / 'pypi.zip'
 OSV_CACHE_PATH = get_dataset_path('raw_cve') / 'OSV' / 'osv_fixes.jsonl'
 OSV_RESIDUAL_CACHE_PATH = get_dataset_path('raw_cve') / 'OSV' / 'osv_residual_fixes.jsonl'
-
-COMMIT_URL = re.compile(r'https?://github\.com/([^/\s]+)/([^/\s]+)/commit/([0-9a-f]{7,40})')
-REPO_URL = re.compile(r'github\.com/([^/\s]+)/([^/\s]+?)(?:\.git)?/?$')
-REF_REPO = re.compile(r'github\.com/([^/\s]+)/([^/\s?#]+)')
-FROM_COMMIT = re.compile(r'^From ([0-9a-f]{40}) ', re.MULTILINE)
-
-# GitHub first-path segments that are site sections, not repo owners — a `github.com/advisories/
-# GHSA-…` reference URL is the advisory itself, never the project source.
-GITHUB_NON_OWNER = {"advisories", "security", "sponsors", "marketplace", "orgs", "collections",
-                    "topics", "about", "pricing", "settings", "notifications"}
-# Advisory-database repos (`pypa/advisory-database`, `github/advisory-database`, …) are the CVE
-# data source, not the vulnerable project — a reference to one is not a source repo.
-GITHUB_NON_REPO = {"advisory-database", "advisory-db", "security-advisories"}
 
 
 def read_osv_fix_commits(zip_path) -> dict:

@@ -13,6 +13,7 @@ Bedrock config comes from `.env` (`CLAUDE_CODE_USE_BEDROCK=1`, `AWS_BEARER_TOKEN
 """
 
 import json
+import time
 import asyncio
 from pathlib import Path
 
@@ -54,6 +55,10 @@ RETRYABLE_ERRORS = (
 )
 
 
+AGENT_RETRIES = 2               # extra attempts on a retryable failure (the CLI already retries 429/5xx)
+AGENT_BACKOFF_SEC = 30          # exponential backoff base: 30s, 60s, 120s, ... per retry
+
+
 def is_retryable_error(exc) -> bool:
     """Whether an agent-run exception is worth retrying (a transient API/network/subprocess
     failure) rather than terminal (max turns, a refusal). Shared by the finder's per-item retry
@@ -62,7 +67,7 @@ def is_retryable_error(exc) -> bool:
     return any(sub in text for sub in RETRYABLE_ERRORS)
 
 
-def _block_to_dict(block) -> dict:
+def block_to_dict(block) -> dict:
     if isinstance(block, TextBlock):
         return {"type": "text", "text": block.text}
     if isinstance(block, ThinkingBlock):
@@ -75,13 +80,13 @@ def _block_to_dict(block) -> dict:
     return {"type": type(block).__name__}
 
 
-def _message_to_dict(message) -> dict:
+def message_to_dict(message) -> dict:
     if isinstance(message, AssistantMessage):
-        return {"role": "assistant", "content": [_block_to_dict(b) for b in message.content]}
+        return {"role": "assistant", "content": [block_to_dict(b) for b in message.content]}
     if isinstance(message, UserMessage):
         content = message.content
         if not isinstance(content, str):
-            content = [_block_to_dict(b) for b in content]
+            content = [block_to_dict(b) for b in content]
         return {"role": "user", "content": content}
     if isinstance(message, SystemMessage):
         return {"role": "system", "subtype": message.subtype, "data": message.data}
@@ -91,13 +96,13 @@ def _message_to_dict(message) -> dict:
     return {"role": type(message).__name__}
 
 
-async def _run(prompt: str, options: ClaudeAgentOptions, log_path):
+async def run_query(prompt: str, options: ClaudeAgentOptions, log_path):
     trajectory = open(log_path, "w") if log_path else None
     result = None
     try:
         async for message in query(prompt=prompt, options=options):
             if trajectory:
-                trajectory.write(json.dumps(_message_to_dict(message), ensure_ascii=False, default=str) + "\n")
+                trajectory.write(json.dumps(message_to_dict(message), ensure_ascii=False, default=str) + "\n")
                 trajectory.flush()
             if isinstance(message, ResultMessage):
                 result = message
@@ -118,4 +123,20 @@ def run_agent(prompt: str, options: ClaudeAgentOptions, *, log_path=None):
     via `is_retryable_error`."""
     if log_path:
         Path(log_path).parent.mkdir(parents=True, exist_ok=True)
-    return asyncio.run(_run(prompt, options, log_path))
+    return asyncio.run(run_query(prompt, options, log_path))
+
+
+def run_agent_retrying(prompt, options, *, log_path=None,
+                       retries=AGENT_RETRIES, backoff=AGENT_BACKOFF_SEC):
+    """`run_agent` with retries on a retryable failure (exponential backoff). Returns `(output,
+    meta)`: `output` is None on a terminal or retries-exhausted failure; `meta` carries
+    `cost_usd`/`num_turns`, plus an `error` string when the run raised. Shared by the finder and
+    inspect — the per-item worker turns `output is None` into its own miss record."""
+    for attempt in range(retries + 1):
+        try:
+            return run_agent(prompt, options, log_path=log_path)
+        except Exception as e:
+            if is_retryable_error(e) and attempt < retries:
+                time.sleep(backoff * (2 ** attempt))
+                continue
+            return None, {"error": str(e)[:200]}

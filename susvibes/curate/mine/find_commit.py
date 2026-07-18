@@ -11,22 +11,19 @@ always returns a result dict (encoding "not found" as `commit=""`) so the source
 outcome and never pay for the same agent run twice.
 """
 
-import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from tqdm import tqdm
 from claude_agent_sdk import ClaudeAgentOptions
 
 from susvibes.core.agents.claude import (
-    run_agent, is_retryable_error, READONLY_TOOLS, AGENT_ENV, MAX_BUFFER_SIZE)
+    run_agent_retrying, READONLY_TOOLS, AGENT_ENV, MAX_BUFFER_SIZE)
 from susvibes.curate.constants import get_log_dir
 from susvibes.curate.mine.clone import finder_clone
 
 FINDER_MODEL = "us.anthropic.claude-sonnet-5"
 FINDER_WORKERS = 8
 FINDER_MAX_TURNS = 50
-FINDER_RETRIES = 2               # extra attempts on a retryable failure (CLI already retries 429/5xx)
-FINDER_BACKOFF_SEC = 30          # exponential backoff base: 30s, 60s, 120s, ... per attempt
 
 FINDER_SCHEMA = {
     "type": "object",
@@ -100,7 +97,7 @@ and explain why in fact_evidence.
 """
 
 
-def _finder_hints(record) -> str:
+def finder_hints(record) -> str:
     lines = []
     if record.get("fixed_versions"):
         lines.append(f"Fixed in version(s): {', '.join(record['fixed_versions'])}")
@@ -109,22 +106,22 @@ def _finder_hints(record) -> str:
     return "\n".join(lines) + "\n" if lines else ""
 
 
-def _miss(record, error):
+def finder_miss(record, error, meta=None):
     """A finder result that pinned nothing. `error=None` is a real "no fix in this repo" (final,
     yielded past); a set `error` is an aborted run (clone/agent failure) that `resume` re-runs."""
     return {**record, "commit": "", "multi_commit": False, "fact_tier": 0,
-            "fact_evidence": "", "source": "", "error": error, "_meta": {}}
+            "fact_evidence": "", "source": "", "error": error, "_meta": meta or {}}
 
 
 def finder_single(record, run_id):
-    """Pin the fix commit for one CVE, retrying a retryable agent failure up to FINDER_RETRIES
-    times. Returns the record merged with the finder's output (`commit`/`multi_commit`/`fact_tier`/
-    `fact_evidence`/`source`) plus `error` and `_meta` (cost/turns). `commit=""` with `error=None`
-    is a real miss (final); `commit=""` with `error` set is an aborted run that `resume` re-runs."""
+    """Pin the fix commit for one CVE (retryable failures retried under the hood). Returns the
+    record merged with the finder's output (`commit`/`multi_commit`/`fact_tier`/`fact_evidence`/
+    `source`) plus `error` and `_meta` (cost/turns). `commit=""` with `error=None` is a real miss
+    (final); `commit=""` with `error` set is an aborted run that `resume` re-runs."""
     project = f"{record['owner']}/{record['repo']}".lower()
     repo_dir = finder_clone(project)
     if repo_dir is None:
-        return _miss(record, f"clone failed: {project}")
+        return finder_miss(record, f"clone failed: {project}")
     options = ClaudeAgentOptions(
         model=FINDER_MODEL,
         allowed_tools=READONLY_TOOLS,
@@ -136,20 +133,13 @@ def finder_single(record, run_id):
     )
     prompt = FINDER_PROMPT.format(
         cve_id=record["cve_id"], ghsa=record.get("ghsa", ""),
-        repo=project, hints=_finder_hints(record),
+        repo=project, hints=finder_hints(record),
     )
     log_path = get_log_dir(run_id, "mine", "find_commit") / record["cve_id"] / "trajectory.jsonl"
-    for attempt in range(FINDER_RETRIES + 1):
-        try:
-            output, meta = run_agent(prompt, options, log_path=log_path)
-        except Exception as e:
-            if is_retryable_error(e) and attempt < FINDER_RETRIES:
-                time.sleep(FINDER_BACKOFF_SEC * (2 ** attempt))
-                continue
-            return _miss(record, str(e)[:200])
-        if output is None:
-            return _miss(record, "agent produced no result")
-        return {**record, **output, "error": None, "_meta": meta}
+    output, meta = run_agent_retrying(prompt, options, log_path=log_path)
+    if output is None:
+        return finder_miss(record, meta.get("error", "agent produced no result"), meta)
+    return {**record, **output, "error": None, "_meta": meta}
 
 
 def finder_threadpool(records, run_id, max_workers=FINDER_WORKERS):
