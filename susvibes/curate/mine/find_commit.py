@@ -131,6 +131,9 @@ def finder_single(record, run_id):
         model=FINDER_MODEL,
         system_prompt=FINDER_SYSTEM,
         allowed_tools=READONLY_TOOLS,
+        setting_sources=[],                     # don't load the project's interactive settings/hooks
+        permission_mode="bypassPermissions",    # free the read-only git/curl calls (PR merge_commit_sha
+                                                 # via the GitHub API) that default mode blocks on approval
         cwd=str(repo_dir),
         max_turns=FINDER_MAX_TURNS,
         max_buffer_size=MAX_BUFFER_SIZE,
