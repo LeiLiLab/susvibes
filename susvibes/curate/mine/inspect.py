@@ -1,8 +1,11 @@
-"""M3 inspect stage — a cheap Haiku agent that, per NVD CVE, reads the advisory (web only, no
-clone) and extracts the vulnerable project's repo, the advisory-named vulnerable files, and the
-fix's language(s). Pure fact extraction: it makes no keep/drop decision — `nvd.route` does that
-from these facts. Parallels `find_commit.py` (the finder agent); `sources/nvd.py` orchestrates
-prefilter → inspect → route → finder.
+"""M3 inspect stage — a cheap Haiku agent that, per NVD CVE, resolves the vulnerable project's real
+GitHub source repo (web search + WebFetch, no clone), plus the advisory-named vulnerable files and
+the fix's language(s). The core job is finding the REAL source repo: an NVD reference is often a
+PoC/writeup/advisory-tracking repo, not the source, so inspect searches for the actual project.
+It works from the raw NVD description + references — NOT the prefilter's filtered repo guess (the
+prefilter is only a conservative screen). Pure fact extraction, no keep/drop decision — `nvd.route`
+does that. Parallels `find_commit.py`; `sources/nvd.py` orchestrates prefilter → inspect → route →
+finder.
 """
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -14,22 +17,19 @@ from susvibes.core.agents.claude import run_agent_retrying, AGENT_ENV, MAX_BUFFE
 from susvibes.curate.constants import get_log_dir
 
 INSPECT_MODEL = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
-INSPECT_TOOLS = ["WebFetch"]
+INSPECT_TOOLS = ["WebSearch", "WebFetch"]     # SEARCH is essential: the NVD ref is often not the source
 INSPECT_WORKERS = 12
-INSPECT_MAX_TURNS = 30
+INSPECT_MAX_TURNS = 50
 
 INSPECT_SCHEMA = {
     "type": "object",
     "properties": {
         "repo": {
             "type": "string",
-            "description": "the vulnerable project's GitHub source repo as \"owner/name\", or \"\" "
-                           "if there is only a PoC/writeup dump or no GitHub source",
-        },
-        "is_poc_only_ref": {
-            "type": "boolean",
-            "description": "true if the only GitHub reference is a PoC/writeup/exploit dump, not "
-                           "the project source",
+            "description": "the vulnerable PROJECT's own GitHub source repo as \"owner/name\", "
+                           "resolved by web search when the NVD reference is a PoC/writeup/"
+                           "advisory-tracking repo; \"\" only if the project has no public GitHub "
+                           "source",
         },
         "vulnerable_files": {
             "type": "array", "items": {"type": "string"},
@@ -39,58 +39,65 @@ INSPECT_SCHEMA = {
         "languages": {
             "type": "array", "items": {"type": "string"},
             "description": "the FIX's language(s), as complete as possible — from vulnerable_files' "
-                           "extensions first, else the repo's major languages; [] only if truly "
-                           "undeterminable",
+                           "extensions first, else the real repo's major languages; [] only if "
+                           "truly undeterminable",
         },
-        "reason": {"type": "string", "description": "brief justification citing what you read"},
+        "reason": {"type": "string", "description": "brief justification citing what you read/found"},
     },
-    "required": ["repo", "is_poc_only_ref", "vulnerable_files", "languages", "reason"],
+    "required": ["repo", "vulnerable_files", "languages", "reason"],
     "additionalProperties": False,
 }
 
-INSPECT_PROMPT = """\
-Extract facts about a CVE from its public advisory — do NOT guess, and you have web access only \
-(no repository clone). Read the NVD page and the referenced pages (advisory, PR, issue, repo).
+INSPECT_SYSTEM = """\
+You find the real GitHub source repository of the vulnerable project in a CVE, plus the fix's \
+language(s) and any advisory-named vulnerable files. Use the web — the references you are given, the \
+advisory, the project's homepage, GitHub search. Do not clone anything.
 
+A reference is often NOT the project's source — a PoC, an exploit, a writeup, or an \
+advisory-tracking repo. Work out the actual affected project and find ITS GitHub source, searching \
+the web when the references don't point there. Return "" for repo only if the project has no public \
+GitHub source at all (proprietary, on-chain contract, SVN/hg-only, firmware). Report facts only.
+"""
+
+INSPECT_USER = """\
 CVE: {cve_id}
-NVD description: {desc}
-GitHub URLs referenced by NVD: {repos}
-
-Report:
-1. repo — the vulnerable PROJECT's GitHub source repo as "owner/name". NOT a PoC/writeup/exploit \
-dump, NOT an advisory-database. If the only GitHub reference is a PoC/exploit repo, or the project \
-has no GitHub source, return "".
-2. is_poc_only_ref — true if the referenced GitHub repo(s) are only PoC/writeup/exploit dumps.
-3. vulnerable_files — the file paths the advisory/NVD names as vulnerable or fixed, VERBATIM (e.g. \
-"lib/parser/xml.py"). [] if none are named.
-4. languages — the language(s) of the FIX, as complete as possible: derive from the \
-vulnerable_files' extensions first; if none are named, the repo's major languages. [] only if \
-truly undeterminable. Describe the fix, not just the repo.
-
-Report facts only — do NOT decide whether this CVE is kept or dropped; that happens downstream.
+Description: {desc}
+NVD references:
+{refs}
 """
 
 
 def inspect_miss(record, error, meta):
-    """An inspect result that extracted nothing (aborted run). `error` set → `resume` re-runs it."""
-    return {**record, "repo": "", "is_poc_only_ref": False, "vulnerable_files": [],
-            "languages": [], "reason": "", "error": error, "_meta": meta or {}}
+    """An inspect result that resolved nothing (aborted run). `error` set → `resume` re-runs it."""
+    return {**record, "repo": "", "vulnerable_files": [], "languages": [], "reason": "",
+            "error": error, "_meta": meta or {}}
+
+
+def _refs_block(refs) -> str:
+    """The raw NVD references (url + tags) as prompt lines — NVD's own data, not the prefilter's
+    filtered repo guess, so inspect resolves the real repo independently."""
+    lines = []
+    for ref in refs:
+        tags = f"  [{', '.join(ref['tags'])}]" if ref.get("tags") else ""
+        lines.append(f"  {ref['url']}{tags}")
+    return "\n".join(lines) or "  (none)"
 
 
 def inspect_single(record, run_id):
-    """Extract `{repo, is_poc_only_ref, vulnerable_files, languages}` for one NVD CVE from its
-    advisory (Haiku, web-only, no clone; retryable failures retried). Always returns the record
-    merged with the output plus `error`/`_meta`, so the outcome is cacheable and resumable."""
+    """Resolve `{repo, vulnerable_files, languages}` for one NVD CVE from its advisory + web search
+    (Haiku, no clone; retryable failures retried). Always returns the record merged with the output
+    plus `error`/`_meta`, so the outcome is cacheable and resumable."""
     options = ClaudeAgentOptions(
         model=INSPECT_MODEL,
+        system_prompt=INSPECT_SYSTEM,
         allowed_tools=INSPECT_TOOLS,
         max_turns=INSPECT_MAX_TURNS,
         max_buffer_size=MAX_BUFFER_SIZE,
         env=AGENT_ENV,
         output_format={"type": "json_schema", "schema": INSPECT_SCHEMA},
     )
-    repos = ", ".join(f"{owner}/{repo}" for owner, repo in record["repos"])
-    prompt = INSPECT_PROMPT.format(cve_id=record["cve_id"], desc=record["desc"], repos=repos)
+    prompt = INSPECT_USER.format(
+        cve_id=record["cve_id"], desc=record["desc"], refs=_refs_block(record["refs"]))
     log_path = get_log_dir(run_id, "mine", "inspect") / record["cve_id"] / "trajectory.jsonl"
     output, meta = run_agent_retrying(prompt, options, log_path=log_path)
     if output is None:

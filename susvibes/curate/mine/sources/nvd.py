@@ -90,7 +90,8 @@ def nvd_universe() -> list:
             "cve_id": record["id"],
             "desc": record.get("desc", ""),
             "cwe_ids": record.get("cwe_ids", []),
-            "repos": repos,
+            "repos": repos,                          # filtered github repos — prefilter's own use
+            "refs": record.get("refs", []),          # raw NVD references — inspect resolves the repo
             "cpe_products": record.get("cpe_products", []),
         })
     return universe
@@ -169,8 +170,9 @@ def fix_languages(record) -> set:
 
 
 def route(record) -> str:
-    """Recall-first routing: no repo → drop; a target-language fix or an undeterminable one →
-    stage2 (the finder); a fix determined to be entirely non-target → drop."""
+    """Recall-first routing: no real source repo → drop; a target-language fix or an undeterminable
+    one → stage2 (the finder); a fix determined to be entirely non-target → drop. `repo` is the
+    real project source inspect resolved (searching past a PoC/disclosure NVD ref), "" if none."""
     if not record["repo"]:
         return "drop:no_repo"
     langs = fix_languages(record)

@@ -57,18 +57,14 @@ FINDER_SCHEMA = {
     "additionalProperties": False,
 }
 
-FINDER_PROMPT = """\
+FINDER_SYSTEM = """\
 Find the single upstream fix commit for a known CVE in ONE specific git repository, by FACT — not \
 by reasoning about whether a diff "looks like" a fix.
 
-CVE: {cve_id}
-GitHub advisory (GHSA): {ghsa}
-Repository: {repo} (cloned at the current working directory)
-{hints}
-Pin the commit on this repository's default branch that ships the fix, backed by a verifiable \
-fact. Work ONLY within this repository — its local clone plus this same repo's GitHub \
-advisory/PR/API pages for freshness. Do NOT search other repositories and do NOT go looking for a \
-different repo; if the fix is not in THIS repository, return commit="".
+Pin the commit on the repository's default branch that ships the fix, backed by a verifiable fact. \
+Work ONLY within this repository — its local clone (your current working directory) plus this same \
+repo's GitHub advisory/PR/API pages for freshness. Do NOT search other repositories and do NOT go \
+looking for a different repo; if the fix is not in this repository, return commit="".
 
 The clone is read-only and may be a blobless/bare mirror: use history commands only (git log, \
 git show, git grep <rev>, git tag --contains, git cat-file, git merge-base). Do NOT run git \
@@ -85,7 +81,7 @@ history for THAT, and cross-check the candidate is contained in the named fixed-
 vulnerable path.
 5. The advisory or NVD references the commit URL directly.
 
-The GHSA id and any fixed version above are LEADS, not ground truth — if the repository \
+The GHSA id and any fixed version given are LEADS, not ground truth — if the repository \
 contradicts them, trust the repository.
 
 Multi-commit rule: return the SINGLE primary fix commit on the default/main branch. Collapse \
@@ -96,6 +92,12 @@ changes (e.g. two separate PRs fixing two parts) that cannot be reduced to one c
 Return the full 40-character sha. If no fact in this repository pins a commit, return commit="" \
 and explain why in fact_evidence.
 """
+
+FINDER_USER = """\
+CVE: {cve_id}
+GitHub advisory (GHSA): {ghsa}
+Repository: {repo} (cloned at the current working directory)
+{hints}"""
 
 
 def finder_hints(record) -> str:
@@ -127,6 +129,7 @@ def finder_single(record, run_id):
         return finder_miss(record, f"clone failed: {project}")
     options = ClaudeAgentOptions(
         model=FINDER_MODEL,
+        system_prompt=FINDER_SYSTEM,
         allowed_tools=READONLY_TOOLS,
         cwd=str(repo_dir),
         max_turns=FINDER_MAX_TURNS,
@@ -134,7 +137,7 @@ def finder_single(record, run_id):
         env=AGENT_ENV,
         output_format={"type": "json_schema", "schema": FINDER_SCHEMA},
     )
-    prompt = FINDER_PROMPT.format(
+    prompt = FINDER_USER.format(
         cve_id=record["cve_id"], ghsa=record.get("ghsa", ""),
         repo=project, hints=finder_hints(record),
     )
