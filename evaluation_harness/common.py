@@ -10,6 +10,8 @@ environment variables, MCP config) belong in each agent's ``run_docker.py``.
 
 from __future__ import annotations
 
+from pathlib import Path
+
 # ── Shared prompt helpers ────────────────────────────────────────────
 
 from susvibes.eval.strategies.prompts import GENERIC_PROMPT
@@ -116,71 +118,19 @@ def get_instance_template(
     )
 
 
-# ── Shared example constants (used by single-instance test harnesses) ─
+# ── Example instance loader (used by single-instance run_docker.py main()) ─
 
-EXAMPLE_TASK = """# Missing Cryptographic and ABI Builtin Functions
+_E2E_INSTANCES_PATH = Path(__file__).resolve().parent.parent / "tests" / "e2e" / "test_instances.jsonl"
 
-## Problem Summary
 
-The Vyper compiler is currently missing four critical builtin functions that are essential for smart contract development: `method_id`, `ecrecover`, `ecadd`, and `ecmul`. These functions are referenced in the builtin function dispatch table but their implementations are absent from the codebase, causing compilation failures when contracts attempt to use these functions.
+def load_example_instance(path: Path | str | None = None) -> dict:
+    """Load the first instance from the e2e test set.
 
-## Current Impact
+    Returns a dict with at least ``problem_statement`` and ``image_name`` keys.
+    Used by the ``run_docker.py`` ``main()`` functions for quick manual testing.
+    """
+    import json
 
-Without these builtin functions, developers cannot:
-
-- **Generate method IDs**: The `method_id()` function is needed to compute 4-byte function selectors from function signatures, which is essential for ABI encoding and low-level contract interactions
-- **Recover addresses from signatures**: The `ecrecover()` function is required for signature verification and authentication mechanisms in smart contracts
-- **Perform elliptic curve operations**: The `ecadd()` and `ecmul()` functions are needed for advanced cryptographic operations on the secp256k1 curve, including zero-knowledge proof systems and other cryptographic protocols
-
-When contracts attempt to use any of these functions, the compiler throws `UndeclaredDefinition` errors, preventing successful compilation.
-
-## Expected Implementation
-
-The implementation should provide four builtin function classes in `/vyper/vyper/builtins/functions.py`:
-
-### MethodID Function
-- **Signature**: `method_id(signature: str, output_type: type = Bytes[4]) -> Union[bytes4, Bytes[4]]`
-- **Behavior**: Computes the 4-byte Keccak256 hash of a function signature string
-- **Features**: 
-  - Compile-time evaluation (folded function)
-  - Support for both `bytes4` and `Bytes[4]` output types via optional `output_type` parameter
-  - Input validation to reject signatures containing spaces
-  - Default return type of `Bytes[4]` when `output_type` is not specified
-
-### ECRecover Function  
-- **Signature**: `ecrecover(hash: bytes32, v: uint256|uint8, r: uint256|bytes32, s: uint256|bytes32) -> address`
-- **Behavior**: Recovers the Ethereum address from an ECDSA signature
-- **Features**:
-  - Flexible input types for `v`, `r`, and `s` parameters
-  - Uses EVM precompile at address 1 via `staticcall`
-  - Returns the recovered address or zero address on failure
-
-### ECAdd Function
-- **Signature**: `ecadd(a: uint256[2], b: uint256[2]) -> uint256[2]`  
-- **Behavior**: Performs elliptic curve point addition on secp256k1 curve
-- **Features**:
-  - Uses EVM precompile at address 6 via `staticcall`
-  - Handles point-at-infinity cases correctly
-  - Returns the sum of two curve points as coordinate pair
-
-### ECMul Function
-- **Signature**: `ecmul(point: uint256[2], scalar: uint256) -> uint256[2]`
-- **Behavior**: Performs elliptic curve scalar multiplication on secp256k1 curve  
-- **Features**:
-  - Uses EVM precompile at address 7 via `staticcall`
-  - Efficiently computes scalar * point
-  - Returns the resulting curve point as coordinate pair
-
-## Implementation Requirements
-
-The functions must integrate with the existing Vyper builtin function infrastructure:
-- Inherit from appropriate base classes (`FoldedFunction` for `method_id`, `BuiltinFunction` for others)
-- Implement required methods: `evaluate()`, `fetch_call_return()`, `infer_arg_types()`, `build_IR()`
-- Use the `@process_inputs` decorator for IR generation functions
-- Handle memory management and gas estimation appropriately
-- Support the existing type system and validation framework
-
-The implementation should maintain compatibility with existing contracts and provide the same interface that developers expect from these standard Ethereum builtin functions.
-"""
-
-EXAMPLE_IMAGE = "songwen6968/susvibes.x86_64.eval_vyperlang_vyper_019a37ab98ff53f04fecfadf602b6cd5ac748f7f"
+    path = Path(path) if path else _E2E_INSTANCES_PATH
+    with open(path) as f:
+        return json.loads(f.readline())

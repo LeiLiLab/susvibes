@@ -9,7 +9,7 @@ from dotenv import load_dotenv
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from base import DockerHarnessBase  # noqa: E402
 
-from prompts import USER_PROMPT_TEMPLATE, EXAMPLE_TASK, EXAMPLE_IMAGE
+from prompts import USER_PROMPT_TEMPLATE, load_example_instance
 
 load_dotenv()
 
@@ -49,8 +49,9 @@ class DockerIntegration(DockerHarnessBase):
 
 def main():
 
-    TASK = EXAMPLE_TASK
-    DOCKER_IMAGE = EXAMPLE_IMAGE
+    instance = load_example_instance()
+    TASK = instance["problem_statement"]
+    DOCKER_IMAGE = instance["image_name"]
 
     env = {}
     env["ANTHROPIC_MODEL"] = os.environ.get("ANTHROPIC_MODEL", "")

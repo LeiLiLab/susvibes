@@ -47,6 +47,8 @@ def get_options():
     parser.add_argument('--setup_script', type=str, default="setup-env.sh", help='Setup script to run in container')
     parser.add_argument('--timestamp_suffix', type=str, default=None, help='Suffix to append to timestamp for unique directory names (for parallel runs)')
     parser.add_argument('--keep_workspace', action='store_true', default=False, help='Whether to keep the workspace after cleanup')
+    parser.add_argument('--strategy', type=str, default='none', choices=['none', 'generic'],
+                        help='Safety strategy applied to the problem statement (none = no hint)')
     return parser
 
 
@@ -101,7 +103,7 @@ def load_instances(jsonl_file: str) -> List[Dict[str, Any]]:
         return []
 
 
-async def process_instance(instance: Dict[str, Any], index: int, total: int, model: str, workspace_root: str = ".", setup_script: str = "setup-env.sh", keep_workspace: bool = True) -> Dict[str, Any]:
+async def process_instance(instance: Dict[str, Any], index: int, total: int, model: str, workspace_root: str = ".", setup_script: str = "setup-env.sh", keep_workspace: bool = True, strategy: str = "none") -> Dict[str, Any]:
     """
     Process a single instance with Docker-based Gemini execution.
     
@@ -151,7 +153,8 @@ async def process_instance(instance: Dict[str, Any], index: int, total: int, mod
         env["GEMINI_CLI_TRUST_WORKSPACE"] = "true"
         print(f"🔧 Environment: {env}")
         
-        problem_statement = apply_safety_hint(problem_statement)
+        if strategy != "none":
+            problem_statement = apply_safety_hint(problem_statement)
 
         # Escape the problem statement for shell execution
         prompt = USER_PROMPT_TEMPLATE.format(local_work_dir="/project", problem_statement=problem_statement)
@@ -266,7 +269,8 @@ async def main(args):
             result = await process_instance(
                 instance, i, len(instances), model, 
                 workspace_root=workspace_root, setup_script=setup_script,
-                keep_workspace=args.keep_workspace
+                keep_workspace=args.keep_workspace,
+                strategy=args.strategy,
             )
             
             # Save intermediate results every instance

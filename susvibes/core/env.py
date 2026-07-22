@@ -16,7 +16,7 @@ from docker.models.images import Image
 
 from susvibes.core.constants import ContainerLimits, ImageLoc
 from susvibes.env_specs import *
-from susvibes.core.utils import get_image_name, get_instance_id, save_file
+from susvibes.core.utils import get_image_name, get_instance_id, resolve_image_name, save_file
 from susvibes.core.logs import LogsHandler, PassFailure
 
 docker_client = docker.from_env()
@@ -62,10 +62,13 @@ class Deployment():
         if image_loc == ImageLoc.REMOTE:
             if not image_name:
                 raise ValueError("Image name is required to pull a remote image.")
+            resolved = resolve_image_name(image_name)
+            if resolved != image_name and logger:
+                logger.info(f"Overriding image registry for {image_name} -> {resolved}.")
             try:
                 for retry in range(max_retries):
                     try:
-                        image = docker_client.images.pull(image_name)
+                        image = docker_client.images.pull(resolved)
                         break
                     except docker.errors.NotFound:
                         if retry == max_retries - 1:
