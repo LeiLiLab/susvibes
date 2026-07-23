@@ -1,3 +1,9 @@
+# pytest emits this banner line when --maxfail stops the session early; treat
+# the run as a premature abort rather than a completed suite.
+PREMATURE_ABORT_PATTERNS = [
+    r'^!+\s*stopping after \d+ failures?\s*!+$',
+]
+
 TEST_SYMBOL_RESOLUTION_ERROR_PATTERNS = [
     r"ImportError: cannot import",
     r"AttributeError:.*?attribute",

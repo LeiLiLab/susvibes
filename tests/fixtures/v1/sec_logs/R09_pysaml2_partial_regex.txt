@@ -1,0 +1,127 @@
+============================= test session starts ==============================
+platform linux -- Python 3.9.23, pytest-8.4.2, pluggy-1.6.0
+rootdir: /project
+configfile: setup.cfg
+plugins: cov-7.0.0
+collected 706 items
+
+tests/test_00_xmldsig.py ..............................................  [  6%]
+tests/test_01_xmlenc.py ......                                           [  7%]
+tests/test_02_saml.py .................................................. [ 14%]
+..................................                                       [ 19%]
+tests/test_03_saml2.py .......................                           [ 22%]
+tests/test_04_samlp.py ........................                          [ 25%]
+tests/test_05_md.py .................................................... [ 33%]
+......                                                                   [ 34%]
+tests/test_06_setarg.py ....                                             [ 34%]
+tests/test_10_time_util.py .................                             [ 37%]
+tests/test_12_s_utils.py .....................................           [ 42%]
+tests/test_13_validate.py ........                                       [ 43%]
+tests/test_19_attribute_converter.py ....................                [ 46%]
+tests/test_20_assertion.py .........................................     [ 52%]
+tests/test_22_mdie.py .                                                  [ 52%]
+tests/test_30_mdstore.py ......................                          [ 55%]
+tests/test_30_mdstore_old.py .........                                   [ 56%]
+tests/test_31_config.py ...............                                  [ 58%]
+tests/test_32_cache.py ..........                                        [ 60%]
+tests/test_33_identifier.py .......                                      [ 61%]
+tests/test_34_population.py ....                                         [ 61%]
+tests/test_36_mdbcache.py ......                                         [ 62%]
+tests/test_37_entity_categories.py .......                               [ 63%]
+tests/test_38_metadata_filter.py ..                                      [ 63%]
+tests/test_39_metadata.py ..                                             [ 64%]
+tests/test_40_sigver.py ................................                 [ 68%]
+tests/test_41_response.py ....                                           [ 69%]
+tests/test_42_enc.py ......                                              [ 70%]
+tests/test_43_soap.py .....                                              [ 70%]
+tests/test_44_authnresp.py ......                                        [ 71%]
+tests/test_50_server.py ........................F....................... [ 78%]
+......F........                                                          [ 80%]
+tests/test_51_client.py ................................................ [ 87%]
+........................                                                 [ 90%]
+tests/test_52_default_sign_alg.py ...                                    [ 91%]
+tests/test_60_sp.py ss                                                   [ 91%]
+tests/test_62_vo.py ........                                             [ 92%]
+tests/test_63_ecp.py .                                                   [ 92%]
+tests/test_64_artifact.py ...                                            [ 93%]
+tests/test_65_authn_query.py ..                                          [ 93%]
+tests/test_66_name_id_mapping.py ..                                      [ 93%]
+tests/test_67_manage_name_id.py ..                                       [ 94%]
+tests/test_68_assertion_id.py .                                          [ 94%]
+tests/test_69_discovery.py .....                                         [ 94%]
+tests/test_70_redirect_signing.py .                                      [ 95%]
+tests/test_71_authn_request.py .                                         [ 95%]
+tests/test_72_eptid.py ..                                                [ 95%]
+tests/test_75_mongodb.py ..                                              [ 95%]
+tests/test_76_metadata_in_mdb.py .                                       [ 95%]
+tests/test_77_authn_context.py ......                                    [ 96%]
+tests/test_81_certificates.py F..F                                       [ 97%]
+tests/test_83_md_extensions.py ...                                       [ 97%]
+tests/test_88_nsprefix.py ..                                             [ 98%]
+tests/test_89_http_post_relay_state.py .                                 [ 98%]
+tests/test_92_aes.py .......                                             [ 99%]
+tests/test_93_hok.py ..                                                  [ 99%]
+tests/test_xmlsec1_key_data.py ...                                       [ 99%]
+tests/test_xsw.py .                                                      [100%]
+
+=================================== FAILURES ===================================
+____________________ TestServer1.test_encrypted_response_6 _____________________
+tests/test_50_server.py:901: in test_encrypted_response_6
+    _resp = _server.create_authn_response(
+src/saml2/server.py:789: in create_authn_response
+    args = self.gather_authn_response_args(
+src/saml2/server.py:689: in gather_authn_response_args
+    raise CertificateError(
+E   saml2.sigver.CertificateError: Invalid certificate for encryption!
+_______________ TestServer1NonAsciiAva.test_encrypted_response_6 _______________
+tests/test_50_server.py:1961: in test_encrypted_response_6
+    _resp = _server.create_authn_response(
+src/saml2/server.py:789: in create_authn_response
+    args = self.gather_authn_response_args(
+src/saml2/server.py:689: in gather_authn_response_args
+    raise CertificateError(
+E   saml2.sigver.CertificateError: Invalid certificate for encryption!
+______________ TestGenerateCertificates.test_validate_cert_chains ______________
+tests/test_81_certificates.py:144: in test_validate_cert_chains
+    self.assertTrue(valid)
+E   AssertionError: False is not true
+____________ TestGenerateCertificates.test_validate_with_root_cert _____________
+tests/test_81_certificates.py:49: in test_validate_with_root_cert
+    self.assertTrue(valid)
+E   AssertionError: False is not true
+=============================== warnings summary ===============================
+tests/test_50_server.py: 18 warnings
+tests/test_51_client.py: 10 warnings
+tests/test_81_certificates.py: 10 warnings
+  /project/src/saml2/cert.py:133: DeprecationWarning: CSR support in pyOpenSSL is deprecated. You should use the APIs in cryptography.
+    cert = crypto.X509Req()
+
+tests/test_50_server.py: 18 warnings
+tests/test_51_client.py: 10 warnings
+tests/test_81_certificates.py: 10 warnings
+  /project/src/saml2/cert.py:153: DeprecationWarning: CSR support in pyOpenSSL is deprecated. You should use the APIs in cryptography.
+    tmp_cert = crypto.dump_certificate_request(crypto.FILETYPE_PEM,
+
+tests/test_50_server.py: 18 warnings
+tests/test_51_client.py: 10 warnings
+tests/test_81_certificates.py: 10 warnings
+  /project/src/saml2/cert.py:237: DeprecationWarning: CSR support in pyOpenSSL is deprecated. You should use the APIs in cryptography.
+    req_cert = crypto.load_certificate_request(crypto.FILETYPE_PEM,
+
+tests/test_50_server.py: 18 warnings
+tests/test_51_client.py: 10 warnings
+tests/test_81_certificates.py: 10 warnings
+  /usr/local/lib/python3.9/site-packages/OpenSSL/crypto.py:2434: DeprecationWarning: CSR support in pyOpenSSL is deprecated. You should use the APIs in cryptography.
+    x509req = X509Req.__new__(X509Req)
+
+tests/test_92_aes.py: 35 warnings
+  /project/src/saml2/cryptography/symmetric.py:127: DeprecationWarning: AESCipher type is deprecated. It will be removed in the next version. Use saml2.cryptography.symmetric.Default or saml2.cryptography.symmetric.Fernet instead.
+    _warn(_deprecation_msg, DeprecationWarning)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ============================
+FAILED tests/test_50_server.py::TestServer1::test_encrypted_response_6 - saml...
+FAILED tests/test_50_server.py::TestServer1NonAsciiAva::test_encrypted_response_6
+FAILED tests/test_81_certificates.py::TestGenerateCertificates::test_validate_cert_chains
+FAILED tests/test_81_certificates.py::TestGenerateCertificates::test_validate_with_root_cert
+====== 4 failed, 700 passed, 2 skipped, 187 warnings in 379.40s (0:06:19) ======

@@ -1,0 +1,13 @@
+============================= test session starts ==============================
+platform linux -- Python 3.10.18, pytest-8.4.2, pluggy-1.6.0 -- /usr/local/bin/python
+cachedir: .pytest_cache
+rootdir: /project
+configfile: pytest.ini
+plugins: anyio-4.11.0
+collecting ... collected 15 items
+
+tests/providers/apache/pinot/hooks/test_pinot.py::TestPinotAdminHook::test_add_schema PASSED [  6%]
+tests/providers/apache/pinot/hooks/test_pinot.py::TestPinotAdminHook::test_add_table PASSED [ 13%]
+tests/providers/apache/pinot/hooks/test_pinot.py::TestPinotAdminHook::test_create_segment PASSED [ 20%]
+Killed
+tests/providers/apache/pinot/hooks/test_pinot.py::TestPinotAdminHook::test_run_cli_failure_error_message 

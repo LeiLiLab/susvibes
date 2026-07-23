@@ -1,0 +1,736 @@
+/project/src/Products/GenericSetup/upgrade.py:17: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  from pkg_resources import parse_version
+/usr/local/lib/python3.9/site-packages/pkg_resources/__init__.py:3146: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('paste')`.
+Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+  declare_namespace(pkg)
+/usr/local/lib/python3.9/site-packages/pkg_resources/__init__.py:3146: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('Products')`.
+Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+  declare_namespace(pkg)
+/usr/local/lib/python3.9/site-packages/pkg_resources/__init__.py:3146: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('Shared')`.
+Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+  declare_namespace(pkg)
+/usr/local/lib/python3.9/site-packages/pkg_resources/__init__.py:3146: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('Shared.DC')`.
+Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+  declare_namespace(pkg)
+/usr/local/lib/python3.9/site-packages/pkg_resources/__init__.py:2558: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('Shared')`.
+Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+  declare_namespace(parent)
+/usr/local/lib/python3.9/site-packages/pkg_resources/__init__.py:3146: DeprecationWarning: Deprecated call to `pkg_resources.declare_namespace('zmi')`.
+Implementing implicit namespace packages (as specified in PEP 420) is preferred to `pkg_resources.declare_namespace`. See https://setuptools.pypa.io/en/latest/references/keywords.html#keyword-namespace-packages
+  declare_namespace(pkg)
+Running zope.testrunner.layer.UnitTests tests:
+  Set up zope.testrunner.layer.UnitTests in 0.000 seconds.
+
+
+Failure in test test__initProperties_nopurge_base (Products.GenericSetup.tests.test_utils.PropertyManagerHelpersTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_utils.py", line 669, in test__initProperties_nopurge_base
+    self.assertEqual(obj.getProperty('lines3'), (b'Gee', b'Foo', b'Bar'))
+  File "/usr/local/lib/python3.9/unittest/case.py", line 837, in assertEqual
+    assertion_func(first, second, msg=msg)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 1054, in assertTupleEqual
+    self.assertSequenceEqual(tuple1, tuple2, msg, seq_type=tuple)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 1025, in assertSequenceEqual
+    self.fail(msg)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 676, in fail
+    raise self.failureException(msg)
+AssertionError: Tuples differ: ('Foo', 'Gee', b'Foo', b'Bar') != (b'Gee', b'Foo', b'Bar')
+
+First differing element 0:
+'Foo'
+b'Gee'
+
+First tuple contains 1 additional elements.
+First extra element 3:
+b'Bar'
+
+- ('Foo', 'Gee', b'Foo', b'Bar')
+?  ^^^^^^^
+
++ (b'Gee', b'Foo', b'Bar')
+?  ^
+
+
+
+
+Failure in test test__initProperties_nopurge_extension (Products.GenericSetup.tests.test_utils.PropertyManagerHelpersTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_utils.py", line 684, in test__initProperties_nopurge_extension
+    self.assertEqual(obj.getProperty('lines3'), (b'Gee', b'Foo', b'Bar'))
+  File "/usr/local/lib/python3.9/unittest/case.py", line 837, in assertEqual
+    assertion_func(first, second, msg=msg)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 1054, in assertTupleEqual
+    self.assertSequenceEqual(tuple1, tuple2, msg, seq_type=tuple)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 1025, in assertSequenceEqual
+    self.fail(msg)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 676, in fail
+    raise self.failureException(msg)
+AssertionError: Tuples differ: ('Foo', 'Gee', b'Foo', b'Bar') != (b'Gee', b'Foo', b'Bar')
+
+First differing element 0:
+'Foo'
+b'Gee'
+
+First tuple contains 1 additional elements.
+First extra element 3:
+b'Bar'
+
+- ('Foo', 'Gee', b'Foo', b'Bar')
+?  ^^^^^^^
+
++ (b'Gee', b'Foo', b'Bar')
+?  ^
+
+
+
+
+Failure in test test_initProperties_remove_elements (Products.GenericSetup.tests.test_utils.PropertyManagerHelpersTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_utils.py", line 696, in test_initProperties_remove_elements
+    self.assertEqual(obj.getProperty('lines1'), (b'Gee', b'Bar'))
+  File "/usr/local/lib/python3.9/unittest/case.py", line 837, in assertEqual
+    assertion_func(first, second, msg=msg)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 1054, in assertTupleEqual
+    self.assertSequenceEqual(tuple1, tuple2, msg, seq_type=tuple)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 1025, in assertSequenceEqual
+    self.fail(msg)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 676, in fail
+    raise self.failureException(msg)
+AssertionError: Tuples differ: ('Foo', 'Gee', b'Bar') != (b'Gee', b'Bar')
+
+First differing element 0:
+'Foo'
+b'Gee'
+
+First tuple contains 1 additional elements.
+First extra element 2:
+b'Bar'
+
+- ('Foo', 'Gee', b'Bar')
+?  ^^^^^^^
+
++ (b'Gee', b'Bar')
+?  ^
+
+
+
+
+Failure in test test__initProperties_nopurge_base (Products.GenericSetup.tests.test_utils.PropertyManagerHelpersNonPMContextTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_utils.py", line 669, in test__initProperties_nopurge_base
+    self.assertEqual(obj.getProperty('lines3'), (b'Gee', b'Foo', b'Bar'))
+  File "/usr/local/lib/python3.9/unittest/case.py", line 837, in assertEqual
+    assertion_func(first, second, msg=msg)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 1054, in assertTupleEqual
+    self.assertSequenceEqual(tuple1, tuple2, msg, seq_type=tuple)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 1025, in assertSequenceEqual
+    self.fail(msg)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 676, in fail
+    raise self.failureException(msg)
+AssertionError: Tuples differ: ('Foo', 'Gee', b'Foo', b'Bar') != (b'Gee', b'Foo', b'Bar')
+
+First differing element 0:
+'Foo'
+b'Gee'
+
+First tuple contains 1 additional elements.
+First extra element 3:
+b'Bar'
+
+- ('Foo', 'Gee', b'Foo', b'Bar')
+?  ^^^^^^^
+
++ (b'Gee', b'Foo', b'Bar')
+?  ^
+
+
+
+
+Failure in test test__initProperties_nopurge_extension (Products.GenericSetup.tests.test_utils.PropertyManagerHelpersNonPMContextTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_utils.py", line 684, in test__initProperties_nopurge_extension
+    self.assertEqual(obj.getProperty('lines3'), (b'Gee', b'Foo', b'Bar'))
+  File "/usr/local/lib/python3.9/unittest/case.py", line 837, in assertEqual
+    assertion_func(first, second, msg=msg)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 1054, in assertTupleEqual
+    self.assertSequenceEqual(tuple1, tuple2, msg, seq_type=tuple)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 1025, in assertSequenceEqual
+    self.fail(msg)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 676, in fail
+    raise self.failureException(msg)
+AssertionError: Tuples differ: ('Foo', 'Gee', b'Foo', b'Bar') != (b'Gee', b'Foo', b'Bar')
+
+First differing element 0:
+'Foo'
+b'Gee'
+
+First tuple contains 1 additional elements.
+First extra element 3:
+b'Bar'
+
+- ('Foo', 'Gee', b'Foo', b'Bar')
+?  ^^^^^^^
+
++ (b'Gee', b'Foo', b'Bar')
+?  ^
+
+
+
+
+Failure in test test_initProperties_remove_elements (Products.GenericSetup.tests.test_utils.PropertyManagerHelpersNonPMContextTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_utils.py", line 696, in test_initProperties_remove_elements
+    self.assertEqual(obj.getProperty('lines1'), (b'Gee', b'Bar'))
+  File "/usr/local/lib/python3.9/unittest/case.py", line 837, in assertEqual
+    assertion_func(first, second, msg=msg)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 1054, in assertTupleEqual
+    self.assertSequenceEqual(tuple1, tuple2, msg, seq_type=tuple)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 1025, in assertSequenceEqual
+    self.fail(msg)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 676, in fail
+    raise self.failureException(msg)
+AssertionError: Tuples differ: ('Foo', 'Gee', b'Bar') != (b'Gee', b'Bar')
+
+First differing element 0:
+'Foo'
+b'Gee'
+
+First tuple contains 1 additional elements.
+First extra element 2:
+b'Bar'
+
+- ('Foo', 'Gee', b'Bar')
+?  ^^^^^^^
+
++ (b'Gee', b'Bar')
+?  ^
+
+
+
+
+Failure in test /project/src/Products/GenericSetup/tests/upgrade.txt
+Failed doctest test for upgrade.txt
+  File "/project/src/Products/GenericSetup/tests/upgrade.txt", line 0
+
+----------------------------------------------------------------------
+File "/project/src/Products/GenericSetup/tests/upgrade.txt", line 26, in upgrade.txt
+Failed example:
+    normalize_version(None) < normalize_version('1.1')
+Exception raised:
+    Traceback (most recent call last):
+      File "/usr/local/lib/python3.9/doctest.py", line 1334, in __run
+        exec(compile(example.source, filename, "single",
+      File "<doctest upgrade.txt[1]>", line 1, in <module>
+        normalize_version(None) < normalize_version('1.1')
+      File "/project/src/Products/GenericSetup/upgrade.py", line 30, in normalize_version
+        return parse_version(version)
+      File "/usr/local/lib/python3.9/site-packages/setuptools/_vendor/packaging/version.py", line 202, in __init__
+        raise InvalidVersion(f"Invalid version: {version!r}")
+    packaging.version.InvalidVersion: Invalid version: ''
+----------------------------------------------------------------------
+File "/project/src/Products/GenericSetup/tests/upgrade.txt", line 28, in upgrade.txt
+Failed example:
+    normalize_version('1.1') > normalize_version(None)
+Exception raised:
+    Traceback (most recent call last):
+      File "/usr/local/lib/python3.9/doctest.py", line 1334, in __run
+        exec(compile(example.source, filename, "single",
+      File "<doctest upgrade.txt[2]>", line 1, in <module>
+        normalize_version('1.1') > normalize_version(None)
+      File "/project/src/Products/GenericSetup/upgrade.py", line 30, in normalize_version
+        return parse_version(version)
+      File "/usr/local/lib/python3.9/site-packages/setuptools/_vendor/packaging/version.py", line 202, in __init__
+        raise InvalidVersion(f"Invalid version: {version!r}")
+    packaging.version.InvalidVersion: Invalid version: ''
+----------------------------------------------------------------------
+File "/project/src/Products/GenericSetup/tests/upgrade.txt", line 30, in upgrade.txt
+Failed example:
+    normalize_version('unknown') < normalize_version('1.1')
+Exception raised:
+    Traceback (most recent call last):
+      File "/usr/local/lib/python3.9/doctest.py", line 1334, in __run
+        exec(compile(example.source, filename, "single",
+      File "<doctest upgrade.txt[3]>", line 1, in <module>
+        normalize_version('unknown') < normalize_version('1.1')
+      File "/project/src/Products/GenericSetup/upgrade.py", line 30, in normalize_version
+        return parse_version(version)
+      File "/usr/local/lib/python3.9/site-packages/setuptools/_vendor/packaging/version.py", line 202, in __init__
+        raise InvalidVersion(f"Invalid version: {version!r}")
+    packaging.version.InvalidVersion: Invalid version: 'unknown'
+
+  Ran 101 tests with 7 failures, 0 errors and 0 skipped in 0.552 seconds.
+Running Testing.ZopeTestCase.layer.ZopeLite tests:
+  Tear down zope.testrunner.layer.UnitTests in 0.000 seconds.
+  Set up Testing.ZopeTestCase.layer.ZopeLite in 0.302 seconds.
+  Ran 118 tests with 0 failures, 0 errors and 0 skipped in 0.634 seconds.
+Running Products.GenericSetup.testing.ExportImportZCMLLayer tests:
+  Set up Products.GenericSetup.testing.ExportImportZCMLLayer in 0.535 seconds.
+
+
+Failure in test test_createSnapshot_default (Products.GenericSetup.tests.test_tool.SetupToolTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_tool.py", line 1110, in test_createSnapshot_default
+    self.check_restricted_access(tool.snapshots)
+  File "/project/src/Products/GenericSetup/tests/test_tool.py", line 482, in check_restricted_access
+    self.assertEqual(allowed_roles, ['Manager', 'Owner'])
+  File "/usr/local/lib/python3.9/unittest/case.py", line 837, in assertEqual
+    assertion_func(first, second, msg=msg)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 1043, in assertListEqual
+    self.assertSequenceEqual(list1, list2, msg, seq_type=list)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 1025, in assertSequenceEqual
+    self.fail(msg)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 676, in fail
+    raise self.failureException(msg)
+AssertionError: Lists differ: ['Manager'] != ['Manager', 'Owner']
+
+Second list contains 1 additional elements.
+First extra element 1:
+'Owner'
+
+- ['Manager']
++ ['Manager', 'Owner']
+
+
+
+Error in test test_hasPendingUpgrades (Products.GenericSetup.tests.test_tool.SetupToolTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_tool.py", line 1524, in test_hasPendingUpgrades
+    self.assertEqual(tool.hasPendingUpgrades(), True)
+  File "/project/src/Products/GenericSetup/tool.py", line 1049, in hasPendingUpgrades
+    if self.listUpgrades(profile_id):
+  File "/project/src/Products/GenericSetup/tool.py", line 1016, in listUpgrades
+    upgrades = listUpgradeSteps(self, profile_id, source)
+  File "/project/src/Products/GenericSetup/upgrade.py", line 254, in listUpgradeSteps
+    normsrc = normalize_version(step.source)
+  File "/project/src/Products/GenericSetup/upgrade.py", line 30, in normalize_version
+    return parse_version(version)
+  File "/usr/local/lib/python3.9/site-packages/setuptools/_vendor/packaging/version.py", line 202, in __init__
+    raise InvalidVersion(f"Invalid version: {version!r}")
+packaging.version.InvalidVersion: Invalid version: ''
+
+
+
+Error in test test_listProfilesWithUpgrades (Products.GenericSetup.tests.test_tool.SetupToolTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_tool.py", line 1431, in test_listProfilesWithUpgrades
+    self.assertEqual(tool.listProfilesWithPendingUpgrades(),
+  File "/project/src/Products/GenericSetup/tool.py", line 1066, in listProfilesWithPendingUpgrades
+    if self.listUpgrades(profile_id):
+  File "/project/src/Products/GenericSetup/tool.py", line 1016, in listUpgrades
+    upgrades = listUpgradeSteps(self, profile_id, source)
+  File "/project/src/Products/GenericSetup/upgrade.py", line 254, in listUpgradeSteps
+    normsrc = normalize_version(step.source)
+  File "/project/src/Products/GenericSetup/upgrade.py", line 30, in normalize_version
+    return parse_version(version)
+  File "/usr/local/lib/python3.9/site-packages/setuptools/_vendor/packaging/version.py", line 202, in __init__
+    raise InvalidVersion(f"Invalid version: {version!r}")
+packaging.version.InvalidVersion: Invalid version: ''
+
+
+
+Error in test test_profileVersioning (Products.GenericSetup.tests.test_tool.SetupToolTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_tool.py", line 1319, in test_profileVersioning
+    steps = listUpgradeSteps(tool, profile_id, '1.0')
+  File "/project/src/Products/GenericSetup/upgrade.py", line 254, in listUpgradeSteps
+    normsrc = normalize_version(step.source)
+  File "/project/src/Products/GenericSetup/upgrade.py", line 30, in normalize_version
+    return parse_version(version)
+  File "/usr/local/lib/python3.9/site-packages/setuptools/_vendor/packaging/version.py", line 202, in __init__
+    raise InvalidVersion(f"Invalid version: {version!r}")
+packaging.version.InvalidVersion: Invalid version: ''
+
+
+
+Error in test test_runAllImportStepsFromProfile_empty (Products.GenericSetup.tests.test_tool.SetupToolTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_tool.py", line 420, in test_runAllImportStepsFromProfile_empty
+    result = tool.runAllImportStepsFromProfile('snapshot-dummy')
+  File "/project/src/Products/GenericSetup/tool.py", line 399, in runAllImportStepsFromProfile
+    result = self._runImportStepsFromContext(
+   - __traceback_info__: snapshot-dummy
+  File "/project/src/Products/GenericSetup/tool.py", line 1464, in _runImportStepsFromContext
+    self.applyContext(context)
+  File "/project/src/Products/GenericSetup/tool.py", line 257, in applyContext
+    self._updateImportStepsRegistry(context, encoding)
+  File "/project/src/Products/GenericSetup/tool.py", line 1233, in _updateImportStepsRegistry
+    xml = context.readDataFile(IMPORT_STEPS_XML)
+  File "/project/src/Products/GenericSetup/context.py", line 557, in readDataFile
+    snapshot = self._tool.snapshots._getOb(self._snapshot_id)
+AttributeError: 'SnapshotImportContext' object has no attribute 'snapshots'
+
+
+
+Error in test test_runAllImportStepsFromProfile_inquicksuccession (Products.GenericSetup.tests.test_tool.SetupToolTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_tool.py", line 434, in test_runAllImportStepsFromProfile_inquicksuccession
+    tool.runAllImportStepsFromProfile('snapshot-dummy')
+  File "/project/src/Products/GenericSetup/tool.py", line 399, in runAllImportStepsFromProfile
+    result = self._runImportStepsFromContext(
+   - __traceback_info__: snapshot-dummy
+  File "/project/src/Products/GenericSetup/tool.py", line 1464, in _runImportStepsFromContext
+    self.applyContext(context)
+  File "/project/src/Products/GenericSetup/tool.py", line 257, in applyContext
+    self._updateImportStepsRegistry(context, encoding)
+  File "/project/src/Products/GenericSetup/tool.py", line 1233, in _updateImportStepsRegistry
+    xml = context.readDataFile(IMPORT_STEPS_XML)
+  File "/project/src/Products/GenericSetup/context.py", line 557, in readDataFile
+    snapshot = self._tool.snapshots._getOb(self._snapshot_id)
+AttributeError: 'SnapshotImportContext' object has no attribute 'snapshots'
+
+
+
+Error in test test_runAllImportStepsFromProfile_skipStep (Products.GenericSetup.tests.test_tool.SetupToolTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_tool.py", line 788, in test_runAllImportStepsFromProfile_skipStep
+    result = tool.runAllImportStepsFromProfile(
+  File "/project/src/Products/GenericSetup/tool.py", line 399, in runAllImportStepsFromProfile
+    result = self._runImportStepsFromContext(
+   - __traceback_info__: snapshot-dummy
+  File "/project/src/Products/GenericSetup/tool.py", line 1464, in _runImportStepsFromContext
+    self.applyContext(context)
+  File "/project/src/Products/GenericSetup/tool.py", line 257, in applyContext
+    self._updateImportStepsRegistry(context, encoding)
+  File "/project/src/Products/GenericSetup/tool.py", line 1233, in _updateImportStepsRegistry
+    xml = context.readDataFile(IMPORT_STEPS_XML)
+  File "/project/src/Products/GenericSetup/context.py", line 557, in readDataFile
+    snapshot = self._tool.snapshots._getOb(self._snapshot_id)
+AttributeError: 'SnapshotImportContext' object has no attribute 'snapshots'
+
+
+
+Error in test test_runAllImportStepsFromProfile_sorted_default_purge (Products.GenericSetup.tests.test_tool.SetupToolTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_tool.py", line 456, in test_runAllImportStepsFromProfile_sorted_default_purge
+    result = tool.runAllImportStepsFromProfile(PROFILE_ID)
+  File "/project/src/Products/GenericSetup/tool.py", line 399, in runAllImportStepsFromProfile
+    result = self._runImportStepsFromContext(
+   - __traceback_info__: snapshot-testing
+  File "/project/src/Products/GenericSetup/tool.py", line 1464, in _runImportStepsFromContext
+    self.applyContext(context)
+  File "/project/src/Products/GenericSetup/tool.py", line 257, in applyContext
+    self._updateImportStepsRegistry(context, encoding)
+  File "/project/src/Products/GenericSetup/tool.py", line 1233, in _updateImportStepsRegistry
+    xml = context.readDataFile(IMPORT_STEPS_XML)
+  File "/project/src/Products/GenericSetup/context.py", line 557, in readDataFile
+    snapshot = self._tool.snapshots._getOb(self._snapshot_id)
+AttributeError: 'SnapshotImportContext' object has no attribute 'snapshots'
+
+
+
+Error in test test_runAllImportStepsFromProfile_sorted_explicit_purge (Products.GenericSetup.tests.test_tool.SetupToolTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_tool.py", line 524, in test_runAllImportStepsFromProfile_sorted_explicit_purge
+    result = tool.runAllImportStepsFromProfile('snapshot-dummy',
+  File "/project/src/Products/GenericSetup/tool.py", line 399, in runAllImportStepsFromProfile
+    result = self._runImportStepsFromContext(
+   - __traceback_info__: snapshot-dummy
+  File "/project/src/Products/GenericSetup/tool.py", line 1464, in _runImportStepsFromContext
+    self.applyContext(context)
+  File "/project/src/Products/GenericSetup/tool.py", line 257, in applyContext
+    self._updateImportStepsRegistry(context, encoding)
+  File "/project/src/Products/GenericSetup/tool.py", line 1233, in _updateImportStepsRegistry
+    xml = context.readDataFile(IMPORT_STEPS_XML)
+  File "/project/src/Products/GenericSetup/context.py", line 557, in readDataFile
+    snapshot = self._tool.snapshots._getOb(self._snapshot_id)
+AttributeError: 'SnapshotImportContext' object has no attribute 'snapshots'
+
+
+
+Error in test test_runAllImportStepsFromProfile_sorted_skip_purge (Products.GenericSetup.tests.test_tool.SetupToolTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_tool.py", line 549, in test_runAllImportStepsFromProfile_sorted_skip_purge
+    result = tool.runAllImportStepsFromProfile('snapshot-dummy',
+  File "/project/src/Products/GenericSetup/tool.py", line 399, in runAllImportStepsFromProfile
+    result = self._runImportStepsFromContext(
+   - __traceback_info__: snapshot-dummy
+  File "/project/src/Products/GenericSetup/tool.py", line 1464, in _runImportStepsFromContext
+    self.applyContext(context)
+  File "/project/src/Products/GenericSetup/tool.py", line 257, in applyContext
+    self._updateImportStepsRegistry(context, encoding)
+  File "/project/src/Products/GenericSetup/tool.py", line 1233, in _updateImportStepsRegistry
+    xml = context.readDataFile(IMPORT_STEPS_XML)
+  File "/project/src/Products/GenericSetup/context.py", line 557, in readDataFile
+    snapshot = self._tool.snapshots._getOb(self._snapshot_id)
+AttributeError: 'SnapshotImportContext' object has no attribute 'snapshots'
+
+
+
+Error in test test_runAllImportStepsFromProfile_unicode_id_creates_reports (Products.GenericSetup.tests.test_tool.SetupToolTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_tool.py", line 499, in test_runAllImportStepsFromProfile_unicode_id_creates_reports
+    tool.runAllImportStepsFromProfile(PROFILE_ID)
+  File "/project/src/Products/GenericSetup/tool.py", line 399, in runAllImportStepsFromProfile
+    result = self._runImportStepsFromContext(
+   - __traceback_info__: snapshot-testing
+  File "/project/src/Products/GenericSetup/tool.py", line 1464, in _runImportStepsFromContext
+    self.applyContext(context)
+  File "/project/src/Products/GenericSetup/tool.py", line 257, in applyContext
+    self._updateImportStepsRegistry(context, encoding)
+  File "/project/src/Products/GenericSetup/tool.py", line 1233, in _updateImportStepsRegistry
+    xml = context.readDataFile(IMPORT_STEPS_XML)
+  File "/project/src/Products/GenericSetup/context.py", line 557, in readDataFile
+    snapshot = self._tool.snapshots._getOb(self._snapshot_id)
+AttributeError: 'SnapshotImportContext' object has no attribute 'snapshots'
+
+
+
+Error in test test_runImportStepFromProfile_consistent_context (Products.GenericSetup.tests.test_tool.SetupToolTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_tool.py", line 411, in test_runImportStepFromProfile_consistent_context
+    tool.runImportStepFromProfile('snapshot-dummy', 'dependent',
+  File "/project/src/Products/GenericSetup/tool.py", line 349, in runImportStepFromProfile
+    self.applyContext(context)
+  File "/project/src/Products/GenericSetup/tool.py", line 257, in applyContext
+    self._updateImportStepsRegistry(context, encoding)
+  File "/project/src/Products/GenericSetup/tool.py", line 1233, in _updateImportStepsRegistry
+    xml = context.readDataFile(IMPORT_STEPS_XML)
+  File "/project/src/Products/GenericSetup/context.py", line 557, in readDataFile
+    snapshot = self._tool.snapshots._getOb(self._snapshot_id)
+AttributeError: 'SnapshotImportContext' object has no attribute 'snapshots'
+
+
+
+Error in test test_runImportStepFromProfile_default_purge (Products.GenericSetup.tests.test_tool.SetupToolTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_tool.py", line 361, in test_runImportStepFromProfile_default_purge
+    result = tool.runImportStepFromProfile('snapshot-dummy', 'purging')
+  File "/project/src/Products/GenericSetup/tool.py", line 349, in runImportStepFromProfile
+    self.applyContext(context)
+  File "/project/src/Products/GenericSetup/tool.py", line 257, in applyContext
+    self._updateImportStepsRegistry(context, encoding)
+  File "/project/src/Products/GenericSetup/tool.py", line 1233, in _updateImportStepsRegistry
+    xml = context.readDataFile(IMPORT_STEPS_XML)
+  File "/project/src/Products/GenericSetup/context.py", line 557, in readDataFile
+    snapshot = self._tool.snapshots._getOb(self._snapshot_id)
+AttributeError: 'SnapshotImportContext' object has no attribute 'snapshots'
+
+
+
+Error in test test_runImportStepFromProfile_dependencies (Products.GenericSetup.tests.test_tool.SetupToolTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_tool.py", line 294, in test_runImportStepFromProfile_dependencies
+    result = tool.runImportStepFromProfile('snapshot-dummy', 'dependent')
+  File "/project/src/Products/GenericSetup/tool.py", line 349, in runImportStepFromProfile
+    self.applyContext(context)
+  File "/project/src/Products/GenericSetup/tool.py", line 257, in applyContext
+    self._updateImportStepsRegistry(context, encoding)
+  File "/project/src/Products/GenericSetup/tool.py", line 1233, in _updateImportStepsRegistry
+    xml = context.readDataFile(IMPORT_STEPS_XML)
+  File "/project/src/Products/GenericSetup/context.py", line 557, in readDataFile
+    snapshot = self._tool.snapshots._getOb(self._snapshot_id)
+AttributeError: 'SnapshotImportContext' object has no attribute 'snapshots'
+
+
+
+Error in test test_runImportStepFromProfile_explicit_purge (Products.GenericSetup.tests.test_tool.SetupToolTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_tool.py", line 376, in test_runImportStepFromProfile_explicit_purge
+    result = tool.runImportStepFromProfile('snapshot-dummy', 'purging',
+  File "/project/src/Products/GenericSetup/tool.py", line 349, in runImportStepFromProfile
+    self.applyContext(context)
+  File "/project/src/Products/GenericSetup/tool.py", line 257, in applyContext
+    self._updateImportStepsRegistry(context, encoding)
+  File "/project/src/Products/GenericSetup/tool.py", line 1233, in _updateImportStepsRegistry
+    xml = context.readDataFile(IMPORT_STEPS_XML)
+  File "/project/src/Products/GenericSetup/context.py", line 557, in readDataFile
+    snapshot = self._tool.snapshots._getOb(self._snapshot_id)
+AttributeError: 'SnapshotImportContext' object has no attribute 'snapshots'
+
+
+
+Error in test test_runImportStepFromProfile_simple (Products.GenericSetup.tests.test_tool.SetupToolTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_tool.py", line 261, in test_runImportStepFromProfile_simple
+    result = tool.runImportStepFromProfile('snapshot-dummy', 'simple')
+  File "/project/src/Products/GenericSetup/tool.py", line 349, in runImportStepFromProfile
+    self.applyContext(context)
+  File "/project/src/Products/GenericSetup/tool.py", line 257, in applyContext
+    self._updateImportStepsRegistry(context, encoding)
+  File "/project/src/Products/GenericSetup/tool.py", line 1233, in _updateImportStepsRegistry
+    xml = context.readDataFile(IMPORT_STEPS_XML)
+  File "/project/src/Products/GenericSetup/context.py", line 557, in readDataFile
+    snapshot = self._tool.snapshots._getOb(self._snapshot_id)
+AttributeError: 'SnapshotImportContext' object has no attribute 'snapshots'
+
+
+
+Error in test test_runImportStepFromProfile_skip_dependencies (Products.GenericSetup.tests.test_tool.SetupToolTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_tool.py", line 331, in test_runImportStepFromProfile_skip_dependencies
+    result = tool.runImportStepFromProfile('snapshot-dummy', 'dependent',
+  File "/project/src/Products/GenericSetup/tool.py", line 349, in runImportStepFromProfile
+    self.applyContext(context)
+  File "/project/src/Products/GenericSetup/tool.py", line 257, in applyContext
+    self._updateImportStepsRegistry(context, encoding)
+  File "/project/src/Products/GenericSetup/tool.py", line 1233, in _updateImportStepsRegistry
+    xml = context.readDataFile(IMPORT_STEPS_XML)
+  File "/project/src/Products/GenericSetup/context.py", line 557, in readDataFile
+    snapshot = self._tool.snapshots._getOb(self._snapshot_id)
+AttributeError: 'SnapshotImportContext' object has no attribute 'snapshots'
+
+
+
+Error in test test_runImportStepFromProfile_skip_purge (Products.GenericSetup.tests.test_tool.SetupToolTests)
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.9/unittest/case.py", line 59, in testPartExecutor
+    yield
+  File "/usr/local/lib/python3.9/unittest/case.py", line 592, in run
+    self._callTestMethod(testMethod)
+  File "/usr/local/lib/python3.9/unittest/case.py", line 550, in _callTestMethod
+    method()
+  File "/project/src/Products/GenericSetup/tests/test_tool.py", line 392, in test_runImportStepFromProfile_skip_purge
+    result = tool.runImportStepFromProfile('snapshot-dummy', 'purging',
+  File "/project/src/Products/GenericSetup/tool.py", line 349, in runImportStepFromProfile
+    self.applyContext(context)
+  File "/project/src/Products/GenericSetup/tool.py", line 257, in applyContext
+    self._updateImportStepsRegistry(context, encoding)
+  File "/project/src/Products/GenericSetup/tool.py", line 1233, in _updateImportStepsRegistry
+    xml = context.readDataFile(IMPORT_STEPS_XML)
+  File "/project/src/Products/GenericSetup/context.py", line 557, in readDataFile
+    snapshot = self._tool.snapshots._getOb(self._snapshot_id)
+AttributeError: 'SnapshotImportContext' object has no attribute 'snapshots'
+
+  Ran 223 tests with 1 failures, 17 errors and 0 skipped in 3.044 seconds.
+Tearing down left over layers:
+  Tear down Products.GenericSetup.testing.ExportImportZCMLLayer in 0.001 seconds.
+  Tear down Testing.ZopeTestCase.layer.ZopeLite in 0.000 seconds.
+Total: 442 tests, 8 failures, 17 errors and 0 skipped in 5.693 seconds.

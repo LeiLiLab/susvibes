@@ -1,0 +1,684 @@
+[1m============================= test session starts ==============================[0m
+platform linux -- Python 3.8.20, pytest-8.3.5, pluggy-1.5.0 -- /usr/local/bin/python3.8
+cachedir: .pytest_cache
+rootdir: /project
+configfile: pytest.ini
+plugins: anyio-4.5.2, cov-5.0.0, timeout-2.4.0, localserver-0.5.0
+[1mcollecting ... [0mcollected 239 items
+
+tests/tracking/test_rest_tracking.py::test_create_get_search_experiment[file] [32mPASSED[0m[33m [  0%][0m
+tests/tracking/test_rest_tracking.py::test_create_get_search_experiment[sqlalchemy] [32mPASSED[0m[33m [  0%][0m
+tests/tracking/test_rest_tracking.py::test_create_experiment_validation[file] [32mPASSED[0m[33m [  1%][0m
+tests/tracking/test_rest_tracking.py::test_create_experiment_validation[sqlalchemy] [32mPASSED[0m[33m [  1%][0m
+tests/tracking/test_rest_tracking.py::test_delete_restore_experiment[file] [32mPASSED[0m[33m [  2%][0m
+tests/tracking/test_rest_tracking.py::test_delete_restore_experiment[sqlalchemy] [32mPASSED[0m[33m [  2%][0m
+tests/tracking/test_rest_tracking.py::test_delete_restore_experiment_cli[file] [32mPASSED[0m[33m [  2%][0m
+tests/tracking/test_rest_tracking.py::test_delete_restore_experiment_cli[sqlalchemy] [32mPASSED[0m[33m [  3%][0m
+tests/tracking/test_rest_tracking.py::test_rename_experiment[file] [32mPASSED[0m[33m [  3%][0m
+tests/tracking/test_rest_tracking.py::test_rename_experiment[sqlalchemy] [32mPASSED[0m[33m [  4%][0m
+tests/tracking/test_rest_tracking.py::test_rename_experiment_cli[file] [32mPASSED[0m[33m [  4%][0m
+tests/tracking/test_rest_tracking.py::test_rename_experiment_cli[sqlalchemy] [32mPASSED[0m[33m [  5%][0m
+tests/tracking/test_rest_tracking.py::test_create_run_all_args[file-None] [32mPASSED[0m[33m [  5%][0m
+tests/tracking/test_rest_tracking.py::test_create_run_all_args[file-my-parent-id] [32mPASSED[0m[33m [  5%][0m
+tests/tracking/test_rest_tracking.py::test_create_run_all_args[sqlalchemy-None] [32mPASSED[0m[33m [  6%][0m
+tests/tracking/test_rest_tracking.py::test_create_run_all_args[sqlalchemy-my-parent-id] [32mPASSED[0m[33m [  6%][0m
+tests/tracking/test_rest_tracking.py::test_create_run_defaults[file] [32mPASSED[0m[33m [  7%][0m
+tests/tracking/test_rest_tracking.py::test_create_run_defaults[sqlalchemy] [32mPASSED[0m[33m [  7%][0m
+tests/tracking/test_rest_tracking.py::test_log_metrics_params_tags[file] [32mPASSED[0m[33m [  7%][0m
+tests/tracking/test_rest_tracking.py::test_log_metrics_params_tags[sqlalchemy] [32mPASSED[0m[33m [  8%][0m
+tests/tracking/test_rest_tracking.py::test_log_metric_validation[file] [32mPASSED[0m[33m [  8%][0m
+tests/tracking/test_rest_tracking.py::test_log_metric_validation[sqlalchemy] [32mPASSED[0m[33m [  9%][0m
+tests/tracking/test_rest_tracking.py::test_log_param_validation[file] [32mPASSED[0m[33m [  9%][0m
+tests/tracking/test_rest_tracking.py::test_log_param_validation[sqlalchemy] [32mPASSED[0m[33m [ 10%][0m
+tests/tracking/test_rest_tracking.py::test_log_param_with_empty_string_as_value[file] [32mPASSED[0m[33m [ 10%][0m
+tests/tracking/test_rest_tracking.py::test_log_param_with_empty_string_as_value[sqlalchemy] [32mPASSED[0m[33m [ 10%][0m
+tests/tracking/test_rest_tracking.py::test_set_tag_with_empty_string_as_value[file] [32mPASSED[0m[33m [ 11%][0m
+tests/tracking/test_rest_tracking.py::test_set_tag_with_empty_string_as_value[sqlalchemy] [32mPASSED[0m[33m [ 11%][0m
+tests/tracking/test_rest_tracking.py::test_log_batch_containing_params_and_tags_with_empty_string_values[file] [32mPASSED[0m[33m [ 12%][0m
+tests/tracking/test_rest_tracking.py::test_log_batch_containing_params_and_tags_with_empty_string_values[sqlalchemy] [32mPASSED[0m[33m [ 12%][0m
+tests/tracking/test_rest_tracking.py::test_set_tag_validation[file] [32mPASSED[0m[33m [ 12%][0m
+tests/tracking/test_rest_tracking.py::test_set_tag_validation[sqlalchemy] [32mPASSED[0m[33m [ 13%][0m
+tests/tracking/test_rest_tracking.py::test_validate_path_is_safe_good[path] [32mPASSED[0m[33m [ 13%][0m
+tests/tracking/test_rest_tracking.py::test_validate_path_is_safe_good[path/] [32mPASSED[0m[33m [ 14%][0m
+tests/tracking/test_rest_tracking.py::test_validate_path_is_safe_good[path/to/file] [32mPASSED[0m[33m [ 14%][0m
+tests/tracking/test_rest_tracking.py::test_validate_path_is_safe_bad[/path] [32mPASSED[0m[33m [ 15%][0m
+tests/tracking/test_rest_tracking.py::test_validate_path_is_safe_bad[../path] [32mPASSED[0m[33m [ 15%][0m
+tests/tracking/test_rest_tracking.py::test_validate_path_is_safe_bad[../../path] [32mPASSED[0m[33m [ 15%][0m
+tests/tracking/test_rest_tracking.py::test_validate_path_is_safe_bad[./../path] [32mPASSED[0m[33m [ 16%][0m
+tests/tracking/test_rest_tracking.py::test_validate_path_is_safe_bad[path/../to/file] [32mPASSED[0m[33m [ 16%][0m
+tests/tracking/test_rest_tracking.py::test_validate_path_is_safe_bad[path/../../to/file] [32mPASSED[0m[33m [ 17%][0m
+tests/tracking/test_rest_tracking.py::test_path_validation[file] [32mPASSED[0m[33m  [ 17%][0m
+tests/tracking/test_rest_tracking.py::test_path_validation[sqlalchemy] [32mPASSED[0m[33m [ 17%][0m
+tests/tracking/test_rest_tracking.py::test_set_experiment_tag[file] [32mPASSED[0m[33m [ 18%][0m
+tests/tracking/test_rest_tracking.py::test_set_experiment_tag[sqlalchemy] [32mPASSED[0m[33m [ 18%][0m
+tests/tracking/test_rest_tracking.py::test_set_experiment_tag_with_empty_string_as_value[file] [32mPASSED[0m[33m [ 19%][0m
+tests/tracking/test_rest_tracking.py::test_set_experiment_tag_with_empty_string_as_value[sqlalchemy] [32mPASSED[0m[33m [ 19%][0m
+tests/tracking/test_rest_tracking.py::test_delete_tag[file] [32mPASSED[0m[33m       [ 20%][0m
+tests/tracking/test_rest_tracking.py::test_delete_tag[sqlalchemy] [32mPASSED[0m[33m [ 20%][0m
+tests/tracking/test_rest_tracking.py::test_log_batch[file] [32mPASSED[0m[33m        [ 20%][0m
+tests/tracking/test_rest_tracking.py::test_log_batch[sqlalchemy] [32mPASSED[0m[33m  [ 21%][0m
+tests/tracking/test_rest_tracking.py::test_log_batch_validation[file] [32mPASSED[0m[33m [ 21%][0m
+tests/tracking/test_rest_tracking.py::test_log_batch_validation[sqlalchemy] [32mPASSED[0m[33m [ 22%][0m
+tests/tracking/test_rest_tracking.py::test_log_model[file] [32mPASSED[0m[33m        [ 22%][0m
+tests/tracking/test_rest_tracking.py::test_log_model[sqlalchemy] [32mPASSED[0m[33m  [ 23%][0m
+tests/tracking/test_rest_tracking.py::test_set_terminated_defaults[file] [32mPASSED[0m[33m [ 23%][0m
+tests/tracking/test_rest_tracking.py::test_set_terminated_defaults[sqlalchemy] [32mPASSED[0m[33m [ 23%][0m
+tests/tracking/test_rest_tracking.py::test_set_terminated_status[file] [32mPASSED[0m[33m [ 24%][0m
+tests/tracking/test_rest_tracking.py::test_set_terminated_status[sqlalchemy] [32mPASSED[0m[33m [ 24%][0m
+tests/tracking/test_rest_tracking.py::test_artifacts[file] [32mPASSED[0m[33m        [ 25%][0m
+tests/tracking/test_rest_tracking.py::test_artifacts[sqlalchemy] [32mPASSED[0m[33m  [ 25%][0m
+tests/tracking/test_rest_tracking.py::test_search_pagination[file] [32mPASSED[0m[33m [ 25%][0m
+tests/tracking/test_rest_tracking.py::test_search_pagination[sqlalchemy] [32mPASSED[0m[33m [ 26%][0m
+tests/tracking/test_rest_tracking.py::test_search_validation[file] [32mPASSED[0m[33m [ 26%][0m
+tests/tracking/test_rest_tracking.py::test_search_validation[sqlalchemy] [32mPASSED[0m[33m [ 27%][0m
+tests/tracking/test_rest_tracking.py::test_get_experiment_by_name[file] [32mPASSED[0m[33m [ 27%][0m
+tests/tracking/test_rest_tracking.py::test_get_experiment_by_name[sqlalchemy] [32mPASSED[0m[33m [ 28%][0m
+tests/tracking/test_rest_tracking.py::test_get_experiment[file] [32mPASSED[0m[33m   [ 28%][0m
+tests/tracking/test_rest_tracking.py::test_get_experiment[sqlalchemy] [32mPASSED[0m[33m [ 28%][0m
+tests/tracking/test_rest_tracking.py::test_search_experiments[file] [32mPASSED[0m[33m [ 29%][0m
+tests/tracking/test_rest_tracking.py::test_search_experiments[sqlalchemy] [32mPASSED[0m[33m [ 29%][0m
+tests/tracking/test_rest_tracking.py::test_get_metric_history_bulk_rejects_invalid_requests[file] [32mPASSED[0m[33m [ 30%][0m
+tests/tracking/test_rest_tracking.py::test_get_metric_history_bulk_rejects_invalid_requests[sqlalchemy] [32mPASSED[0m[33m [ 30%][0m
+tests/tracking/test_rest_tracking.py::test_get_metric_history_bulk_returns_expected_metrics_in_expected_order[file] [32mPASSED[0m[33m [ 30%][0m
+tests/tracking/test_rest_tracking.py::test_get_metric_history_bulk_returns_expected_metrics_in_expected_order[sqlalchemy] [32mPASSED[0m[33m [ 31%][0m
+tests/tracking/test_rest_tracking.py::test_get_metric_history_bulk_respects_max_results[file] [32mPASSED[0m[33m [ 31%][0m
+tests/tracking/test_rest_tracking.py::test_get_metric_history_bulk_respects_max_results[sqlalchemy] [32mPASSED[0m[33m [ 32%][0m
+tests/tracking/test_rest_tracking.py::test_get_metric_history_bulk_calls_optimized_impl_when_expected [32mPASSED[0m[33m [ 32%][0m
+tests/tracking/test_rest_tracking.py::test_create_model_version_with_path_source[file] [31mFAILED[0m[31m [ 33%][0m
+tests/tracking/test_rest_tracking.py::test_create_model_version_with_path_source[sqlalchemy] [31mFAILED[0m[31m [ 33%][0m
+tests/tracking/test_rest_tracking.py::test_create_model_version_with_file_uri[file] [31mFAILED[0m[31m [ 33%][0m
+tests/tracking/test_rest_tracking.py::test_create_model_version_with_file_uri[sqlalchemy] [31mFAILED[0m[31m [ 34%][0m
+tests/tracking/test_rest_tracking.py::test_create_model_version_with_file_uri_env_var [32mPASSED[0m[31m [ 34%][0m
+tests/tracking/test_rest_tracking.py::test_logging_model_with_local_artifact_uri[file] [32mPASSED[0m[31m [ 35%][0m
+tests/tracking/test_rest_tracking.py::test_logging_model_with_local_artifact_uri[sqlalchemy] [32mPASSED[0m[31m [ 35%][0m
+tests/utils/test_uri.py::test_extract_db_type_from_uri [32mPASSED[0m[31m            [ 35%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri[databricks://aAbB-result0] [32mPASSED[0m[31m [ 36%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri[databricks://aAbB/-result1] [32mPASSED[0m[31m [ 36%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri[databricks://aAbB/path-result2] [32mPASSED[0m[31m [ 37%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri[databricks://profile:prefix-result3] [32mPASSED[0m[31m [ 37%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri[databricks://profile:prefix/extra-result4] [32mPASSED[0m[31m [ 38%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri[nondatabricks://profile:prefix-result5] [32mPASSED[0m[31m [ 38%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri[databricks://profile-result6] [32mPASSED[0m[31m [ 38%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri[databricks://profile/-result7] [32mPASSED[0m[31m [ 39%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri[databricks-uc://profile:prefix-result8] [32mPASSED[0m[31m [ 39%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri[databricks-uc://profile:prefix/extra-result9] [32mPASSED[0m[31m [ 40%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri[databricks-uc://profile-result10] [32mPASSED[0m[31m [ 40%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri[databricks-uc://profile/-result11] [32mPASSED[0m[31m [ 41%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri_errors_no_netloc[databricks:/profile:prefix] [32mPASSED[0m[31m [ 41%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri_errors_no_netloc[databricks:/] [32mPASSED[0m[31m [ 41%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri_errors_no_netloc[databricks://] [32mPASSED[0m[31m [ 42%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri_errors_invalid_profile[databricks://profile:prefix:extra] [32mPASSED[0m[31m [ 42%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri_errors_invalid_profile[databricks://profile:prefix:extra  ] [32mPASSED[0m[31m [ 43%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri_errors_invalid_profile[databricks://profile:prefix extra] [32mPASSED[0m[31m [ 43%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri_errors_invalid_profile[databricks://profile:prefix  ] [32mPASSED[0m[31m [ 43%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri_errors_invalid_profile[databricks://profile ] [32mPASSED[0m[31m [ 44%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri_errors_invalid_profile[databricks://profile:] [32mPASSED[0m[31m [ 44%][0m
+tests/utils/test_uri.py::test_get_db_info_from_uri_errors_invalid_profile[databricks://profile: ] [32mPASSED[0m[31m [ 45%][0m
+tests/utils/test_uri.py::test_is_local_uri [31mFAILED[0m[31m                        [ 45%][0m
+tests/utils/test_uri.py::test_is_local_uri_windows [33mSKIPPED[0m (Windows-...)[31m [ 46%][0m
+tests/utils/test_uri.py::test_is_databricks_uri [32mPASSED[0m[31m                   [ 46%][0m
+tests/utils/test_uri.py::test_is_http_uri [32mPASSED[0m[31m                         [ 46%][0m
+tests/utils/test_uri.py::test_append_to_uri_path_joins_uri_paths_and_posixpaths_correctly [32mPASSED[0m[31m [ 47%][0m
+tests/utils/test_uri.py::test_append_to_uri_path_handles_special_uri_characters_in_posixpaths [32mPASSED[0m[31m [ 47%][0m
+tests/utils/test_uri.py::test_append_to_uri_path_preserves_uri_schemes_hosts_queries_and_fragments [32mPASSED[0m[31m [ 48%][0m
+tests/utils/test_uri.py::test_extract_and_normalize_path [32mPASSED[0m[31m          [ 48%][0m
+tests/utils/test_uri.py::test_is_databricks_acled_artifacts_uri [32mPASSED[0m[31m   [ 48%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[ftp://user:pass@realhost:port/path/to/nowhere-None-databricks] [32mPASSED[0m[31m [ 49%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs:/path/to/nowhere-None-databricks] [32mPASSED[0m[31m [ 49%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://nondatabricks/path/to/nowhere-None-databricks] [32mPASSED[0m[31m [ 50%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://incorrect:netloc:format/path/to/nowhere-None-databricks] [32mPASSED[0m[31m [ 50%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://databricks-databricks-databricks] [32mPASSED[0m[31m [ 51%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://databricks/-databricks-databricks] [32mPASSED[0m[31m [ 51%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://databricks/path/to/nowhere-databricks-databricks] [32mPASSED[0m[31m [ 51%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://databricks:port/path/to/nowhere-databricks-databricks] [32mPASSED[0m[31m [ 52%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://@databricks/path/to/nowhere-databricks-databricks] [32mPASSED[0m[31m [ 52%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://@databricks:port/path/to/nowhere-databricks-databricks] [32mPASSED[0m[31m [ 53%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://profile@databricks/path/to/nowhere-databricks://profile-databricks] [32mPASSED[0m[31m [ 53%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://profile@databricks:port/path/to/nowhere-databricks://profile-databricks] [32mPASSED[0m[31m [ 53%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://scope:key_prefix@databricks/path/abc-databricks://scope:key_prefix-databricks] [32mPASSED[0m[31m [ 54%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://scope:key_prefix@databricks:port/path/abc-databricks://scope:key_prefix-databricks] [32mPASSED[0m[31m [ 54%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[runs://scope:key_prefix@databricks/path/abc-databricks://scope:key_prefix-databricks] [32mPASSED[0m[31m [ 55%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[models://scope:key_prefix@databricks/path/abc-databricks://scope:key_prefix-databricks] [32mPASSED[0m[31m [ 55%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[s3://scope:key_prefix@databricks/path/abc-databricks://scope:key_prefix-databricks] [32mPASSED[0m[31m [ 56%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[ftp://user:pass@realhost:port/path/to/nowhere-None-databricks-uc] [32mPASSED[0m[31m [ 56%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs:/path/to/nowhere-None-databricks-uc] [32mPASSED[0m[31m [ 56%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://nondatabricks/path/to/nowhere-None-databricks-uc] [32mPASSED[0m[31m [ 57%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://incorrect:netloc:format/path/to/nowhere-None-databricks-uc] [32mPASSED[0m[31m [ 57%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://databricks-uc-databricks-uc-databricks-uc] [32mPASSED[0m[31m [ 58%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://databricks-uc/-databricks-uc-databricks-uc] [32mPASSED[0m[31m [ 58%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://databricks-uc/path/to/nowhere-databricks-uc-databricks-uc] [32mPASSED[0m[31m [ 58%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://databricks-uc:port/path/to/nowhere-databricks-uc-databricks-uc] [32mPASSED[0m[31m [ 59%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://@databricks-uc/path/to/nowhere-databricks-uc-databricks-uc] [32mPASSED[0m[31m [ 59%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://@databricks-uc:port/path/to/nowhere-databricks-uc-databricks-uc] [32mPASSED[0m[31m [ 60%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://profile@databricks-uc/path/to/nowhere-databricks-uc://profile-databricks-uc] [32mPASSED[0m[31m [ 60%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://profile@databricks-uc:port/path/to/nowhere-databricks-uc://profile-databricks-uc] [32mPASSED[0m[31m [ 61%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://scope:key_prefix@databricks-uc/path/abc-databricks-uc://scope:key_prefix-databricks-uc] [32mPASSED[0m[31m [ 61%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[dbfs://scope:key_prefix@databricks-uc:port/path/abc-databricks-uc://scope:key_prefix-databricks-uc] [32mPASSED[0m[31m [ 61%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[runs://scope:key_prefix@databricks-uc/path/abc-databricks-uc://scope:key_prefix-databricks-uc] [32mPASSED[0m[31m [ 62%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[models://scope:key_prefix@databricks-uc/path/abc-databricks-uc://scope:key_prefix-databricks-uc] [32mPASSED[0m[31m [ 62%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri[s3://scope:key_prefix@databricks-uc/path/abc-databricks-uc://scope:key_prefix-databricks-uc] [32mPASSED[0m[31m [ 63%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri_error_cases[dbfs://incorrect:netloc:format@databricks/path/a] [32mPASSED[0m[31m [ 63%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri_error_cases[dbfs://scope::key_prefix@databricks/path/abc] [32mPASSED[0m[31m [ 64%][0m
+tests/utils/test_uri.py::test_get_databricks_profile_uri_from_artifact_uri_error_cases[dbfs://scope:key_prefix:@databricks/path/abc] [32mPASSED[0m[31m [ 64%][0m
+tests/utils/test_uri.py::test_remove_databricks_profile_info_from_artifact_uri[ftp://user:pass@realhost:port/path/nowhere-ftp://user:pass@realhost:port/path/nowhere] [32mPASSED[0m[31m [ 64%][0m
+tests/utils/test_uri.py::test_remove_databricks_profile_info_from_artifact_uri[dbfs:/path/to/nowhere-dbfs:/path/to/nowhere] [32mPASSED[0m[31m [ 65%][0m
+tests/utils/test_uri.py::test_remove_databricks_profile_info_from_artifact_uri[dbfs://nondatabricks/path/to/nowhere-dbfs://nondatabricks/path/to/nowhere] [32mPASSED[0m[31m [ 65%][0m
+tests/utils/test_uri.py::test_remove_databricks_profile_info_from_artifact_uri[dbfs://incorrect:netloc:format/path/-dbfs://incorrect:netloc:format/path/] [32mPASSED[0m[31m [ 66%][0m
+tests/utils/test_uri.py::test_remove_databricks_profile_info_from_artifact_uri[dbfs://databricks-dbfs:] [32mPASSED[0m[31m [ 66%][0m
+tests/utils/test_uri.py::test_remove_databricks_profile_info_from_artifact_uri[dbfs://databricks/-dbfs:/] [32mPASSED[0m[31m [ 66%][0m
+tests/utils/test_uri.py::test_remove_databricks_profile_info_from_artifact_uri[dbfs://databricks/path/to/nowhere-dbfs:/path/to/nowhere] [32mPASSED[0m[31m [ 67%][0m
+tests/utils/test_uri.py::test_remove_databricks_profile_info_from_artifact_uri[dbfs://databricks:port/path/to/nowhere-dbfs:/path/to/nowhere] [32mPASSED[0m[31m [ 67%][0m
+tests/utils/test_uri.py::test_remove_databricks_profile_info_from_artifact_uri[dbfs://@databricks/path/to/nowhere-dbfs:/path/to/nowhere] [32mPASSED[0m[31m [ 68%][0m
+tests/utils/test_uri.py::test_remove_databricks_profile_info_from_artifact_uri[dbfs://@databricks:port/path/to/nowhere-dbfs:/path/to/nowhere] [32mPASSED[0m[31m [ 68%][0m
+tests/utils/test_uri.py::test_remove_databricks_profile_info_from_artifact_uri[dbfs://profile@databricks/path/to/nowhere-dbfs:/path/to/nowhere] [32mPASSED[0m[31m [ 69%][0m
+tests/utils/test_uri.py::test_remove_databricks_profile_info_from_artifact_uri[dbfs://profile@databricks:port/path/to/nowhere-dbfs:/path/to/nowhere] [32mPASSED[0m[31m [ 69%][0m
+tests/utils/test_uri.py::test_remove_databricks_profile_info_from_artifact_uri[dbfs://scope:key_prefix@databricks/path/abc-dbfs:/path/abc] [32mPASSED[0m[31m [ 69%][0m
+tests/utils/test_uri.py::test_remove_databricks_profile_info_from_artifact_uri[dbfs://scope:key_prefix@databricks:port/path/abc-dbfs:/path/abc] [32mPASSED[0m[31m [ 70%][0m
+tests/utils/test_uri.py::test_remove_databricks_profile_info_from_artifact_uri[dbfs://incorrect:netloc:format@databricks/path/to/nowhere-dbfs:/path/to/nowhere] [32mPASSED[0m[31m [ 70%][0m
+tests/utils/test_uri.py::test_remove_databricks_profile_info_from_artifact_uri[runs://scope:key_prefix@databricks/path/abc-runs:/path/abc] [32mPASSED[0m[31m [ 71%][0m
+tests/utils/test_uri.py::test_remove_databricks_profile_info_from_artifact_uri[models://scope:key_prefix@databricks/path/abc-models:/path/abc] [32mPASSED[0m[31m [ 71%][0m
+tests/utils/test_uri.py::test_remove_databricks_profile_info_from_artifact_uri[s3://scope:key_prefix@databricks/path/abc-s3:/path/abc] [32mPASSED[0m[31m [ 71%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[dbfs:/path/a/b-databricks-dbfs://databricks/path/a/b] [32mPASSED[0m[31m [ 72%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[dbfs:/path/a/b/-databricks-dbfs://databricks/path/a/b/] [32mPASSED[0m[31m [ 72%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[dbfs:/path/a/b/-databricks://Profile-dbfs://Profile@databricks/path/a/b/] [32mPASSED[0m[31m [ 73%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[dbfs:/path/a/b/-databricks://profile/-dbfs://profile@databricks/path/a/b/] [32mPASSED[0m[31m [ 73%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[dbfs:/path/a/b/-databricks://scope:key-dbfs://scope:key@databricks/path/a/b/] [32mPASSED[0m[31m [ 74%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[dbfs:/path/a/b/-databricks://scope:key/random_stuff-dbfs://scope:key@databricks/path/a/b/] [32mPASSED[0m[31m [ 74%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[dbfs:/path/a/b/-nondatabricks://profile-dbfs:/path/a/b/] [32mPASSED[0m[31m [ 74%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[runs:/path/a/b/-databricks://Profile-runs://Profile@databricks/path/a/b/] [32mPASSED[0m[31m [ 75%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[runs:/path/a/b/-nondatabricks://profile-runs:/path/a/b/] [32mPASSED[0m[31m [ 75%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[models:/path/a/b/-databricks://profile-models://profile@databricks/path/a/b/] [32mPASSED[0m[31m [ 76%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[models:/path/a/b/-nondatabricks://Profile-models:/path/a/b/] [32mPASSED[0m[31m [ 76%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[s3:/path/a/b/-databricks://Profile-s3:/path/a/b/] [32mPASSED[0m[31m [ 76%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[s3:/path/a/b/-nondatabricks://profile-s3:/path/a/b/] [32mPASSED[0m[31m [ 77%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[ftp:/path/a/b/-databricks://profile-ftp:/path/a/b/] [32mPASSED[0m[31m [ 77%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[ftp:/path/a/b/-nondatabricks://Profile-ftp:/path/a/b/] [32mPASSED[0m[31m [ 78%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[ftp://user:pass@host:port/a/b-databricks://Profile-ftp://user:pass@host:port/a/b] [32mPASSED[0m[31m [ 78%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[ftp://user:pass@host:port/a/b-nothing://Profile-ftp://user:pass@host:port/a/b] [32mPASSED[0m[31m [ 79%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[dbfs://databricks-databricks://OtherProfile-dbfs://databricks] [32mPASSED[0m[31m [ 79%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[dbfs://databricks-nondatabricks://Profile-dbfs://databricks] [32mPASSED[0m[31m [ 79%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[dbfs://databricks/path/a/b-databricks://OtherProfile-dbfs://databricks/path/a/b] [32mPASSED[0m[31m [ 80%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[dbfs://databricks/path/a/b-nondatabricks://Profile-dbfs://databricks/path/a/b] [32mPASSED[0m[31m [ 80%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[dbfs://@databricks/path/a/b-databricks://OtherProfile-dbfs://@databricks/path/a/b] [32mPASSED[0m[31m [ 81%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[dbfs://@databricks/path/a/b-nondatabricks://Profile-dbfs://@databricks/path/a/b] [32mPASSED[0m[31m [ 81%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[dbfs://profile@databricks/pp-databricks://OtherProfile-dbfs://profile@databricks/pp] [32mPASSED[0m[31m [ 82%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[dbfs://profile@databricks/path-databricks://profile-dbfs://profile@databricks/path] [32mPASSED[0m[31m [ 82%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri[dbfs://profile@databricks/path-nondatabricks://Profile-dbfs://profile@databricks/path] [32mPASSED[0m[31m [ 82%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri_errors[dbfs:/path/a/b-databricks://not:legit:auth] [32mPASSED[0m[31m [ 83%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri_errors[dbfs:/path/a/b/-databricks://scope::key] [32mPASSED[0m[31m [ 83%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri_errors[dbfs:/path/a/b/-databricks://scope:key:/] [32mPASSED[0m[31m [ 84%][0m
+tests/utils/test_uri.py::test_add_databricks_profile_info_to_artifact_uri_errors[dbfs:/path/a/b/-databricks://scope:key ] [32mPASSED[0m[31m [ 84%][0m
+tests/utils/test_uri.py::test_is_valid_dbfs_uri[dbfs:/path/a/b-True] [32mPASSED[0m[31m [ 84%][0m
+tests/utils/test_uri.py::test_is_valid_dbfs_uri[dbfs://databricks/a/b-True] [32mPASSED[0m[31m [ 85%][0m
+tests/utils/test_uri.py::test_is_valid_dbfs_uri[dbfs://@databricks/a/b-True] [32mPASSED[0m[31m [ 85%][0m
+tests/utils/test_uri.py::test_is_valid_dbfs_uri[dbfs://profile@databricks/a/b-True] [32mPASSED[0m[31m [ 86%][0m
+tests/utils/test_uri.py::test_is_valid_dbfs_uri[dbfs://scope:key@databricks/a/b-True] [32mPASSED[0m[31m [ 86%][0m
+tests/utils/test_uri.py::test_is_valid_dbfs_uri[dbfs://scope:key:@databricks/a/b-False] [32mPASSED[0m[31m [ 87%][0m
+tests/utils/test_uri.py::test_is_valid_dbfs_uri[dbfs://scope::key@databricks/a/b-False] [32mPASSED[0m[31m [ 87%][0m
+tests/utils/test_uri.py::test_is_valid_dbfs_uri[dbfs://profile@notdatabricks/a/b-False] [32mPASSED[0m[31m [ 87%][0m
+tests/utils/test_uri.py::test_is_valid_dbfs_uri[dbfs://scope:key@notdatabricks/a/b-False] [32mPASSED[0m[31m [ 88%][0m
+tests/utils/test_uri.py::test_is_valid_dbfs_uri[dbfs://scope:key/a/b-False] [32mPASSED[0m[31m [ 88%][0m
+tests/utils/test_uri.py::test_is_valid_dbfs_uri[dbfs://notdatabricks/a/b-False] [32mPASSED[0m[31m [ 89%][0m
+tests/utils/test_uri.py::test_is_valid_dbfs_uri[s3:/path/a/b-False] [32mPASSED[0m[31m [ 89%][0m
+tests/utils/test_uri.py::test_is_valid_dbfs_uri[ftp://user:pass@host:port/path/a/b-False] [32mPASSED[0m[31m [ 89%][0m
+tests/utils/test_uri.py::test_is_valid_dbfs_uri[ftp://user:pass@databricks/path/a/b-False] [32mPASSED[0m[31m [ 90%][0m
+tests/utils/test_uri.py::test_dbfs_hdfs_uri_to_fuse_path[/tmp/path-/dbfs/tmp/path] [32mPASSED[0m[31m [ 90%][0m
+tests/utils/test_uri.py::test_dbfs_hdfs_uri_to_fuse_path[dbfs:/path-/dbfs/path] [32mPASSED[0m[31m [ 91%][0m
+tests/utils/test_uri.py::test_dbfs_hdfs_uri_to_fuse_path[dbfs:/path/a/b-/dbfs/path/a/b] [32mPASSED[0m[31m [ 91%][0m
+tests/utils/test_uri.py::test_dbfs_hdfs_uri_to_fuse_path[dbfs:/dbfs/123/abc-/dbfs/dbfs/123/abc] [32mPASSED[0m[31m [ 92%][0m
+tests/utils/test_uri.py::test_dbfs_hdfs_uri_to_fuse_path_raises[some/relative/local/path] [32mPASSED[0m[31m [ 92%][0m
+tests/utils/test_uri.py::test_dbfs_hdfs_uri_to_fuse_path_raises[s3:/some/s3/path] [32mPASSED[0m[31m [ 92%][0m
+tests/utils/test_uri.py::test_dbfs_hdfs_uri_to_fuse_path_raises[C:/cool/windows/path] [32mPASSED[0m[31m [ 93%][0m
+tests/utils/test_uri.py::test_resolve_uri_if_local[my/path-{cwd}/my/path] [32mPASSED[0m[31m [ 93%][0m
+tests/utils/test_uri.py::test_resolve_uri_if_local[#my/path?a=b-{cwd}/#my/path?a=b] [32mPASSED[0m[31m [ 94%][0m
+tests/utils/test_uri.py::test_resolve_uri_if_local[file://myhostname/my/path-file://myhostname/my/path] [32mPASSED[0m[31m [ 94%][0m
+tests/utils/test_uri.py::test_resolve_uri_if_local[file:///my/path-file:///{drive}my/path] [32mPASSED[0m[31m [ 94%][0m
+tests/utils/test_uri.py::test_resolve_uri_if_local[file:my/path-file://{cwd}/my/path] [32mPASSED[0m[31m [ 95%][0m
+tests/utils/test_uri.py::test_resolve_uri_if_local[/home/my/path-/home/my/path] [32mPASSED[0m[31m [ 95%][0m
+tests/utils/test_uri.py::test_resolve_uri_if_local[dbfs://databricks/a/b-dbfs://databricks/a/b] [32mPASSED[0m[31m [ 96%][0m
+tests/utils/test_uri.py::test_resolve_uri_if_local[s3://host/my/path-s3://host/my/path] [32mPASSED[0m[31m [ 96%][0m
+tests/utils/test_uri.py::test_resolve_uri_if_local_on_windows[my/path-file://{cwd}/my/path] [33mSKIPPED[0m[31m [ 97%][0m
+tests/utils/test_uri.py::test_resolve_uri_if_local_on_windows[#my/path?a=b-file://{cwd}/#my/path?a=b] [33mSKIPPED[0m[31m [ 97%][0m
+tests/utils/test_uri.py::test_resolve_uri_if_local_on_windows[file://myhostname/my/path-file://myhostname/my/path] [33mSKIPPED[0m[31m [ 97%][0m
+tests/utils/test_uri.py::test_resolve_uri_if_local_on_windows[file:///my/path-file:///{drive}my/path] [33mSKIPPED[0m[31m [ 98%][0m
+tests/utils/test_uri.py::test_resolve_uri_if_local_on_windows[file:my/path-file://{cwd}/my/path] [33mSKIPPED[0m[31m [ 98%][0m
+tests/utils/test_uri.py::test_resolve_uri_if_local_on_windows[/home/my/path-file:///{drive}home/my/path] [33mSKIPPED[0m[31m [ 99%][0m
+tests/utils/test_uri.py::test_resolve_uri_if_local_on_windows[dbfs://databricks/a/b-dbfs://databricks/a/b] [33mSKIPPED[0m[31m [ 99%][0m
+tests/utils/test_uri.py::test_resolve_uri_if_local_on_windows[s3://host/my/path-s3://host/my/path] [33mSKIPPED[0m[31m [100%][0m
+
+=================================== FAILURES ===================================
+[31m[1m_______________ test_create_model_version_with_path_source[file] _______________[0m
+
+mlflow_client = <mlflow.tracking.client.MlflowClient object at 0x7bdd743fb340>
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_create_model_version_with_path_source[39;49;00m(mlflow_client):[90m[39;49;00m
+        name = [33m"[39;49;00m[33mmode[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        mlflow_client.create_registered_model(name)[90m[39;49;00m
+        exp_id = mlflow_client.create_experiment([33m"[39;49;00m[33mtest[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        run = mlflow_client.create_run(experiment_id=exp_id)[90m[39;49;00m
+    [90m[39;49;00m
+        response = requests.post([90m[39;49;00m
+            [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mmlflow_client.tracking_uri[33m}[39;49;00m[33m/api/2.0/mlflow/model-versions/create[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            json={[90m[39;49;00m
+                [33m"[39;49;00m[33mname[39;49;00m[33m"[39;49;00m: name,[90m[39;49;00m
+                [33m"[39;49;00m[33msource[39;49;00m[33m"[39;49;00m: run.info.artifact_uri[[96mlen[39;49;00m([33m"[39;49;00m[33mfile://[39;49;00m[33m"[39;49;00m) :],[90m[39;49;00m
+                [33m"[39;49;00m[33mrun_id[39;49;00m[33m"[39;49;00m: run.info.run_id,[90m[39;49;00m
+            },[90m[39;49;00m
+        )[90m[39;49;00m
+        [94massert[39;49;00m response.status_code == [94m200[39;49;00m[90m[39;49;00m
+    [90m[39;49;00m
+        [90m# run_id is not specified[39;49;00m[90m[39;49;00m
+        response = requests.post([90m[39;49;00m
+            [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mmlflow_client.tracking_uri[33m}[39;49;00m[33m/api/2.0/mlflow/model-versions/create[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            json={[90m[39;49;00m
+                [33m"[39;49;00m[33mname[39;49;00m[33m"[39;49;00m: name,[90m[39;49;00m
+                [33m"[39;49;00m[33msource[39;49;00m[33m"[39;49;00m: run.info.artifact_uri[[96mlen[39;49;00m([33m"[39;49;00m[33mfile://[39;49;00m[33m"[39;49;00m) :],[90m[39;49;00m
+            },[90m[39;49;00m
+        )[90m[39;49;00m
+>       [94massert[39;49;00m response.status_code == [94m400[39;49;00m[90m[39;49;00m
+[1m[31mE       assert 200 == 400[0m
+[1m[31mE        +  where 200 = <Response [200]>.status_code[0m
+
+exp_id     = '404100044284807780'
+mlflow_client = <mlflow.tracking.client.MlflowClient object at 0x7bdd743fb340>
+name       = 'mode'
+response   = <Response [200]>
+run        = <Run: data=<RunData: metrics={}, params={}, tags={'mlflow.runName': 'calm-ant-946'}>, info=<RunInfo: artifact_uri='fil...-ant-946', run_uuid='6fd81796b3b8424c8a2677123cb352aa', start_time=1779228386875, status='RUNNING', user_id='unknown'>>
+
+[1m[31mtests/tracking/test_rest_tracking.py[0m:1071: AssertionError
+---------------------------- Captured stdout setup -----------------------------
+ * Serving Flask app 'mlflow.server'
+ * Debug mode: off
+---------------------------- Captured stderr setup -----------------------------
+2026/05/19 22:06:24 INFO tests.tracking.integration_test_utils: Awaiting server to be up on 127.0.0.1:57347
+2026/05/19 22:06:24 INFO tests.tracking.integration_test_utils: Server not yet up, waiting...
+2026/05/19 22:06:24 INFO tests.tracking.integration_test_utils: Server not yet up, waiting...
+2026/05/19 22:06:25 INFO tests.tracking.integration_test_utils: Server not yet up, waiting...
+2026/05/19 22:06:25 INFO tests.tracking.integration_test_utils: Server not yet up, waiting...
+2026/05/19 22:06:26 INFO tests.tracking.integration_test_utils: Server not yet up, waiting...
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:57347
+[33mPress CTRL+C to quit[0m
+2026/05/19 22:06:26 INFO tests.tracking.integration_test_utils: Server is up on 127.0.0.1:57347!
+2026/05/19 22:06:26 INFO tests.tracking.integration_test_utils: Launching tracking server against backend URI file:///tmp/pytest-of-root/pytest-0/test_create_model_version_with0/file. Server URL: http://127.0.0.1:57347
+----------------------------- Captured stderr call -----------------------------
+127.0.0.1 - - [19/May/2026 22:06:26] "POST /api/2.0/mlflow/registered-models/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:26] "POST /api/2.0/mlflow/experiments/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:26] "POST /api/2.0/mlflow/runs/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:26] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:26] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+--------------------------- Captured stderr teardown ---------------------------
+2026/05/19 22:06:27 INFO tests.tracking.integration_test_utils: Terminating server...
+[31m[1m____________ test_create_model_version_with_path_source[sqlalchemy] ____________[0m
+
+mlflow_client = <mlflow.tracking.client.MlflowClient object at 0x7bdd74471a30>
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_create_model_version_with_path_source[39;49;00m(mlflow_client):[90m[39;49;00m
+        name = [33m"[39;49;00m[33mmode[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        mlflow_client.create_registered_model(name)[90m[39;49;00m
+        exp_id = mlflow_client.create_experiment([33m"[39;49;00m[33mtest[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        run = mlflow_client.create_run(experiment_id=exp_id)[90m[39;49;00m
+    [90m[39;49;00m
+        response = requests.post([90m[39;49;00m
+            [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mmlflow_client.tracking_uri[33m}[39;49;00m[33m/api/2.0/mlflow/model-versions/create[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            json={[90m[39;49;00m
+                [33m"[39;49;00m[33mname[39;49;00m[33m"[39;49;00m: name,[90m[39;49;00m
+                [33m"[39;49;00m[33msource[39;49;00m[33m"[39;49;00m: run.info.artifact_uri[[96mlen[39;49;00m([33m"[39;49;00m[33mfile://[39;49;00m[33m"[39;49;00m) :],[90m[39;49;00m
+                [33m"[39;49;00m[33mrun_id[39;49;00m[33m"[39;49;00m: run.info.run_id,[90m[39;49;00m
+            },[90m[39;49;00m
+        )[90m[39;49;00m
+        [94massert[39;49;00m response.status_code == [94m200[39;49;00m[90m[39;49;00m
+    [90m[39;49;00m
+        [90m# run_id is not specified[39;49;00m[90m[39;49;00m
+        response = requests.post([90m[39;49;00m
+            [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mmlflow_client.tracking_uri[33m}[39;49;00m[33m/api/2.0/mlflow/model-versions/create[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            json={[90m[39;49;00m
+                [33m"[39;49;00m[33mname[39;49;00m[33m"[39;49;00m: name,[90m[39;49;00m
+                [33m"[39;49;00m[33msource[39;49;00m[33m"[39;49;00m: run.info.artifact_uri[[96mlen[39;49;00m([33m"[39;49;00m[33mfile://[39;49;00m[33m"[39;49;00m) :],[90m[39;49;00m
+            },[90m[39;49;00m
+        )[90m[39;49;00m
+>       [94massert[39;49;00m response.status_code == [94m400[39;49;00m[90m[39;49;00m
+[1m[31mE       assert 200 == 400[0m
+[1m[31mE        +  where 200 = <Response [200]>.status_code[0m
+
+exp_id     = '1'
+mlflow_client = <mlflow.tracking.client.MlflowClient object at 0x7bdd74471a30>
+name       = 'mode'
+response   = <Response [200]>
+run        = <Run: data=<RunData: metrics={}, params={}, tags={'mlflow.runName': 'masked-ray-682'}>, info=<RunInfo: artifact_uri='f...-ray-682', run_uuid='347dc23584244b57aa957b15a17990d0', start_time=1779228390959, status='RUNNING', user_id='unknown'>>
+
+[1m[31mtests/tracking/test_rest_tracking.py[0m:1071: AssertionError
+---------------------------- Captured stdout setup -----------------------------
+ * Serving Flask app 'mlflow.server'
+ * Debug mode: off
+---------------------------- Captured stderr setup -----------------------------
+2026/05/19 22:06:27 INFO tests.tracking.integration_test_utils: Awaiting server to be up on 127.0.0.1:41079
+2026/05/19 22:06:27 INFO tests.tracking.integration_test_utils: Server not yet up, waiting...
+2026/05/19 22:06:27 INFO tests.tracking.integration_test_utils: Server not yet up, waiting...
+2026/05/19 22:06:28 INFO tests.tracking.integration_test_utils: Server not yet up, waiting...
+2026/05/19 22:06:28 INFO tests.tracking.integration_test_utils: Server not yet up, waiting...
+2026/05/19 22:06:29 INFO tests.tracking.integration_test_utils: Server not yet up, waiting...
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:41079
+[33mPress CTRL+C to quit[0m
+2026/05/19 22:06:29 INFO tests.tracking.integration_test_utils: Server is up on 127.0.0.1:41079!
+2026/05/19 22:06:29 INFO tests.tracking.integration_test_utils: Launching tracking server against backend URI sqlite://///tmp/pytest-of-root/pytest-0/test_create_model_version_with1/sqlalchemy.db. Server URL: http://127.0.0.1:41079
+----------------------------- Captured stderr call -----------------------------
+2026/05/19 22:06:29 INFO mlflow.store.db.utils: Creating initial MLflow database tables...
+2026/05/19 22:06:29 INFO mlflow.store.db.utils: Updating database tables
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 451aebb31d03, add metric step
+INFO  [alembic.runtime.migration] Running upgrade 451aebb31d03 -> 90e64c465722, migrate user column to tags
+INFO  [alembic.runtime.migration] Running upgrade 90e64c465722 -> 181f10493468, allow nulls for metric values
+INFO  [alembic.runtime.migration] Running upgrade 181f10493468 -> df50e92ffc5e, Add Experiment Tags Table
+INFO  [alembic.runtime.migration] Running upgrade df50e92ffc5e -> 7ac759974ad8, Update run tags with larger limit
+INFO  [alembic.runtime.migration] Running upgrade 7ac759974ad8 -> 89d4b8295536, create latest metrics table
+INFO  [89d4b8295536_create_latest_metrics_table_py] Migration complete!
+INFO  [alembic.runtime.migration] Running upgrade 89d4b8295536 -> 2b4d017a5e9b, add model registry tables to db
+INFO  [2b4d017a5e9b_add_model_registry_tables_to_db_py] Adding registered_models and model_versions tables to database.
+INFO  [2b4d017a5e9b_add_model_registry_tables_to_db_py] Migration complete!
+INFO  [alembic.runtime.migration] Running upgrade 2b4d017a5e9b -> cfd24bdc0731, Update run status constraint with killed
+INFO  [alembic.runtime.migration] Running upgrade cfd24bdc0731 -> 0a8213491aaa, drop_duplicate_killed_constraint
+INFO  [alembic.runtime.migration] Running upgrade 0a8213491aaa -> 728d730b5ebd, add registered model tags table
+INFO  [alembic.runtime.migration] Running upgrade 728d730b5ebd -> 27a6a02d2cf1, add model version tags table
+INFO  [alembic.runtime.migration] Running upgrade 27a6a02d2cf1 -> 84291f40a231, add run_link to model_version
+INFO  [alembic.runtime.migration] Running upgrade 84291f40a231 -> a8c4a736bde6, allow nulls for run_id
+INFO  [alembic.runtime.migration] Running upgrade a8c4a736bde6 -> 39d1c3be5f05, add_is_nan_constraint_for_metrics_tables_if_necessary
+INFO  [alembic.runtime.migration] Running upgrade 39d1c3be5f05 -> c48cb773bb87, reset_default_value_for_is_nan_in_metrics_table_for_mysql
+INFO  [alembic.runtime.migration] Running upgrade c48cb773bb87 -> bd07f7e963c5, create index on run_uuid
+INFO  [alembic.runtime.migration] Running upgrade bd07f7e963c5 -> 0c779009ac13, add deleted_time field to runs table
+INFO  [alembic.runtime.migration] Running upgrade 0c779009ac13 -> cc1f77228345, change param value length to 500
+INFO  [alembic.runtime.migration] Running upgrade cc1f77228345 -> 97727af70f4d, Add creation_time and last_update_time to experiments table
+INFO  [alembic.runtime.migration] Running upgrade 97727af70f4d -> 3500859a5d39, Add Model Aliases table
+127.0.0.1 - - [19/May/2026 22:06:30] "POST /api/2.0/mlflow/registered-models/create HTTP/1.1" 200 -
+INFO  [werkzeug] 127.0.0.1 - - [19/May/2026 22:06:30] "POST /api/2.0/mlflow/registered-models/create HTTP/1.1" 200 -
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+127.0.0.1 - - [19/May/2026 22:06:30] "POST /api/2.0/mlflow/experiments/create HTTP/1.1" 200 -
+INFO  [werkzeug] 127.0.0.1 - - [19/May/2026 22:06:30] "POST /api/2.0/mlflow/experiments/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:30] "POST /api/2.0/mlflow/runs/create HTTP/1.1" 200 -
+INFO  [werkzeug] 127.0.0.1 - - [19/May/2026 22:06:30] "POST /api/2.0/mlflow/runs/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:31] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+INFO  [werkzeug] 127.0.0.1 - - [19/May/2026 22:06:31] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:31] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+INFO  [werkzeug] 127.0.0.1 - - [19/May/2026 22:06:31] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+--------------------------- Captured stderr teardown ---------------------------
+2026/05/19 22:06:31 INFO tests.tracking.integration_test_utils: Terminating server...
+[31m[1m________________ test_create_model_version_with_file_uri[file] _________________[0m
+
+mlflow_client = <mlflow.tracking.client.MlflowClient object at 0x7bdd7439de20>
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_create_model_version_with_file_uri[39;49;00m(mlflow_client):[90m[39;49;00m
+        name = [33m"[39;49;00m[33mtest[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        mlflow_client.create_registered_model(name)[90m[39;49;00m
+        exp_id = mlflow_client.create_experiment([33m"[39;49;00m[33mtest[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        run = mlflow_client.create_run(experiment_id=exp_id)[90m[39;49;00m
+        [94massert[39;49;00m run.info.artifact_uri.startswith([33m"[39;49;00m[33mfile://[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        response = requests.post([90m[39;49;00m
+            [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mmlflow_client.tracking_uri[33m}[39;49;00m[33m/api/2.0/mlflow/model-versions/create[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            json={[90m[39;49;00m
+                [33m"[39;49;00m[33mname[39;49;00m[33m"[39;49;00m: name,[90m[39;49;00m
+                [33m"[39;49;00m[33msource[39;49;00m[33m"[39;49;00m: run.info.artifact_uri,[90m[39;49;00m
+                [33m"[39;49;00m[33mrun_id[39;49;00m[33m"[39;49;00m: run.info.run_id,[90m[39;49;00m
+            },[90m[39;49;00m
+        )[90m[39;49;00m
+        [94massert[39;49;00m response.status_code == [94m200[39;49;00m[90m[39;49;00m
+    [90m[39;49;00m
+        response = requests.post([90m[39;49;00m
+            [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mmlflow_client.tracking_uri[33m}[39;49;00m[33m/api/2.0/mlflow/model-versions/create[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            json={[90m[39;49;00m
+                [33m"[39;49;00m[33mname[39;49;00m[33m"[39;49;00m: name,[90m[39;49;00m
+                [33m"[39;49;00m[33msource[39;49;00m[33m"[39;49;00m: [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mrun.info.artifact_uri[33m}[39;49;00m[33m/model[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                [33m"[39;49;00m[33mrun_id[39;49;00m[33m"[39;49;00m: run.info.run_id,[90m[39;49;00m
+            },[90m[39;49;00m
+        )[90m[39;49;00m
+        [94massert[39;49;00m response.status_code == [94m200[39;49;00m[90m[39;49;00m
+    [90m[39;49;00m
+        response = requests.post([90m[39;49;00m
+            [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mmlflow_client.tracking_uri[33m}[39;49;00m[33m/api/2.0/mlflow/model-versions/create[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            json={[90m[39;49;00m
+                [33m"[39;49;00m[33mname[39;49;00m[33m"[39;49;00m: name,[90m[39;49;00m
+                [33m"[39;49;00m[33msource[39;49;00m[33m"[39;49;00m: [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mrun.info.artifact_uri[33m}[39;49;00m[33m/.[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                [33m"[39;49;00m[33mrun_id[39;49;00m[33m"[39;49;00m: run.info.run_id,[90m[39;49;00m
+            },[90m[39;49;00m
+        )[90m[39;49;00m
+        [94massert[39;49;00m response.status_code == [94m200[39;49;00m[90m[39;49;00m
+    [90m[39;49;00m
+        response = requests.post([90m[39;49;00m
+            [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mmlflow_client.tracking_uri[33m}[39;49;00m[33m/api/2.0/mlflow/model-versions/create[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            json={[90m[39;49;00m
+                [33m"[39;49;00m[33mname[39;49;00m[33m"[39;49;00m: name,[90m[39;49;00m
+                [33m"[39;49;00m[33msource[39;49;00m[33m"[39;49;00m: [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mrun.info.artifact_uri[33m}[39;49;00m[33m/model/..[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                [33m"[39;49;00m[33mrun_id[39;49;00m[33m"[39;49;00m: run.info.run_id,[90m[39;49;00m
+            },[90m[39;49;00m
+        )[90m[39;49;00m
+        [94massert[39;49;00m response.status_code == [94m200[39;49;00m[90m[39;49;00m
+    [90m[39;49;00m
+        [90m# run_id is not specified[39;49;00m[90m[39;49;00m
+        response = requests.post([90m[39;49;00m
+            [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mmlflow_client.tracking_uri[33m}[39;49;00m[33m/api/2.0/mlflow/model-versions/create[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            json={[90m[39;49;00m
+                [33m"[39;49;00m[33mname[39;49;00m[33m"[39;49;00m: name,[90m[39;49;00m
+                [33m"[39;49;00m[33msource[39;49;00m[33m"[39;49;00m: run.info.artifact_uri,[90m[39;49;00m
+            },[90m[39;49;00m
+        )[90m[39;49;00m
+>       [94massert[39;49;00m response.status_code == [94m400[39;49;00m[90m[39;49;00m
+[1m[31mE       assert 200 == 400[0m
+[1m[31mE        +  where 200 = <Response [200]>.status_code[0m
+
+exp_id     = '251186552217755250'
+mlflow_client = <mlflow.tracking.client.MlflowClient object at 0x7bdd7439de20>
+name       = 'test'
+response   = <Response [200]>
+run        = <Run: data=<RunData: metrics={}, params={}, tags={'mlflow.runName': 'hilarious-snake-528'}>, info=<RunInfo: artifact_u...nake-528', run_uuid='bb8f856bb0bf4455b3ecdc39f31172f7', start_time=1779228393314, status='RUNNING', user_id='unknown'>>
+
+[1m[31mtests/tracking/test_rest_tracking.py[0m:1141: AssertionError
+---------------------------- Captured stdout setup -----------------------------
+ * Serving Flask app 'mlflow.server'
+ * Debug mode: off
+---------------------------- Captured stderr setup -----------------------------
+2026/05/19 22:06:31 INFO tests.tracking.integration_test_utils: Awaiting server to be up on 127.0.0.1:34113
+2026/05/19 22:06:31 INFO tests.tracking.integration_test_utils: Server not yet up, waiting...
+2026/05/19 22:06:31 INFO tests.tracking.integration_test_utils: Server not yet up, waiting...
+2026/05/19 22:06:32 INFO tests.tracking.integration_test_utils: Server not yet up, waiting...
+2026/05/19 22:06:32 INFO tests.tracking.integration_test_utils: Server not yet up, waiting...
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:34113
+[33mPress CTRL+C to quit[0m
+2026/05/19 22:06:33 INFO tests.tracking.integration_test_utils: Server is up on 127.0.0.1:34113!
+2026/05/19 22:06:33 INFO tests.tracking.integration_test_utils: Launching tracking server against backend URI file:///tmp/pytest-of-root/pytest-0/test_create_model_version_with2/file. Server URL: http://127.0.0.1:34113
+----------------------------- Captured stderr call -----------------------------
+127.0.0.1 - - [19/May/2026 22:06:33] "POST /api/2.0/mlflow/registered-models/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:33] "POST /api/2.0/mlflow/experiments/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:33] "POST /api/2.0/mlflow/runs/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:33] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:33] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:33] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:33] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:33] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+--------------------------- Captured stderr teardown ---------------------------
+2026/05/19 22:06:33 INFO tests.tracking.integration_test_utils: Terminating server...
+[31m[1m_____________ test_create_model_version_with_file_uri[sqlalchemy] ______________[0m
+
+mlflow_client = <mlflow.tracking.client.MlflowClient object at 0x7bdd7425c940>
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_create_model_version_with_file_uri[39;49;00m(mlflow_client):[90m[39;49;00m
+        name = [33m"[39;49;00m[33mtest[39;49;00m[33m"[39;49;00m[90m[39;49;00m
+        mlflow_client.create_registered_model(name)[90m[39;49;00m
+        exp_id = mlflow_client.create_experiment([33m"[39;49;00m[33mtest[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        run = mlflow_client.create_run(experiment_id=exp_id)[90m[39;49;00m
+        [94massert[39;49;00m run.info.artifact_uri.startswith([33m"[39;49;00m[33mfile://[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        response = requests.post([90m[39;49;00m
+            [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mmlflow_client.tracking_uri[33m}[39;49;00m[33m/api/2.0/mlflow/model-versions/create[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            json={[90m[39;49;00m
+                [33m"[39;49;00m[33mname[39;49;00m[33m"[39;49;00m: name,[90m[39;49;00m
+                [33m"[39;49;00m[33msource[39;49;00m[33m"[39;49;00m: run.info.artifact_uri,[90m[39;49;00m
+                [33m"[39;49;00m[33mrun_id[39;49;00m[33m"[39;49;00m: run.info.run_id,[90m[39;49;00m
+            },[90m[39;49;00m
+        )[90m[39;49;00m
+        [94massert[39;49;00m response.status_code == [94m200[39;49;00m[90m[39;49;00m
+    [90m[39;49;00m
+        response = requests.post([90m[39;49;00m
+            [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mmlflow_client.tracking_uri[33m}[39;49;00m[33m/api/2.0/mlflow/model-versions/create[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            json={[90m[39;49;00m
+                [33m"[39;49;00m[33mname[39;49;00m[33m"[39;49;00m: name,[90m[39;49;00m
+                [33m"[39;49;00m[33msource[39;49;00m[33m"[39;49;00m: [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mrun.info.artifact_uri[33m}[39;49;00m[33m/model[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                [33m"[39;49;00m[33mrun_id[39;49;00m[33m"[39;49;00m: run.info.run_id,[90m[39;49;00m
+            },[90m[39;49;00m
+        )[90m[39;49;00m
+        [94massert[39;49;00m response.status_code == [94m200[39;49;00m[90m[39;49;00m
+    [90m[39;49;00m
+        response = requests.post([90m[39;49;00m
+            [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mmlflow_client.tracking_uri[33m}[39;49;00m[33m/api/2.0/mlflow/model-versions/create[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            json={[90m[39;49;00m
+                [33m"[39;49;00m[33mname[39;49;00m[33m"[39;49;00m: name,[90m[39;49;00m
+                [33m"[39;49;00m[33msource[39;49;00m[33m"[39;49;00m: [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mrun.info.artifact_uri[33m}[39;49;00m[33m/.[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                [33m"[39;49;00m[33mrun_id[39;49;00m[33m"[39;49;00m: run.info.run_id,[90m[39;49;00m
+            },[90m[39;49;00m
+        )[90m[39;49;00m
+        [94massert[39;49;00m response.status_code == [94m200[39;49;00m[90m[39;49;00m
+    [90m[39;49;00m
+        response = requests.post([90m[39;49;00m
+            [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mmlflow_client.tracking_uri[33m}[39;49;00m[33m/api/2.0/mlflow/model-versions/create[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            json={[90m[39;49;00m
+                [33m"[39;49;00m[33mname[39;49;00m[33m"[39;49;00m: name,[90m[39;49;00m
+                [33m"[39;49;00m[33msource[39;49;00m[33m"[39;49;00m: [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mrun.info.artifact_uri[33m}[39;49;00m[33m/model/..[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+                [33m"[39;49;00m[33mrun_id[39;49;00m[33m"[39;49;00m: run.info.run_id,[90m[39;49;00m
+            },[90m[39;49;00m
+        )[90m[39;49;00m
+        [94massert[39;49;00m response.status_code == [94m200[39;49;00m[90m[39;49;00m
+    [90m[39;49;00m
+        [90m# run_id is not specified[39;49;00m[90m[39;49;00m
+        response = requests.post([90m[39;49;00m
+            [33mf[39;49;00m[33m"[39;49;00m[33m{[39;49;00mmlflow_client.tracking_uri[33m}[39;49;00m[33m/api/2.0/mlflow/model-versions/create[39;49;00m[33m"[39;49;00m,[90m[39;49;00m
+            json={[90m[39;49;00m
+                [33m"[39;49;00m[33mname[39;49;00m[33m"[39;49;00m: name,[90m[39;49;00m
+                [33m"[39;49;00m[33msource[39;49;00m[33m"[39;49;00m: run.info.artifact_uri,[90m[39;49;00m
+            },[90m[39;49;00m
+        )[90m[39;49;00m
+>       [94massert[39;49;00m response.status_code == [94m400[39;49;00m[90m[39;49;00m
+[1m[31mE       assert 200 == 400[0m
+[1m[31mE        +  where 200 = <Response [200]>.status_code[0m
+
+exp_id     = '1'
+mlflow_client = <mlflow.tracking.client.MlflowClient object at 0x7bdd7425c940>
+name       = 'test'
+response   = <Response [200]>
+run        = <Run: data=<RunData: metrics={}, params={}, tags={'mlflow.runName': 'whimsical-bug-817'}>, info=<RunInfo: artifact_uri...-bug-817', run_uuid='40a11483d9344af2b805bee74c183baf', start_time=1779228397913, status='RUNNING', user_id='unknown'>>
+
+[1m[31mtests/tracking/test_rest_tracking.py[0m:1141: AssertionError
+---------------------------- Captured stdout setup -----------------------------
+ * Serving Flask app 'mlflow.server'
+ * Debug mode: off
+---------------------------- Captured stderr setup -----------------------------
+2026/05/19 22:06:33 INFO tests.tracking.integration_test_utils: Awaiting server to be up on 127.0.0.1:49593
+2026/05/19 22:06:33 INFO tests.tracking.integration_test_utils: Server not yet up, waiting...
+2026/05/19 22:06:34 INFO tests.tracking.integration_test_utils: Server not yet up, waiting...
+2026/05/19 22:06:34 INFO tests.tracking.integration_test_utils: Server not yet up, waiting...
+2026/05/19 22:06:35 INFO tests.tracking.integration_test_utils: Server not yet up, waiting...
+2026/05/19 22:06:35 INFO tests.tracking.integration_test_utils: Server not yet up, waiting...
+[31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on http://127.0.0.1:49593
+[33mPress CTRL+C to quit[0m
+2026/05/19 22:06:36 INFO tests.tracking.integration_test_utils: Server is up on 127.0.0.1:49593!
+2026/05/19 22:06:36 INFO tests.tracking.integration_test_utils: Launching tracking server against backend URI sqlite://///tmp/pytest-of-root/pytest-0/test_create_model_version_with3/sqlalchemy.db. Server URL: http://127.0.0.1:49593
+----------------------------- Captured stderr call -----------------------------
+2026/05/19 22:06:36 INFO mlflow.store.db.utils: Creating initial MLflow database tables...
+2026/05/19 22:06:36 INFO mlflow.store.db.utils: Updating database tables
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+INFO  [alembic.runtime.migration] Running upgrade  -> 451aebb31d03, add metric step
+INFO  [alembic.runtime.migration] Running upgrade 451aebb31d03 -> 90e64c465722, migrate user column to tags
+INFO  [alembic.runtime.migration] Running upgrade 90e64c465722 -> 181f10493468, allow nulls for metric values
+INFO  [alembic.runtime.migration] Running upgrade 181f10493468 -> df50e92ffc5e, Add Experiment Tags Table
+INFO  [alembic.runtime.migration] Running upgrade df50e92ffc5e -> 7ac759974ad8, Update run tags with larger limit
+INFO  [alembic.runtime.migration] Running upgrade 7ac759974ad8 -> 89d4b8295536, create latest metrics table
+INFO  [89d4b8295536_create_latest_metrics_table_py] Migration complete!
+INFO  [alembic.runtime.migration] Running upgrade 89d4b8295536 -> 2b4d017a5e9b, add model registry tables to db
+INFO  [2b4d017a5e9b_add_model_registry_tables_to_db_py] Adding registered_models and model_versions tables to database.
+INFO  [2b4d017a5e9b_add_model_registry_tables_to_db_py] Migration complete!
+INFO  [alembic.runtime.migration] Running upgrade 2b4d017a5e9b -> cfd24bdc0731, Update run status constraint with killed
+INFO  [alembic.runtime.migration] Running upgrade cfd24bdc0731 -> 0a8213491aaa, drop_duplicate_killed_constraint
+INFO  [alembic.runtime.migration] Running upgrade 0a8213491aaa -> 728d730b5ebd, add registered model tags table
+INFO  [alembic.runtime.migration] Running upgrade 728d730b5ebd -> 27a6a02d2cf1, add model version tags table
+INFO  [alembic.runtime.migration] Running upgrade 27a6a02d2cf1 -> 84291f40a231, add run_link to model_version
+INFO  [alembic.runtime.migration] Running upgrade 84291f40a231 -> a8c4a736bde6, allow nulls for run_id
+INFO  [alembic.runtime.migration] Running upgrade a8c4a736bde6 -> 39d1c3be5f05, add_is_nan_constraint_for_metrics_tables_if_necessary
+INFO  [alembic.runtime.migration] Running upgrade 39d1c3be5f05 -> c48cb773bb87, reset_default_value_for_is_nan_in_metrics_table_for_mysql
+INFO  [alembic.runtime.migration] Running upgrade c48cb773bb87 -> bd07f7e963c5, create index on run_uuid
+INFO  [alembic.runtime.migration] Running upgrade bd07f7e963c5 -> 0c779009ac13, add deleted_time field to runs table
+INFO  [alembic.runtime.migration] Running upgrade 0c779009ac13 -> cc1f77228345, change param value length to 500
+INFO  [alembic.runtime.migration] Running upgrade cc1f77228345 -> 97727af70f4d, Add creation_time and last_update_time to experiments table
+INFO  [alembic.runtime.migration] Running upgrade 97727af70f4d -> 3500859a5d39, Add Model Aliases table
+127.0.0.1 - - [19/May/2026 22:06:37] "POST /api/2.0/mlflow/registered-models/create HTTP/1.1" 200 -
+INFO  [werkzeug] 127.0.0.1 - - [19/May/2026 22:06:37] "POST /api/2.0/mlflow/registered-models/create HTTP/1.1" 200 -
+INFO  [alembic.runtime.migration] Context impl SQLiteImpl.
+INFO  [alembic.runtime.migration] Will assume non-transactional DDL.
+127.0.0.1 - - [19/May/2026 22:06:37] "POST /api/2.0/mlflow/experiments/create HTTP/1.1" 200 -
+INFO  [werkzeug] 127.0.0.1 - - [19/May/2026 22:06:37] "POST /api/2.0/mlflow/experiments/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:37] "POST /api/2.0/mlflow/runs/create HTTP/1.1" 200 -
+INFO  [werkzeug] 127.0.0.1 - - [19/May/2026 22:06:37] "POST /api/2.0/mlflow/runs/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:37] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+INFO  [werkzeug] 127.0.0.1 - - [19/May/2026 22:06:37] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:38] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+INFO  [werkzeug] 127.0.0.1 - - [19/May/2026 22:06:38] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:38] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+INFO  [werkzeug] 127.0.0.1 - - [19/May/2026 22:06:38] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:38] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+INFO  [werkzeug] 127.0.0.1 - - [19/May/2026 22:06:38] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+127.0.0.1 - - [19/May/2026 22:06:38] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+INFO  [werkzeug] 127.0.0.1 - - [19/May/2026 22:06:38] "POST /api/2.0/mlflow/model-versions/create HTTP/1.1" 200 -
+--------------------------- Captured stderr teardown ---------------------------
+2026/05/19 22:06:38 INFO tests.tracking.integration_test_utils: Terminating server...
+[31m[1m______________________________ test_is_local_uri _______________________________[0m
+
+    [0m[94mdef[39;49;00m[90m [39;49;00m[92mtest_is_local_uri[39;49;00m():[90m[39;49;00m
+        [94massert[39;49;00m is_local_uri([33m"[39;49;00m[33mmlruns[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        [94massert[39;49;00m is_local_uri([33m"[39;49;00m[33m./mlruns[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        [94massert[39;49;00m is_local_uri([33m"[39;49;00m[33mfile:///foo/mlruns[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        [94massert[39;49;00m is_local_uri([33m"[39;49;00m[33mfile:foo/mlruns[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        [94massert[39;49;00m is_local_uri([33m"[39;49;00m[33mfile://./mlruns[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        [94massert[39;49;00m is_local_uri([33m"[39;49;00m[33mfile://localhost/mlruns[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        [94massert[39;49;00m is_local_uri([33m"[39;49;00m[33mfile://localhost:5000/mlruns[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        [94massert[39;49;00m is_local_uri([33m"[39;49;00m[33mfile://127.0.0.1/mlruns[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+        [94massert[39;49;00m is_local_uri([33m"[39;49;00m[33mfile://127.0.0.1:5000/mlruns[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+    [90m[39;49;00m
+>       [94massert[39;49;00m [95mnot[39;49;00m is_local_uri([33m"[39;49;00m[33mfile://myhostname/path/to/file[39;49;00m[33m"[39;49;00m)[90m[39;49;00m
+[1m[31mE       AssertionError: assert not True[0m
+[1m[31mE        +  where True = is_local_uri('file://myhostname/path/to/file')[0m
+
+
+[1m[31mtests/utils/test_uri.py[0m:100: AssertionError
+[33m=============================== warnings summary ===============================[0m
+conftest.py:38
+  /project/conftest.py:38: PytestRemovedIn9Warning: The (path: py.path.local) argument is deprecated, please use (collection_path: pathlib.Path)
+  see https://docs.pytest.org/en/latest/deprecations.html#py-path-local-arguments-for-hooks-replaced-with-pathlib-path
+    @pytest.hookimpl(hookwrapper=True)
+
+tests/tracking/test_rest_tracking.py::test_get_metric_history_bulk_calls_optimized_impl_when_expected
+  /project/mlflow/store/db_migrations/versions/3500859a5d39_add_model_aliases_table.py:22: SADeprecationWarning: The from_engine() method on Inspector is deprecated and will be removed in a future release.  Please use the sqlalchemy.inspect() function on an Engine or Connection in order to acquire an Inspector. (deprecated since: 1.4)
+    inspector = Inspector.from_engine(connection)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+============================= slowest 10 durations =============================
+13.27s call     tests/tracking/test_rest_tracking.py::test_log_model[sqlalchemy]
+12.06s call     tests/tracking/test_rest_tracking.py::test_log_model[file]
+5.57s call     tests/tracking/test_rest_tracking.py::test_create_run_defaults[sqlalchemy]
+3.80s call     tests/tracking/test_rest_tracking.py::test_logging_model_with_local_artifact_uri[sqlalchemy]
+3.24s setup    tests/tracking/test_rest_tracking.py::test_log_batch_validation[file]
+3.12s call     tests/tracking/test_rest_tracking.py::test_logging_model_with_local_artifact_uri[file]
+3.10s setup    tests/tracking/test_rest_tracking.py::test_log_metrics_params_tags[sqlalchemy]
+3.10s setup    tests/tracking/test_rest_tracking.py::test_create_run_defaults[sqlalchemy]
+3.08s setup    tests/tracking/test_rest_tracking.py::test_rename_experiment[file]
+3.05s setup    tests/tracking/test_rest_tracking.py::test_rename_experiment[sqlalchemy]
+======================= command to run failed test cases =======================
+pytest 'tests/tracking/test_rest_tracking.py::test_create_model_version_with_path_source[file]' 'tests/tracking/test_rest_tracking.py::test_create_model_version_with_path_source[sqlalchemy]' 'tests/tracking/test_rest_tracking.py::test_create_model_version_with_file_uri[file]' 'tests/tracking/test_rest_tracking.py::test_create_model_version_with_file_uri[sqlalchemy]' 'tests/utils/test_uri.py::test_is_local_uri'
+
+[36m[1m=========================== short test summary info ============================[0m
+[31mFAILED[0m tests/tracking/test_rest_tracking.py::[1mtest_create_model_version_with_path_source[file][0m - assert 200 == 400
+[31mFAILED[0m tests/tracking/test_rest_tracking.py::[1mtest_create_model_version_with_path_source[sqlalchemy][0m - assert 200 == 400
+[31mFAILED[0m tests/tracking/test_rest_tracking.py::[1mtest_create_model_version_with_file_uri[file][0m - assert 200 == 400
+[31mFAILED[0m tests/tracking/test_rest_tracking.py::[1mtest_create_model_version_with_file_uri[sqlalchemy][0m - assert 200 == 400
+[31mFAILED[0m tests/utils/test_uri.py::[1mtest_is_local_uri[0m - AssertionError: assert not True
+[31m======= [31m[1m5 failed[0m, [32m225 passed[0m, [33m9 skipped[0m, [33m2 warnings[0m[31m in 291.61s (0:04:51)[0m[31m =======[0m

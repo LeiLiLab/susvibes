@@ -1,0 +1,370 @@
+Creating test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Testing against Django installed in '/project/django' with up to 2 processes
+Importing application db_functions
+Found 331 test(s).
+Skipping setup of unused database(s): other.
+Operations to perform:
+  Synchronize unmigrated apps: auth, contenttypes, messages, sessions, staticfiles
+  Apply all migrations: admin, db_functions, sites
+Synchronizing apps without migrations:
+  Creating tables...
+    Creating table django_content_type
+    Creating table auth_permission
+    Creating table auth_group
+    Creating table auth_user
+    Creating table django_session
+    Running deferred SQL...
+Running migrations:
+  Applying admin.0001_initial... OK
+  Applying admin.0002_logentry_remove_auto_add... OK
+  Applying admin.0003_logentry_add_action_flag_choices... OK
+  Applying db_functions.0001_setup_extensions... OK
+  Applying db_functions.0002_create_test_models... OK
+  Applying sites.0001_initial... OK
+Cloning test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Cloning test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+  Applying sites.0002_alter_domain_unique... OK
+System check identified no issues (0 silenced).
+test_basic (db_functions.comparison.test_coalesce.CoalesceTests) ... ok
+test_empty_queryset (db_functions.comparison.test_coalesce.CoalesceTests) ... ok
+test_gt_two_expressions (db_functions.comparison.test_coalesce.CoalesceTests) ... ok
+test_mixed_values (db_functions.comparison.test_coalesce.CoalesceTests) ... ok
+test_ordering (db_functions.comparison.test_coalesce.CoalesceTests) ... ok
+test_collate_filter_ci (db_functions.comparison.test_collate.CollateTests) ... ok
+test_collate_order_by_cs (db_functions.comparison.test_collate.CollateTests) ... ok
+test_invalid_collation (db_functions.comparison.test_collate.CollateTests) ... ok
+test_language_collation_order_by (db_functions.comparison.test_collate.CollateTests) ... skipped 'This backend does not support language collations.'
+test_all_null (db_functions.comparison.test_greatest.GreatestTests) ... ok
+test_basic (db_functions.comparison.test_greatest.GreatestTests) ... ok
+test_coalesce_workaround (db_functions.comparison.test_greatest.GreatestTests) ... ok
+test_coalesce_workaround_mysql (db_functions.comparison.test_greatest.GreatestTests) ... skipped 'MySQL-specific workaround'
+test_decimal_filter (db_functions.comparison.test_greatest.GreatestTests) ... ok
+test_ignores_null (db_functions.comparison.test_greatest.GreatestTests) ... skipped "Database doesn't support feature(s): greatest_least_ignores_nulls"
+test_one_expressions (db_functions.comparison.test_greatest.GreatestTests) ... ok
+test_propagates_null (db_functions.comparison.test_greatest.GreatestTests) ... ok
+test_related_field (db_functions.comparison.test_greatest.GreatestTests) ... ok
+test_update (db_functions.comparison.test_greatest.GreatestTests) ... ok
+test_not_supported (db_functions.comparison.test_json_object.JSONObjectNotSupportedTests) ... skipped 'Database has feature(s) has_json_object_function'
+test_basic (db_functions.comparison.test_json_object.JSONObjectTests) ... ok
+test_empty (db_functions.comparison.test_json_object.JSONObjectTests) ... ok
+test_expressions (db_functions.comparison.test_json_object.JSONObjectTests) ... ok
+test_nested_empty_json_object (db_functions.comparison.test_json_object.JSONObjectTests) ... ok
+test_nested_json_object (db_functions.comparison.test_json_object.JSONObjectTests) ... ok
+test_textfield (db_functions.comparison.test_json_object.JSONObjectTests) ... ok
+test_all_null (db_functions.comparison.test_least.LeastTests) ... ok
+test_basic (db_functions.comparison.test_least.LeastTests) ... ok
+test_coalesce_workaround (db_functions.comparison.test_least.LeastTests) ... ok
+test_coalesce_workaround_mysql (db_functions.comparison.test_least.LeastTests) ... skipped 'MySQL-specific workaround'
+test_decimal_filter (db_functions.comparison.test_least.LeastTests) ... ok
+test_ignores_null (db_functions.comparison.test_least.LeastTests) ... skipped "Database doesn't support feature(s): greatest_least_ignores_nulls"
+test_one_expressions (db_functions.comparison.test_least.LeastTests) ... ok
+test_propagates_null (db_functions.comparison.test_least.LeastTests) ... ok
+test_related_field (db_functions.comparison.test_least.LeastTests) ... ok
+test_update (db_functions.comparison.test_least.LeastTests) ... ok
+test_basic (db_functions.comparison.test_nullif.NullIfTests) ... ok
+test_null_argument (db_functions.comparison.test_nullif.NullIfTests) ... ok
+test_null_literal (db_functions.comparison.test_nullif.NullIfTests) ... skipped 'Oracle specific test for NULL-literal'
+test_too_few_args (db_functions.comparison.test_nullif.NullIfTests) ... ok
+test_cast_from_db_date_to_datetime (db_functions.comparison.test_cast.CastTests) ... ok
+test_cast_from_db_datetime_to_date (db_functions.comparison.test_cast.CastTests) ... ok
+test_cast_from_db_datetime_to_date_group_by (db_functions.comparison.test_cast.CastTests) ... ok
+test_cast_from_db_datetime_to_time (db_functions.comparison.test_cast.CastTests) ... ok
+test_cast_from_field (db_functions.comparison.test_cast.CastTests) ... ok
+test_cast_from_python (db_functions.comparison.test_cast.CastTests) ... ok
+test_cast_from_python_to_date (db_functions.comparison.test_cast.CastTests) ... ok
+test_cast_from_python_to_datetime (db_functions.comparison.test_cast.CastTests) ... ok
+test_cast_from_value (db_functions.comparison.test_cast.CastTests) ... ok
+test_cast_to_char_field_with_max_length (db_functions.comparison.test_cast.CastTests) ... skipped "Database doesn't support feature(s): supports_cast_with_precision"
+test_cast_to_char_field_without_max_length (db_functions.comparison.test_cast.CastTests) ... ok
+test_cast_to_decimal_field (db_functions.comparison.test_cast.CastTests) ... skipped "Database doesn't support feature(s): supports_cast_with_precision"
+test_cast_to_duration (db_functions.comparison.test_cast.CastTests) ... ok
+test_cast_to_integer (db_functions.comparison.test_cast.CastTests) ... ok
+test_cast_to_text_field (db_functions.comparison.test_cast.CastTests) ... ok
+test_expression_wrapped_with_parentheses_on_postgresql (db_functions.comparison.test_cast.CastTests)
+The SQL for the Cast expression is wrapped with parentheses in case ... skipped 'PostgreSQL test'
+test_extract_day_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_duration (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... skipped "Database doesn't support feature(s): has_native_duration_field"
+test_extract_duration_unsupported_lookups (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_duration_without_native_duration_field (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_hour_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_iso_weekday_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_iso_year_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_iso_year_func_boundaries (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_minute_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_month_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_none (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_outerref (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_outerref_validation (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_quarter_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_quarter_func_boundaries (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_second_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_week_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_week_func_boundaries (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_weekday_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_year_exact_lookup (db_functions.datetime.test_extract_trunc.DateFunctionTests)
+Extract year uses a BETWEEN filter to compare the year to allow indexes ... ok
+test_extract_year_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_year_greaterthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_extract_year_lessthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_date_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_date_none (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_day_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_hour_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_minute_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_month_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_none (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_quarter_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_second_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_subquery_with_parameters (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_time_comparison (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_time_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_time_none (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_week_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_trunc_year_func (db_functions.datetime.test_extract_trunc.DateFunctionTests) ... ok
+test_basic (db_functions.datetime.test_now.NowTests) ... ok
+test_decimal (db_functions.math.test_abs.AbsTests) ... ok
+test_float (db_functions.math.test_abs.AbsTests) ... ok
+test_integer (db_functions.math.test_abs.AbsTests) ... ok
+test_null (db_functions.math.test_abs.AbsTests) ... ok
+test_transform (db_functions.math.test_abs.AbsTests) ... ok
+test_decimal (db_functions.math.test_acos.ACosTests) ... ok
+test_float (db_functions.math.test_acos.ACosTests) ... ok
+test_integer (db_functions.math.test_acos.ACosTests) ... ok
+test_null (db_functions.math.test_acos.ACosTests) ... ok
+test_transform (db_functions.math.test_acos.ACosTests) ... ok
+test_decimal (db_functions.math.test_asin.ASinTests) ... ok
+test_float (db_functions.math.test_asin.ASinTests) ... ok
+test_integer (db_functions.math.test_asin.ASinTests) ... ok
+test_null (db_functions.math.test_asin.ASinTests) ... ok
+test_transform (db_functions.math.test_asin.ASinTests) ... ok
+test_decimal (db_functions.math.test_atan.ATanTests) ... ok
+test_float (db_functions.math.test_atan.ATanTests) ... ok
+test_integer (db_functions.math.test_atan.ATanTests) ... ok
+test_null (db_functions.math.test_atan.ATanTests) ... ok
+test_transform (db_functions.math.test_atan.ATanTests) ... ok
+test_decimal (db_functions.math.test_atan2.ATan2Tests) ... ok
+test_float (db_functions.math.test_atan2.ATan2Tests) ... ok
+test_integer (db_functions.math.test_atan2.ATan2Tests) ... ok
+test_null (db_functions.math.test_atan2.ATan2Tests) ... ok
+test_decimal (db_functions.math.test_ceil.CeilTests) ... ok
+test_float (db_functions.math.test_ceil.CeilTests) ... ok
+test_integer (db_functions.math.test_ceil.CeilTests) ... ok
+test_null (db_functions.math.test_ceil.CeilTests) ... ok
+test_transform (db_functions.math.test_ceil.CeilTests) ... ok
+test_decimal (db_functions.math.test_cos.CosTests) ... ok
+test_float (db_functions.math.test_cos.CosTests) ... ok
+test_integer (db_functions.math.test_cos.CosTests) ... ok
+test_null (db_functions.math.test_cos.CosTests) ... ok
+test_transform (db_functions.math.test_cos.CosTests) ... ok
+test_decimal (db_functions.math.test_cot.CotTests) ... ok
+test_float (db_functions.math.test_cot.CotTests) ... ok
+test_integer (db_functions.math.test_cot.CotTests) ... ok
+test_null (db_functions.math.test_cot.CotTests) ... ok
+test_transform (db_functions.math.test_cot.CotTests) ... ok
+test_decimal (db_functions.math.test_degrees.DegreesTests) ... ok
+test_float (db_functions.math.test_degrees.DegreesTests) ... ok
+test_integer (db_functions.math.test_degrees.DegreesTests) ... ok
+test_null (db_functions.math.test_degrees.DegreesTests) ... ok
+test_transform (db_functions.math.test_degrees.DegreesTests) ... ok
+test_decimal (db_functions.math.test_exp.ExpTests) ... ok
+test_float (db_functions.math.test_exp.ExpTests) ... ok
+test_integer (db_functions.math.test_exp.ExpTests) ... ok
+test_null (db_functions.math.test_exp.ExpTests) ... ok
+test_transform (db_functions.math.test_exp.ExpTests) ... ok
+test_decimal (db_functions.math.test_floor.FloorTests) ... ok
+test_float (db_functions.math.test_floor.FloorTests) ... ok
+test_integer (db_functions.math.test_floor.FloorTests) ... ok
+test_null (db_functions.math.test_floor.FloorTests) ... ok
+test_transform (db_functions.math.test_floor.FloorTests) ... ok
+test_decimal (db_functions.math.test_ln.LnTests) ... ok
+test_float (db_functions.math.test_ln.LnTests) ... ok
+test_integer (db_functions.math.test_ln.LnTests) ... ok
+test_null (db_functions.math.test_ln.LnTests) ... ok
+test_transform (db_functions.math.test_ln.LnTests) ... ok
+test_decimal (db_functions.math.test_log.LogTests) ... ok
+test_float (db_functions.math.test_log.LogTests) ... ok
+test_integer (db_functions.math.test_log.LogTests) ... ok
+test_null (db_functions.math.test_log.LogTests) ... ok
+test_decimal (db_functions.math.test_mod.ModTests) ... ok
+test_float (db_functions.math.test_mod.ModTests) ... ok
+test_integer (db_functions.math.test_mod.ModTests) ... ok
+test_null (db_functions.math.test_mod.ModTests) ... ok
+test (db_functions.math.test_pi.PiTests) ... ok
+test_decimal (db_functions.math.test_power.PowerTests) ... ok
+test_float (db_functions.math.test_power.PowerTests) ... ok
+test_integer (db_functions.math.test_power.PowerTests) ... ok
+test_null (db_functions.math.test_power.PowerTests) ... ok
+test_decimal (db_functions.math.test_radians.RadiansTests) ... ok
+test_float (db_functions.math.test_radians.RadiansTests) ... ok
+test_integer (db_functions.math.test_radians.RadiansTests) ... ok
+test_null (db_functions.math.test_radians.RadiansTests) ... ok
+test_transform (db_functions.math.test_radians.RadiansTests) ... ok
+test (db_functions.math.test_random.RandomTests) ... ok
+test_decimal (db_functions.math.test_round.RoundTests) ... ok
+test_decimal_with_negative_precision (db_functions.math.test_round.RoundTests) ... skipped "SQLite doesn't support negative precision for ROUND()."
+test_decimal_with_precision (db_functions.math.test_round.RoundTests) ... ok
+test_float (db_functions.math.test_round.RoundTests) ... ok
+test_float_with_negative_precision (db_functions.math.test_round.RoundTests) ... skipped "SQLite doesn't support negative precision for ROUND()."
+test_float_with_precision (db_functions.math.test_round.RoundTests) ... ok
+test_integer (db_functions.math.test_round.RoundTests) ... ok
+test_integer_with_negative_precision (db_functions.math.test_round.RoundTests) ... skipped "SQLite doesn't support negative precision for ROUND()."
+test_integer_with_precision (db_functions.math.test_round.RoundTests) ... ok
+test_null (db_functions.math.test_round.RoundTests) ... ok
+test_null_with_negative_precision (db_functions.math.test_round.RoundTests) ... skipped "SQLite doesn't support negative precision for ROUND()."
+test_null_with_precision (db_functions.math.test_round.RoundTests) ... ok
+test_transform (db_functions.math.test_round.RoundTests) ... ok
+test_unsupported_negative_precision (db_functions.math.test_round.RoundTests) ... ok
+test_decimal (db_functions.math.test_sign.SignTests) ... ok
+test_float (db_functions.math.test_sign.SignTests) ... ok
+test_integer (db_functions.math.test_sign.SignTests) ... ok
+test_null (db_functions.math.test_sign.SignTests) ... ok
+test_transform (db_functions.math.test_sign.SignTests) ... ok
+test_decimal (db_functions.math.test_sin.SinTests) ... ok
+test_float (db_functions.math.test_sin.SinTests) ... ok
+test_integer (db_functions.math.test_sin.SinTests) ... ok
+test_null (db_functions.math.test_sin.SinTests) ... ok
+test_transform (db_functions.math.test_sin.SinTests) ... ok
+test_decimal (db_functions.math.test_sqrt.SqrtTests) ... ok
+test_float (db_functions.math.test_sqrt.SqrtTests) ... ok
+test_integer (db_functions.math.test_sqrt.SqrtTests) ... ok
+test_null (db_functions.math.test_sqrt.SqrtTests) ... ok
+test_transform (db_functions.math.test_sqrt.SqrtTests) ... ok
+test_decimal (db_functions.math.test_tan.TanTests) ... ok
+test_float (db_functions.math.test_tan.TanTests) ... ok
+test_integer (db_functions.math.test_tan.TanTests) ... ok
+test_null (db_functions.math.test_tan.TanTests) ... ok
+test_transform (db_functions.math.test_tan.TanTests) ... ok
+test_func_transform_bilateral (db_functions.tests.FunctionTests) ... ok
+test_func_transform_bilateral_multivalue (db_functions.tests.FunctionTests) ... ok
+test_function_as_filter (db_functions.tests.FunctionTests) ... ok
+test_nested_function_ordering (db_functions.tests.FunctionTests) ... ok
+test_basic (db_functions.text.test_chr.ChrTests) ... ok
+test_non_ascii (db_functions.text.test_chr.ChrTests) ... ok
+test_transform (db_functions.text.test_chr.ChrTests) ... ok
+test_basic (db_functions.text.test_concat.ConcatTests) ... ok
+test_coalesce_idempotent (db_functions.text.test_concat.ConcatTests) ... ok
+test_gt_two_expressions (db_functions.text.test_concat.ConcatTests) ... ok
+test_many (db_functions.text.test_concat.ConcatTests) ... ok
+test_mixed_char_text (db_functions.text.test_concat.ConcatTests) ... ok
+test_sql_generation_idempotency (db_functions.text.test_concat.ConcatTests) ... ok
+test_basic (db_functions.text.test_left.LeftTests) ... ok
+test_expressions (db_functions.text.test_left.LeftTests) ... ok
+test_invalid_length (db_functions.text.test_left.LeftTests) ... ok
+test_basic (db_functions.text.test_length.LengthTests) ... ok
+test_ordering (db_functions.text.test_length.LengthTests) ... ok
+test_transform (db_functions.text.test_length.LengthTests) ... ok
+test_basic (db_functions.text.test_lower.LowerTests) ... ok
+test_num_args (db_functions.text.test_lower.LowerTests) ... ok
+test_transform (db_functions.text.test_lower.LowerTests) ... ok
+test_basic (db_functions.text.test_md5.MD5Tests) ... ok
+test_transform (db_functions.text.test_md5.MD5Tests) ... ok
+test_basic (db_functions.text.test_ord.OrdTests) ... ok
+test_transform (db_functions.text.test_ord.OrdTests) ... ok
+test_combined_with_length (db_functions.text.test_pad.PadTests) ... ok
+test_pad (db_functions.text.test_pad.PadTests) ... ok
+test_pad_negative_length (db_functions.text.test_pad.PadTests) ... ok
+test_basic (db_functions.text.test_repeat.RepeatTests) ... ok
+test_negative_number (db_functions.text.test_repeat.RepeatTests) ... ok
+test_case_sensitive (db_functions.text.test_replace.ReplaceTests) ... ok
+test_replace_expression (db_functions.text.test_replace.ReplaceTests) ... ok
+test_replace_with_default_arg (db_functions.text.test_replace.ReplaceTests) ... ok
+test_replace_with_empty_string (db_functions.text.test_replace.ReplaceTests) ... ok
+test_update (db_functions.text.test_replace.ReplaceTests) ... ok
+test_basic (db_functions.text.test_reverse.ReverseTests) ... ok
+test_expressions (db_functions.text.test_reverse.ReverseTests) ... ok
+test_null (db_functions.text.test_reverse.ReverseTests) ... ok
+test_transform (db_functions.text.test_reverse.ReverseTests) ... ok
+test_basic (db_functions.text.test_right.RightTests) ... ok
+test_expressions (db_functions.text.test_right.RightTests) ... ok
+test_invalid_length (db_functions.text.test_right.RightTests) ... ok
+test_basic (db_functions.text.test_sha1.SHA1Tests) ... ok
+test_transform (db_functions.text.test_sha1.SHA1Tests) ... ok
+test_basic (db_functions.text.test_sha224.SHA224Tests) ... ok
+test_transform (db_functions.text.test_sha224.SHA224Tests) ... ok
+test_unsupported (db_functions.text.test_sha224.SHA224Tests) ... skipped "Oracle doesn't support SHA224."
+test_basic (db_functions.text.test_sha256.SHA256Tests) ... ok
+test_transform (db_functions.text.test_sha256.SHA256Tests) ... ok
+test_basic (db_functions.text.test_sha384.SHA384Tests) ... ok
+test_transform (db_functions.text.test_sha384.SHA384Tests) ... ok
+test_basic (db_functions.text.test_sha512.SHA512Tests) ... ok
+test_transform (db_functions.text.test_sha512.SHA512Tests) ... ok
+test_annotate_charfield (db_functions.text.test_strindex.StrIndexTests) ... ok
+test_annotate_textfield (db_functions.text.test_strindex.StrIndexTests) ... ok
+test_filtering (db_functions.text.test_strindex.StrIndexTests) ... ok
+test_order_by (db_functions.text.test_strindex.StrIndexTests) ... ok
+test_unicode_values (db_functions.text.test_strindex.StrIndexTests) ... ok
+test_basic (db_functions.text.test_substr.SubstrTests) ... ok
+test_expressions (db_functions.text.test_substr.SubstrTests) ... ok
+test_pos_gt_zero (db_functions.text.test_substr.SubstrTests) ... ok
+test_start (db_functions.text.test_substr.SubstrTests) ... ok
+test_trim (db_functions.text.test_trim.TrimTests) ... ok
+test_trim_transform (db_functions.text.test_trim.TrimTests) ... ok
+test_basic (db_functions.text.test_upper.UpperTests) ... ok
+test_transform (db_functions.text.test_upper.UpperTests) ... ok
+test_lag_negative_offset (db_functions.window.test_validation.ValidationTests) ... ok
+test_lead_negative_offset (db_functions.window.test_validation.ValidationTests) ... ok
+test_negative_num_buckets_ntile (db_functions.window.test_validation.ValidationTests) ... ok
+test_nth_negative_nth_value (db_functions.window.test_validation.ValidationTests) ... ok
+test_nth_null_expression (db_functions.window.test_validation.ValidationTests) ... ok
+test_null_source_lag (db_functions.window.test_validation.ValidationTests) ... ok
+test_null_source_lead (db_functions.window.test_validation.ValidationTests) ... ok
+test_extract_day_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_duration (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... skipped "Database doesn't support feature(s): has_native_duration_field"
+test_extract_duration_unsupported_lookups (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_duration_without_native_duration_field (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_func_explicit_timezone_priority (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_func_with_timezone (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_func_with_timezone_minus_no_offset (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_hour_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_invalid_field_with_timezone (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_iso_weekday_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_iso_year_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_iso_year_func_boundaries (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_minute_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_month_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_none (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_outerref (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_outerref_validation (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_quarter_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_quarter_func_boundaries (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_second_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_week_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_week_func_boundaries (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_weekday_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_year_exact_lookup (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)
+Extract year uses a BETWEEN filter to compare the year to allow indexes ... ok
+test_extract_year_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_year_greaterthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_extract_year_lessthan_lookup (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_ambiguous_and_invalid_times (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_date_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_date_none (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_day_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_func_with_timezone (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests)
+If the truncated datetime transitions to a different offset (daylight ... ok
+test_trunc_hour_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_invalid_field_with_timezone (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_minute_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_month_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_none (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_quarter_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_second_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_subquery_with_parameters (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_time_comparison (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_time_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_time_none (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_timezone_applied_before_truncation (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_week_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+test_trunc_year_func (db_functions.datetime.test_extract_trunc.DateFunctionWithTimeZoneTests) ... ok
+
+----------------------------------------------------------------------
+Ran 331 tests in 1.532s
+
+OK (skipped=17)
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...
+Destroying test database for alias 'default' ('file:memorydb_default?mode=memory&cache=shared')...

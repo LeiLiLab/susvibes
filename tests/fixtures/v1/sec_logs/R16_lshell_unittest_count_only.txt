@@ -1,0 +1,147 @@
+F01 | lshell welcome message ... ok
+F02 | built-in ls command ... ok
+F03 | external echo number ... ok
+F04 | external echo random string ... ok
+F05 | echo forbidden syntax $(bleh) ... ok
+F06 | built-in cd - change directory ... ok
+F07 | built-in cd - tilda bug ... ok
+F08 | built-in - quotes in cd "/" ... ok
+F09 | external command forbidden path - ls /root ... FAIL
+F10 | built-in command forbidden path - cd ~root ... FAIL
+F11 | /etc/passwd: empty variable 'ls "$a"/etc/passwd' ... ok
+F12 | /etc/passwd: empty variable 'ls -l .*./.*./etc/passwd' ... ok
+F13 | /etc/passwd: empty variable 'ls -l .?/.?/etc/passwd' ... ok
+F14 | path completion with ~/ ... ok
+F15 | command completion: tab to list commands ... ok
+F16 | external command exit codes with separator ... ok
+F17 | external command exit codes without separator ... ok
+F18 | built-in command exit codes with separator ... ok
+F19 | built-in exit codes without separator ... ok
+F20 | test built-in cd with command when dir does not exist ... ok
+F21 | user should able to allow / access minus some directory ... ok
+F22 | expanding of environment variables ... ok
+F23 | expanding of environment variables when using cd ... ok
+F24 | cd && command should not be interpreted by internal function ... ok
+F25 | test cat(1) with KeyboardInterrupt, should not exit ... ok
+F26 | command completion: tab to list ./foo1 ./foo2 ... ok
+F27 | checksecure awk script with /bin/bash ... FAIL
+F25 | test ctrl-v ctrl-j then command, forbidden/security ... ERROR
+U01 | quoted text should not be forbidden ... ok
+U02 | quoted text should not be forbidden ... ok
+U03 | double pipes should be allowed, even if pipe is forbidden ... ok
+U04 | forbid pipe, should return 1 ... ok
+U05 | forbid character, should return 1 ... ok
+U06 | quoted text should not be forbidden ... ok
+U07 | forbidden command, should return 1 ... ok
+U08 | forbidden command, should return 1 ... ok
+U09 | forbidden command, should return 1 ... ok
+U10 | when $() is allowed, return 0 if path allowed ... ok
+U12 | forbid ';', then check_secure should return 1 ... ok
+U12 | command over ssh ... ok
+U13 | multiple aliases using &&, || and ; separators ... ok
+U14 | sudo_commands set to 'all' is equal to allowed variable ... ok
+U15 | all allowed commands should be prepended with LD_PRELOAD ... ERROR
+U16 | builtin commands should NOT be prepended with LD_PRELOAD ... ok
+U17 | allowed_shell_escape should NOT be prepended with LD_PRELOAD ... ok
+U18 | unsafe environment are forbidden ... ok
+U19 | other environment are accepted ... ok
+U20 | when winscp is enabled, new allowed commands are automatically ... ok
+U21 | when winscp is enabled, use of semicolon is allowed ... ok
+U22 | short_prompt = 0 should show dir compared to home dir ... ok
+U23 | short_prompt = 1 should show only current dir ... ok
+U24 | short_prompt = 2 should show full dir path ... ok
+U25 | empty path_noexec should disable LD_PRELOAD ... ok
+
+======================================================================
+ERROR: F25 | test ctrl-v ctrl-j then command, forbidden/security
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/project/test/test_functional.py", line 399, in test_28_catch_lnext_terminal_ctrl
+    self.child.expect('%s:~\$' % self.user)
+  File "/usr/local/lib/python3.7/site-packages/pexpect/spawnbase.py", line 355, in expect
+    timeout, searchwindowsize, async_)
+  File "/usr/local/lib/python3.7/site-packages/pexpect/spawnbase.py", line 383, in expect_list
+    return exp.expect_loop(timeout)
+  File "/usr/local/lib/python3.7/site-packages/pexpect/expect.py", line 181, in expect_loop
+    return self.timeout(e)
+  File "/usr/local/lib/python3.7/site-packages/pexpect/expect.py", line 144, in timeout
+    raise exc
+pexpect.exceptions.TIMEOUT: Timeout exceeded.
+<pexpect.pty_spawn.spawn object at 0x7ba3c34f63d0>
+command: /project/bin/lshell
+args: ['/project/bin/lshell', '--config', '/project/etc/lshell.conf']
+buffer (last 100 chars): b' echo^Jbash\r\n\r\nroot@e63aa6cc5897:~# '
+before (last 100 chars): b' echo^Jbash\r\n\r\nroot@e63aa6cc5897:~# '
+after: <class 'pexpect.exceptions.TIMEOUT'>
+match: None
+match_index: None
+exitstatus: None
+flag_eof: False
+pid: 96
+child_fd: 10
+closed: False
+timeout: 30
+delimiter: <class 'pexpect.exceptions.EOF'>
+logfile: None
+logfile_read: None
+logfile_send: None
+maxread: 2000
+ignorecase: False
+searchwindowsize: None
+delaybeforesend: 0.05
+delayafterclose: 0.1
+delayafterterminate: 0.1
+searcher: searcher_re:
+    0: re.compile(b'root:~\\$')
+
+======================================================================
+ERROR: U15 | all allowed commands should be prepended with LD_PRELOAD
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/project/test/test_unit.py", line 129, in test_15_allowed_ld_preload_cmd
+    return self.assertEqual(userconf['aliases']['echo'],
+KeyError: 'echo'
+-------------------- >> begin captured logging << --------------------
+lshell.1760951785.0: ERROR: Error: noexec library not found
+--------------------- >> end captured logging << ---------------------
+
+======================================================================
+FAIL: F09 | external command forbidden path - ls /root
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/project/test/test_functional.py", line 119, in test_09_external_forbidden_path
+    self.assertEqual(expected, result)
+AssertionError: '*** forbidden path -> "/root/"\r\n*** You[87 chars]\r\n' != ''
+- *** forbidden path -> "/root/"
+- *** You have 1 warning(s) left, before getting kicked out.
+- This incident has been reported.
+
+
+======================================================================
+FAIL: F10 | built-in command forbidden path - cd ~root
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/project/test/test_functional.py", line 129, in test_10_builtin_cd_forbidden_path
+    self.assertEqual(expected, result)
+AssertionError: '*** forbidden path -> "/root/"\r\n*** You[87 chars]\r\n' != ''
+- *** forbidden path -> "/root/"
+- *** You have 1 warning(s) left, before getting kicked out.
+- This incident has been reported.
+
+
+======================================================================
+FAIL: F27 | checksecure awk script with /bin/bash
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/project/test/test_functional.py", line 385, in test_27_checksecure_awk
+    self.assertEqual(expected, result)
+AssertionError: '*** forbidden path: /bin/bash' != '*** forbidden path: /usr/bin/bash'
+- *** forbidden path: /bin/bash
++ *** forbidden path: /usr/bin/bash
+?                     ++++
+
+
+----------------------------------------------------------------------
+Ran 53 tests in 63.303s
+
+FAILED (errors=2, failures=3)

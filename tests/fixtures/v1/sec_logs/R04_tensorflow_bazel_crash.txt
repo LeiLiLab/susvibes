@@ -1,0 +1,60 @@
+Extracting Bazel installation...
+Starting local Bazel server and connecting to it...
+INFO: Options provided by the client:
+  Inherited 'common' options: --isatty=0 --terminal_columns=80
+INFO: Reading rc options for 'test' from /project/.bazelrc:
+  Inherited 'common' options: --experimental_repo_remote_exec
+INFO: Reading rc options for 'test' from /project/.bazelrc:
+  Inherited 'build' options: --define framework_shared_object=true --define=use_fast_cpp_protos=true --define=allow_oversize_protos=true --spawn_strategy=standalone -c opt --announce_rc --define=grpc_no_ares=true --noincompatible_remove_legacy_whole_archive --enable_platform_specific_config --define=with_xla_support=true --config=short_logs --config=v2 --define=no_aws_support=true --define=no_hdfs_support=true --experimental_cc_shared_library --deleted_packages=tensorflow/compiler/mlir/tfrt,tensorflow/compiler/mlir/tfrt/benchmarks,tensorflow/compiler/mlir/tfrt/jit/python_binding,tensorflow/compiler/mlir/tfrt/jit/transforms,tensorflow/compiler/mlir/tfrt/python_tests,tensorflow/compiler/mlir/tfrt/tests,tensorflow/compiler/mlir/tfrt/tests/ir,tensorflow/compiler/mlir/tfrt/tests/analysis,tensorflow/compiler/mlir/tfrt/tests/jit,tensorflow/compiler/mlir/tfrt/tests/lhlo_to_tfrt,tensorflow/compiler/mlir/tfrt/tests/tf_to_corert,tensorflow/compiler/mlir/tfrt/tests/tf_to_tfrt_data,tensorflow/compiler/mlir/tfrt/tests/saved_model,tensorflow/compiler/mlir/tfrt/transforms/lhlo_gpu_to_tfrt_gpu,tensorflow/core/runtime_fallback,tensorflow/core/runtime_fallback/conversion,tensorflow/core/runtime_fallback/kernel,tensorflow/core/runtime_fallback/opdefs,tensorflow/core/runtime_fallback/runtime,tensorflow/core/runtime_fallback/util,tensorflow/core/tfrt/common,tensorflow/core/tfrt/eager,tensorflow/core/tfrt/eager/backends/cpu,tensorflow/core/tfrt/eager/backends/gpu,tensorflow/core/tfrt/eager/core_runtime,tensorflow/core/tfrt/eager/cpp_tests/core_runtime,tensorflow/core/tfrt/gpu,tensorflow/core/tfrt/run_handler_thread_pool,tensorflow/core/tfrt/runtime,tensorflow/core/tfrt/saved_model,tensorflow/core/tfrt/graph_executor,tensorflow/core/tfrt/saved_model/tests,tensorflow/core/tfrt/tpu,tensorflow/core/tfrt/utils
+INFO: Found applicable config definition build:short_logs in file /project/.bazelrc: --output_filter=DONT_MATCH_ANYTHING
+INFO: Found applicable config definition build:v2 in file /project/.bazelrc: --define=tf_api_version=2 --action_env=TF2_BEHAVIOR=1
+INFO: Found applicable config definition build:linux in file /project/.bazelrc: --copt=-w --host_copt=-w --define=PREFIX=/usr --define=LIBDIR=$(PREFIX)/lib --define=INCLUDEDIR=$(PREFIX)/include --define=PROTOBUF_INCLUDE_PATH=$(PREFIX)/include --cxxopt=-std=c++14 --host_cxxopt=-std=c++14 --config=dynamic_kernels --distinct_host_configuration=false --experimental_guard_against_concurrent_changes
+INFO: Found applicable config definition build:dynamic_kernels in file /project/.bazelrc: --define=dynamic_loaded_kernels=true --copt=-DAUTOLOAD_DYNAMIC_KERNELS
+Loading: 
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+WARNING: Download from https://storage.googleapis.com/mirror.tensorflow.org/github.com/tensorflow/runtime/archive/99ad109e22ba29bcdd593781dd8ae82810fe95dc.tar.gz failed: class java.io.FileNotFoundException GET returned 404 Not Found
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Loading: 0 packages loaded
+Analyzing: 2 targets (1 packages loaded, 0 targets configured)
+DEBUG: Rule 'io_bazel_rules_docker' indicated that a canonical reproducible form can be obtained by modifying arguments shallow_since = "1596824487 -0400"
+DEBUG: Repository io_bazel_rules_docker instantiated at:
+  /project/WORKSPACE:23:14: in <toplevel>
+  /project/tensorflow/workspace0.bzl:107:34: in workspace
+  /root/.cache/bazel/_bazel_root/2ca1f4ebdc59348ffdc31d97a51a98d5/external/bazel_toolchains/repositories/repositories.bzl:35:23: in repositories
+Repository rule git_repository defined at:
+  /root/.cache/bazel/_bazel_root/2ca1f4ebdc59348ffdc31d97a51a98d5/external/bazel_tools/tools/build_defs/repo/git.bzl:199:33: in <toplevel>
+WARNING: Download from https://mirror.bazel.build/github.com/bazelbuild/rules_cc/archive/081771d4a0e9d7d3aa0eed2ef389fa4700dfb23e.tar.gz failed: class java.io.FileNotFoundException GET returned 404 Not Found
+WARNING: Download from https://storage.googleapis.com/mirror.tensorflow.org/github.com/google/XNNPACK/archive/5b5b61f38ebfc0ed7e930654300750c29920ade7.zip failed: class java.io.FileNotFoundException GET returned 404 Not Found
+INFO: Analyzed 2 targets (452 packages loaded, 28228 targets configured).
+INFO: Found 2 test targets...
+[0 / 61] [Prepa] BazelWorkspaceStatusAction stable-status.txt ... (5 actions, 0 running)
+[274 / 7,964] Compiling llvm/lib/Support/VirtualFileSystem.cpp; 34s local ... (64 actions, 62 running)
+[617 / 8,251] Compiling mlir/tools/mlir-tblgen/OpDefinitionsGen.cpp; 71s local ... (64 actions, 63 running)
+[1,587 / 9,439] Compiling llvm/utils/TableGen/GlobalISelEmitter.cpp; 62s local ... (64 actions, 63 running)
+
+Server terminated abruptly (error code: 14, error message: 'Socket closed', log file: '/root/.cache/bazel/_bazel_root/2ca1f4ebdc59348ffdc31d97a51a98d5/server/jvm.out')
+

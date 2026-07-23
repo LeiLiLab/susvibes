@@ -1,0 +1,16 @@
+Starting PostgreSQL 15 database server: mainRemoved stale pid file.
+Error: /usr/lib/postgresql/15/bin/pg_ctl /usr/lib/postgresql/15/bin/pg_ctl start -D /var/lib/postgresql/15/main -l /var/log/postgresql/postgresql-15-main.log -s -o  -c config_file="/etc/postgresql/15/main/postgresql.conf"  exited with status 1: 
+2026-05-19 16:33:46.073 UTC [22] LOG:  starting PostgreSQL 15.14 (Debian 15.14-0+deb12u1) on x86_64-pc-linux-gnu, compiled by gcc (Debian 12.2.0-14+deb12u1) 12.2.0, 64-bit
+2026-05-19 16:33:46.074 UTC [22] LOG:  listening on IPv6 address "::1", port 5432
+2026-05-19 16:33:46.074 UTC [22] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2026-05-19 16:33:46.166 UTC [22] LOG:  listening on Unix socket "/var/run/postgresql/.s.PGSQL.5432"
+2026-05-19 16:33:46.225 UTC [25] LOG:  database system was interrupted; last known up at 2025-10-20 09:41:57 UTC
+2026-05-19 16:33:56.260 UTC [25] LOG:  syncing data directory (fsync), elapsed time: 10.01 s, current path: ./base/5/2607_fsm
+2026-05-19 16:34:06.262 UTC [25] LOG:  syncing data directory (fsync), elapsed time: 20.01 s, current path: ./base/4/2701
+2026-05-19 16:34:16.258 UTC [25] LOG:  syncing data directory (fsync), elapsed time: 30.01 s, current path: ./base/16386/4169
+2026-05-19 16:34:26.246 UTC [25] LOG:  syncing data directory (fsync), elapsed time: 40.00 s, current path: ./base/16386/2601_vm
+2026-05-19 16:34:36.247 UTC [25] LOG:  syncing data directory (fsync), elapsed time: 50.00 s, current path: ./base/16387/13404
+2026-05-19 16:34:41.589 UTC [25] LOG:  database system was not properly shut down; automatic recovery in progress
+2026-05-19 16:34:41.847 UTC [25] LOG:  redo starts at 0/1500780
+pg_ctl: server did not start in time ... failed!
+ failed!

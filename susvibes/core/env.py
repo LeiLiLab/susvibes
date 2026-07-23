@@ -196,6 +196,7 @@ class Deployment():
         command: str | list = None,
         mem_limit: str = None,
         cpu_limit: int = None,
+        environment: dict = None,
     ) -> None:
         try:
             container = docker_client.containers.create(
@@ -203,7 +204,8 @@ class Deployment():
                 detach=True,
                 mem_limit=mem_limit,
                 nano_cpus=int(cpu_limit * 1e9) if cpu_limit else None,
-                command=command
+                command=command,
+                environment=environment,  # e.g. PYTEST_ADDOPTS=-v for per-test evidence
                 # command="tail -f /dev/null",
             )
             self.logger.info(f"Container for {self.image.id} created: {container.name}")
@@ -336,7 +338,17 @@ class Env:
             remove_image=remove_image,
             remove_container=remove_container
         )
-    
+
+    @property
+    def logs_parser(self) -> dict | None:
+        """The count handler's per-status failure-count regexes, for runner adapters."""
+        return self.logs_handler.get("count", {}).get("logs_parser")
+
+    @property
+    def logs_checker(self) -> str | None:
+        """The count handler's status regex, for runner adapters."""
+        return self.logs_handler.get("count", {}).get("logs_checker")
+
     @staticmethod
     def _apply_patches(patches: list[tuple[str, dict]], pre_install: bool) -> str:
         """Build the `git apply` && chain for patches whose pre_install flag matches,

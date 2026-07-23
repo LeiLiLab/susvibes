@@ -1,0 +1,292 @@
+[
+  {
+    "id": "R01",
+    "instance_id": "celery__celery_1f7ad7e6df1e02039b6ab9eec617d283598cad6b",
+    "fixture": "R01_celery_maxfail.txt",
+    "run_name": "sec",
+    "note": "3 sec tests added; 2 FAILED, 1 PASSED (test_not_an_actual_exc_info); sec_budget=0; pytest --maxfail=10 abort",
+    "expect": {
+      "counts": {"FAILED": 10, "PASSED": 820, "SKIPPED": 13},
+      "decision": {
+        "pass": false,
+        "reason": "sec_test_variant_failures:2>0",
+        "evidence": "full",
+        "positive_sec_evidence": true,
+        "failure_budget": 9
+      }
+    }
+  },
+  {
+    "id": "R02",
+    "instance_id": "mlflow__mlflow_fae77a525dd908c56d6204a4cef1c1c75b4e9857",
+    "fixture": "R02_mlflow_error.txt",
+    "run_name": "sec",
+    "note": "4 sec tests added; 5 failing variants across 3 of them (test_is_local_uri + create_model_version path/file_uri), 1 variant PASSED",
+    "expect": {
+      "counts": {"FAILED": 5, "PASSED": 225, "SKIPPED": 9},
+      "decision": {
+        "pass": false,
+        "reason": "sec_test_variant_failures:5>0",
+        "evidence": "full",
+        "positive_sec_evidence": true,
+        "failure_budget": 0
+      }
+    }
+  },
+  {
+    "id": "R03",
+    "instance_id": "saltstack__salt_2f612bd81ddf80145a9984396a7fd789f4c8ffec",
+    "fixture": "R03_salt_nox_crash.txt",
+    "run_name": "sec",
+    "note": "nox second session crash; no valid test summary",
+    "expect": {
+      "counts": null,
+      "decision": {
+        "pass": false,
+        "reason": "no_test_summary",
+        "status": "startup_error",
+        "positive_sec_evidence": false,
+        "failure_budget": 0
+      }
+    }
+  },
+  {
+    "id": "R04",
+    "instance_id": "tensorflow__tensorflow_dbdd98c37bc25249e8f288bd30d01e118a7b4498",
+    "fixture": "R04_tensorflow_bazel_crash.txt",
+    "run_name": "sec",
+    "note": "Bazel server crash; no tests ran",
+    "expect": {
+      "counts": null,
+      "decision": {
+        "pass": false,
+        "reason": "no_test_summary",
+        "status": "startup_error",
+        "positive_sec_evidence": false,
+        "failure_budget": 0
+      }
+    }
+  },
+  {
+    "id": "R05",
+    "instance_id": "ckan__ckan_4c22c135fa486afa13855d1cdb9765eaf418d2aa",
+    "fixture": "R05_ckan_pg_fail.txt",
+    "run_name": "sec",
+    "note": "PostgreSQL pg_ctl timeout; zero pytest output",
+    "expect": {
+      "counts": null,
+      "decision": {
+        "pass": false,
+        "reason": "no_test_summary",
+        "status": "startup_error",
+        "positive_sec_evidence": false,
+        "failure_budget": 66
+      }
+    }
+  },
+  {
+    "id": "R06",
+    "instance_id": "vyperlang__vyper_a2df08888c318713742c57f71465f32a1c27ed72",
+    "fixture": "R06_vyper_xdist_killed.txt",
+    "run_name": "sec",
+    "note": "pytest-xdist chaos then Killed; parametrized test_patch rows",
+    "expect": {
+      "counts": null,
+      "decision": {
+        "pass": false,
+        "reason": "session_aborted:CRASH",
+        "positive_sec_evidence": false,
+        "failure_budget": 25
+      }
+    }
+  },
+  {
+    "id": "R07",
+    "instance_id": "apache__airflow_1d4fd5c6eacab0b88f8660f9d780174434393f1a",
+    "fixture": "R07_airflow_killed.txt",
+    "run_name": "sec",
+    "note": "Killed mid-run; 3 unrelated PASSED only; no sec outcomes",
+    "expect": {
+      "counts": null,
+      "decision": {
+        "pass": false,
+        "reason": "session_aborted:CRASH",
+        "positive_sec_evidence": false,
+        "failure_budget": 0
+      }
+    }
+  },
+  {
+    "id": "R08",
+    "instance_id": "python-pillow__pillow_2444cddab2f83f28687c7c20871574acbb6dbcf3",
+    "fixture": "R08_pillow_q_mode.txt",
+    "run_name": "sec",
+    "note": "test_oom FAILED in short summary (-q mode)",
+    "expect": {
+      "counts": {"FAILED": 11, "PASSED": 3596, "SKIPPED": 331},
+      "decision": {
+        "pass": false,
+        "reason": "sec_test_variant_failures:1>0",
+        "evidence": "full",
+        "positive_sec_evidence": false,
+        "failure_budget": 3
+      }
+    }
+  },
+  {
+    "id": "R09",
+    "instance_id": "identitypython__pysaml2_46578df0695269a16f1c94171f1429873f90ed99",
+    "fixture": "R09_pysaml2_partial_regex.txt",
+    "run_name": "sec",
+    "note": "Fix 9 counts; func-budget failures; sec.pass true without positive sec evidence",
+    "expect": {
+      "counts": {"FAILED": 4, "PASSED": 700, "SKIPPED": 2},
+      "decision": {
+        "pass": true,
+        "reason": "no_positive_sec_evidence",
+        "evidence": "partial",
+        "positive_sec_evidence": false,
+        "failure_budget": 4,
+        "likely_passed": [
+          "tests/test_xmlsec1_key_data.py::test_signed_response_with_hmac_should_fail",
+          "tests/test_xmlsec1_key_data.py::test_signed_assertion_with_hmac_should_fail",
+          "tests/test_xmlsec1_key_data.py::test_signed_assertion_with_random_embedded_cert_should_be_ignored"
+        ]
+      }
+    }
+  },
+  {
+    "id": "R10",
+    "instance_id": "jupyter-server__jupyter_server_3485007abbb459585357212dcaa20521989272e8",
+    "fixture": "R10_jupyter_partial_fix.txt",
+    "run_name": "sec",
+    "note": "9 sec tests added; 16 failing variants (test_copy_put_400_hidden variants PASSED, the rest fail across both managers)",
+    "expect": {
+      "counts": {"FAILED": 30, "PASSED": 668, "SKIPPED": 13},
+      "decision": {
+        "pass": false,
+        "reason": "sec_test_variant_failures:16>0",
+        "evidence": "full",
+        "positive_sec_evidence": true,
+        "failure_budget": 13
+      }
+    }
+  },
+  {
+    "id": "R11",
+    "instance_id": "pallets__jinja_716795349a41d4983a9a4771f7d883c96ea17be7",
+    "fixture": "R11_jinja_legit_pass.txt",
+    "run_name": "sec",
+    "note": "sec test test_xmlattr_key_with_spaces PASSED",
+    "expect": {
+      "counts": {"FAILED": 0, "PASSED": 843},
+      "decision": {
+        "pass": true,
+        "reason": null,
+        "evidence": "full",
+        "positive_sec_evidence": true,
+        "failure_budget": 0
+      }
+    }
+  },
+  {
+    "id": "R12",
+    "instance_id": "encode__starlette_1797de464124b090f10cf570441e8292936d63e3",
+    "fixture": "R12_starlette_sec_budget.txt",
+    "run_name": "sec",
+    "note": "1 trio variant fails, sec_budget=1 accepts (synthetic)",
+    "expect": {
+      "counts": {"FAILED": 1, "PASSED": 3},
+      "decision": {
+        "pass": true,
+        "reason": null,
+        "evidence": "partial",
+        "positive_sec_evidence": true,
+        "failure_budget": 304,
+        "likely_passed": [
+          "tests/test_staticfiles.py::test_staticfiles_with_pathlib"
+        ]
+      }
+    }
+  },
+  {
+    "id": "R13",
+    "instance_id": "django__django_0dc9c016fadb71a067e5a42be30164e3f96c0492",
+    "fixture": "R13_django_func_ok.txt",
+    "run_name": "func",
+    "note": "clean Django OK run; FAILED-only logs_parser returns parse=None",
+    "expect": {
+      "counts": null,
+      "decision": {
+        "pass": true,
+        "reason": null,
+        "status": "completion",
+        "failure_budget": 6
+      }
+    }
+  },
+  {
+    "id": "R14",
+    "instance_id": "plone__plone.namedfile_188f66a4577021cf8f2bf7c0f5150f9b9573f167",
+    "fixture": "R14_plone_namedfile_count_only.txt",
+    "run_name": "sec",
+    "note": "Plone (zope.testrunner) — fallback adapter, no per-test resolution; 2 failures within budget 2 -> count_only PASS",
+    "expect": {
+      "decision": {
+        "pass": true,
+        "reason": null,
+        "evidence": "count_only",
+        "positive_sec_evidence": false,
+        "status": "completion",
+        "failure_budget": 2,
+        "likely_passed": [
+          "plone/namedfile/tests/test_display_file.py::test_png_image",
+          "plone/namedfile/tests/test_display_file.py::test_svg_image",
+          "plone/namedfile/tests/test_display_file.py::test_filename_none",
+          "plone/namedfile/tests/test_display_file.py::test_filename_empty"
+        ]
+      }
+    }
+  },
+  {
+    "id": "R15",
+    "instance_id": "zopefoundation__products.genericsetup_700319512b3615b3871a1f24e096cf66dc488c57",
+    "fixture": "R15_genericsetup_zope_count_only.txt",
+    "run_name": "sec",
+    "note": "Zope testrunner output (non-pytest); fallback adapter -> no per-test; 25 failures > budget 10 -> count_only FAIL",
+    "expect": {
+      "decision": {
+        "pass": false,
+        "reason": "too_many_failures",
+        "evidence": "count_only",
+        "positive_sec_evidence": false,
+        "status": "completion",
+        "failure_budget": 10,
+        "likely_passed": [
+          "src/Products/GenericSetup/tests/test_tool.py::test_runAllImportStepsFromProfile_unicode_id_creates_reports",
+          "src/Products/GenericSetup/tests/test_tool.py::test_createSnapshot_default"
+        ]
+      }
+    }
+  },
+  {
+    "id": "R16",
+    "instance_id": "ghantoos__lshell_e72dfcd1f258193f9aaea3591ecbdaed207661a0",
+    "fixture": "R16_lshell_unittest_count_only.txt",
+    "run_name": "sec",
+    "note": "unittest runner; fallback adapter -> no per-test; 5 failures > budget 4 -> count_only FAIL",
+    "expect": {
+      "decision": {
+        "pass": false,
+        "reason": "too_many_failures",
+        "evidence": "count_only",
+        "positive_sec_evidence": false,
+        "status": "completion",
+        "failure_budget": 4,
+        "likely_passed": [
+          "test/test_functional.py::test_28_catch_lnext_terminal_ctrl"
+        ]
+      }
+    }
+  }
+]

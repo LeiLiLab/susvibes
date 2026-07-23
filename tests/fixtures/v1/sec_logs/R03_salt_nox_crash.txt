@@ -1,0 +1,241 @@
+nox > Running session pytest-3.9(coverage=False)
+nox > Creating virtual environment (virtualenv) using python3.9 in .nox/pytest-3-9-coverage-false
+nox > Session pytest-3.9(coverage=False) was successful.
+nox > Running session pytest-parametrized-3.9(crypto=None, transport='zeromq', coverage=False)
+nox > Creating virtual environment (virtualenv) using python3.9 in .nox/pytest-parametrized-3-9-crypto-none-transport-zeromq-coverage-false
+nox > python -m pip install --progress-bar=off -U 'pip>=20.2.4,<21.2' 'setuptools!=50.*,!=51.*,!=52.*' wheel
+nox > python -m pip install --progress-bar=off -r requirements/static/ci/py3.9/linux.txt
+nox > Command python -m pip install --progress-bar=off -r requirements/static/ci/py3.9/linux.txt failed with exit code 1:
+nox > Collecting adal==1.2.3
+  Downloading adal-1.2.3-py2.py3-none-any.whl (53 kB)
+Collecting ansible-base==2.10.9
+  Downloading ansible-base-2.10.9.tar.gz (6.0 MB)
+Collecting ansible==3.4.0
+  Downloading ansible-3.4.0.tar.gz (31.9 MB)
+Collecting apache-libcloud==2.5.0
+  Downloading apache_libcloud-2.5.0-py2.py3-none-any.whl (3.1 MB)
+Collecting apscheduler==3.6.3
+  Downloading APScheduler-3.6.3-py2.py3-none-any.whl (58 kB)
+Collecting asn1crypto==1.3.0
+  Downloading asn1crypto-1.3.0-py2.py3-none-any.whl (103 kB)
+Collecting attrs==20.3.0
+  Downloading attrs-20.3.0-py2.py3-none-any.whl (49 kB)
+Collecting aws-sam-translator==1.33.0
+  Downloading aws_sam_translator-1.33.0-py3-none-any.whl (189 kB)
+Collecting aws-xray-sdk==0.95
+  Downloading aws_xray_sdk-0.95-py2.py3-none-any.whl (52 kB)
+Collecting azure-applicationinsights==0.1.0
+  Downloading azure_applicationinsights-0.1.0-py2.py3-none-any.whl (104 kB)
+Collecting azure-batch==4.1.3
+  Downloading azure_batch-4.1.3-py2.py3-none-any.whl (314 kB)
+Collecting azure-common==1.1.18
+  Downloading azure_common-1.1.18-py2.py3-none-any.whl (12 kB)
+Collecting azure-cosmosdb-nspkg==2.0.2
+  Downloading azure_cosmosdb_nspkg-2.0.2-py2.py3-none-any.whl (2.9 kB)
+Collecting azure-cosmosdb-table==1.0.5
+  Downloading azure_cosmosdb_table-1.0.5-py2.py3-none-any.whl (80 kB)
+Collecting azure-datalake-store==0.0.44
+  Downloading azure_datalake_store-0.0.44-py2.py3-none-any.whl (52 kB)
+Collecting azure-eventgrid==1.2.0
+  Downloading azure_eventgrid-1.2.0-py2.py3-none-any.whl (84 kB)
+Collecting azure-graphrbac==0.40.0
+  Downloading azure_graphrbac-0.40.0-py2.py3-none-any.whl (63 kB)
+Collecting azure-keyvault==1.1.0
+  Downloading azure_keyvault-1.1.0-py2.py3-none-any.whl (352 kB)
+Collecting azure-loganalytics==0.1.0
+  Downloading azure_loganalytics-0.1.0-py2.py3-none-any.whl (16 kB)
+Collecting azure-mgmt-advisor==1.0.1
+  Downloading azure_mgmt_advisor-1.0.1-py2.py3-none-any.whl (27 kB)
+Collecting azure-mgmt-applicationinsights==0.1.1
+  Downloading azure_mgmt_applicationinsights-0.1.1-py2.py3-none-any.whl (42 kB)
+Collecting azure-mgmt-authorization==0.50.0
+  Downloading azure_mgmt_authorization-0.50.0-py2.py3-none-any.whl (81 kB)
+Collecting azure-mgmt-batch==5.0.1
+  Downloading azure_mgmt_batch-5.0.1-py2.py3-none-any.whl (87 kB)
+Collecting azure-mgmt-batchai==2.0.0
+  Downloading azure_mgmt_batchai-2.0.0-py2.py3-none-any.whl (174 kB)
+Collecting azure-mgmt-billing==0.2.0
+  Downloading azure_mgmt_billing-0.2.0-py2.py3-none-any.whl (25 kB)
+Collecting azure-mgmt-cdn==3.1.0
+  Downloading azure_mgmt_cdn-3.1.0-py2.py3-none-any.whl (119 kB)
+Collecting azure-mgmt-cognitiveservices==3.0.0
+  Downloading azure_mgmt_cognitiveservices-3.0.0-py2.py3-none-any.whl (58 kB)
+Collecting azure-mgmt-commerce==1.0.1
+  Downloading azure_mgmt_commerce-1.0.1-py2.py3-none-any.whl (22 kB)
+Collecting azure-mgmt-compute==4.6.0
+  Downloading azure_mgmt_compute-4.6.0-py2.py3-none-any.whl (3.0 MB)
+Collecting azure-mgmt-consumption==2.0.0
+  Downloading azure_mgmt_consumption-2.0.0-py2.py3-none-any.whl (46 kB)
+Collecting azure-mgmt-containerinstance==1.4.1
+  Downloading azure_mgmt_containerinstance-1.4.1-py2.py3-none-any.whl (87 kB)
+Collecting azure-mgmt-containerregistry==2.7.0
+  Downloading azure_mgmt_containerregistry-2.7.0-py2.py3-none-any.whl (509 kB)
+Collecting azure-mgmt-containerservice==4.4.0
+  Downloading azure_mgmt_containerservice-4.4.0-py2.py3-none-any.whl (206 kB)
+Collecting azure-mgmt-cosmosdb==0.4.1
+  Downloading azure_mgmt_cosmosdb-0.4.1-py2.py3-none-any.whl (100 kB)
+Collecting azure-mgmt-datafactory==0.6.0
+  Downloading azure_mgmt_datafactory-0.6.0-py2.py3-none-any.whl (418 kB)
+Collecting azure-mgmt-datalake-analytics==0.6.0
+  Downloading azure_mgmt_datalake_analytics-0.6.0-py2.py3-none-any.whl (288 kB)
+Collecting azure-mgmt-datalake-nspkg==3.0.1
+  Downloading azure_mgmt_datalake_nspkg-3.0.1-py3-none-any.whl (1.7 kB)
+Collecting azure-mgmt-datalake-store==0.5.0
+  Downloading azure_mgmt_datalake_store-0.5.0-py2.py3-none-any.whl (88 kB)
+Collecting azure-mgmt-datamigration==1.0.0
+  Downloading azure_mgmt_datamigration-1.0.0-py2.py3-none-any.whl (185 kB)
+Collecting azure-mgmt-devspaces==0.1.0
+  Downloading azure_mgmt_devspaces-0.1.0-py2.py3-none-any.whl (33 kB)
+Collecting azure-mgmt-devtestlabs==2.2.0
+  Downloading azure_mgmt_devtestlabs-2.2.0-py2.py3-none-any.whl (194 kB)
+Collecting azure-mgmt-dns==2.1.0
+  Downloading azure_mgmt_dns-2.1.0-py2.py3-none-any.whl (134 kB)
+Collecting azure-mgmt-eventgrid==1.0.0
+  Downloading azure_mgmt_eventgrid-1.0.0-py2.py3-none-any.whl (51 kB)
+Collecting azure-mgmt-eventhub==2.5.0
+  Downloading azure_mgmt_eventhub-2.5.0-py2.py3-none-any.whl (200 kB)
+Collecting azure-mgmt-hanaonazure==0.1.1
+  Downloading azure_mgmt_hanaonazure-0.1.1-py2.py3-none-any.whl (20 kB)
+Collecting azure-mgmt-iotcentral==0.1.0
+  Downloading azure_mgmt_iotcentral-0.1.0-py2.py3-none-any.whl (28 kB)
+Collecting azure-mgmt-iothub==0.5.0
+  Downloading azure_mgmt_iothub-0.5.0-py2.py3-none-any.whl (102 kB)
+Collecting azure-mgmt-iothubprovisioningservices==0.2.0
+  Downloading azure_mgmt_iothubprovisioningservices-0.2.0-py2.py3-none-any.whl (60 kB)
+Collecting azure-mgmt-keyvault==1.1.0
+  Downloading azure_mgmt_keyvault-1.1.0-py2.py3-none-any.whl (111 kB)
+Collecting azure-mgmt-loganalytics==0.2.0
+  Downloading azure_mgmt_loganalytics-0.2.0-py2.py3-none-any.whl (89 kB)
+Collecting azure-mgmt-logic==3.0.0
+  Downloading azure_mgmt_logic-3.0.0-py2.py3-none-any.whl (303 kB)
+Collecting azure-mgmt-machinelearningcompute==0.4.1
+  Downloading azure_mgmt_machinelearningcompute-0.4.1-py2.py3-none-any.whl (38 kB)
+Collecting azure-mgmt-managementgroups==0.1.0
+  Downloading azure_mgmt_managementgroups-0.1.0-py2.py3-none-any.whl (59 kB)
+Collecting azure-mgmt-managementpartner==0.1.0
+  Downloading azure_mgmt_managementpartner-0.1.0-py2.py3-none-any.whl (13 kB)
+Collecting azure-mgmt-maps==0.1.0
+  Downloading azure_mgmt_maps-0.1.0-py2.py3-none-any.whl (31 kB)
+Collecting azure-mgmt-marketplaceordering==0.1.0
+  Downloading azure_mgmt_marketplaceordering-0.1.0-py2.py3-none-any.whl (16 kB)
+Collecting azure-mgmt-media==1.0.0
+  Downloading azure_mgmt_media-1.0.0-py2.py3-none-any.whl (335 kB)
+Collecting azure-mgmt-monitor==0.5.2
+  Downloading azure_mgmt_monitor-0.5.2-py2.py3-none-any.whl (247 kB)
+Collecting azure-mgmt-msi==0.2.0
+  Downloading azure_mgmt_msi-0.2.0-py2.py3-none-any.whl (17 kB)
+Collecting azure-mgmt-network==2.6.0
+  Downloading azure_mgmt_network-2.6.0-py2.py3-none-any.whl (10.5 MB)
+Collecting azure-mgmt-notificationhubs==2.0.0
+  Downloading azure_mgmt_notificationhubs-2.0.0-py2.py3-none-any.whl (71 kB)
+Collecting azure-mgmt-nspkg==3.0.2
+  Downloading azure_mgmt_nspkg-3.0.2-py3-none-any.whl (1.6 kB)
+Collecting azure-mgmt-policyinsights==0.1.0
+  Downloading azure_mgmt_policyinsights-0.1.0-py2.py3-none-any.whl (44 kB)
+Collecting azure-mgmt-powerbiembedded==2.0.0
+  Downloading azure_mgmt_powerbiembedded-2.0.0-py2.py3-none-any.whl (38 kB)
+Collecting azure-mgmt-rdbms==1.8.0
+  Downloading azure_mgmt_rdbms-1.8.0-py2.py3-none-any.whl (258 kB)
+Collecting azure-mgmt-recoveryservices==0.3.0
+  Downloading azure_mgmt_recoveryservices-0.3.0-py2.py3-none-any.whl (70 kB)
+Collecting azure-mgmt-recoveryservicesbackup==0.3.0
+  Downloading azure_mgmt_recoveryservicesbackup-0.3.0-py2.py3-none-any.whl (568 kB)
+Collecting azure-mgmt-redis==5.0.0
+  Downloading azure_mgmt_redis-5.0.0-py2.py3-none-any.whl (43 kB)
+Collecting azure-mgmt-relay==0.1.0
+  Downloading azure_mgmt_relay-0.1.0-py2.py3-none-any.whl (36 kB)
+Collecting azure-mgmt-reservations==0.2.1
+  Downloading azure_mgmt_reservations-0.2.1-py2.py3-none-any.whl (50 kB)
+Collecting azure-mgmt-resource==2.1.0
+  Downloading azure_mgmt_resource-2.1.0-py2.py3-none-any.whl (757 kB)
+Collecting azure-mgmt-scheduler==2.0.0
+  Downloading azure_mgmt_scheduler-2.0.0-py2.py3-none-any.whl (67 kB)
+Collecting azure-mgmt-search==2.0.0
+  Downloading azure_mgmt_search-2.0.0-py2.py3-none-any.whl (39 kB)
+Collecting azure-mgmt-servicebus==0.5.3
+  Downloading azure_mgmt_servicebus-0.5.3-py2.py3-none-any.whl (112 kB)
+Collecting azure-mgmt-servicefabric==0.2.0
+  Downloading azure_mgmt_servicefabric-0.2.0-py2.py3-none-any.whl (142 kB)
+Collecting azure-mgmt-signalr==0.1.1
+  Downloading azure_mgmt_signalr-0.1.1-py2.py3-none-any.whl (49 kB)
+Collecting azure-mgmt-sql==0.9.1
+  Downloading azure_mgmt_sql-0.9.1-py2.py3-none-any.whl (485 kB)
+Collecting azure-mgmt-storage==2.0.0
+  Downloading azure_mgmt_storage-2.0.0-py2.py3-none-any.whl (558 kB)
+Collecting azure-mgmt-subscription==0.2.0
+  Downloading azure_mgmt_subscription-0.2.0-py2.py3-none-any.whl (40 kB)
+Collecting azure-mgmt-trafficmanager==0.50.0
+  Downloading azure_mgmt_trafficmanager-0.50.0-py2.py3-none-any.whl (52 kB)
+Collecting azure-mgmt-web==0.35.0
+  Downloading azure_mgmt_web-0.35.0-py2.py3-none-any.whl (358 kB)
+Collecting azure-mgmt==4.0.0
+  Downloading azure_mgmt-4.0.0-py2.py3-none-any.whl (3.0 kB)
+Collecting azure-nspkg==3.0.2
+  Downloading azure_nspkg-3.0.2-py3-none-any.whl (1.5 kB)
+Collecting azure-servicebus==0.21.1
+  Downloading azure_servicebus-0.21.1-py2.py3-none-any.whl (36 kB)
+Collecting azure-servicefabric==6.3.0.0
+  Downloading azure_servicefabric-6.3.0.0-py2.py3-none-any.whl (1.1 MB)
+Collecting azure-servicemanagement-legacy==0.20.6
+  Downloading azure_servicemanagement_legacy-0.20.6-py2.py3-none-any.whl (78 kB)
+Collecting azure-storage-blob==1.5.0
+  Downloading azure_storage_blob-1.5.0-py2.py3-none-any.whl (75 kB)
+Collecting azure-storage-common==1.4.0
+  Downloading azure_storage_common-1.4.0-py2.py3-none-any.whl (46 kB)
+Collecting azure-storage-file==1.4.0
+  Downloading azure_storage_file-1.4.0-py2.py3-none-any.whl (30 kB)
+Collecting azure-storage-queue==1.4.0
+  Downloading azure_storage_queue-1.4.0-py2.py3-none-any.whl (23 kB)
+Collecting azure==4.0.0
+  Downloading azure-4.0.0-py2.py3-none-any.whl (2.2 kB)
+Collecting backports.entry-points-selectable==1.1.0
+  Downloading backports.entry_points_selectable-1.1.0-py2.py3-none-any.whl (6.2 kB)
+Collecting bcrypt==3.1.6
+  Downloading bcrypt-3.1.6-cp34-abi3-manylinux1_x86_64.whl (55 kB)
+Collecting boto3==1.17.67
+  Downloading boto3-1.17.67-py2.py3-none-any.whl (131 kB)
+Collecting boto==2.49.0
+  Downloading boto-2.49.0-py2.py3-none-any.whl (1.4 MB)
+Collecting botocore==1.20.67
+  Downloading botocore-1.20.67-py2.py3-none-any.whl (7.5 MB)
+Collecting cached-property==1.5.2
+  Downloading cached_property-1.5.2-py2.py3-none-any.whl (7.6 kB)
+Collecting cachetools==4.2.2
+  Downloading cachetools-4.2.2-py3-none-any.whl (11 kB)
+Collecting cassandra-driver==3.23.0
+  Downloading cassandra-driver-3.23.0.tar.gz (283 kB)
+    ERROR: Command errored out with exit status 1:
+     command: /project/.nox/pytest-parametrized-3-9-crypto-none-transport-zeromq-coverage-false/bin/python -c 'import io, os, sys, setuptools, tokenize; sys.argv[0] = '"'"'/tmp/pip-install-msdvslhb/cassandra-driver_ce1bd17d9bc94fdc9a78dd3ad1c79006/setup.py'"'"'; __file__='"'"'/tmp/pip-install-msdvslhb/cassandra-driver_ce1bd17d9bc94fdc9a78dd3ad1c79006/setup.py'"'"';f = getattr(tokenize, '"'"'open'"'"', open)(__file__) if os.path.exists(__file__) else io.StringIO('"'"'from setuptools import setup; setup()'"'"');code = f.read().replace('"'"'\r\n'"'"', '"'"'\n'"'"');f.close();exec(compile(code, __file__, '"'"'exec'"'"'))' egg_info --egg-base /tmp/pip-pip-egg-info-lk7v1ym2
+         cwd: /tmp/pip-install-msdvslhb/cassandra-driver_ce1bd17d9bc94fdc9a78dd3ad1c79006/
+    Complete output (22 lines):
+    Downloading https://pypi.python.org/packages/source/s/setuptools/setuptools-0.9.6.tar.gz
+    Extracting in /tmp/tmpf6xuiosp
+    Traceback (most recent call last):
+      File "/tmp/pip-install-msdvslhb/cassandra-driver_ce1bd17d9bc94fdc9a78dd3ad1c79006/ez_setup.py", line 114, in use_setuptools
+        import pkg_resources
+    ModuleNotFoundError: No module named 'pkg_resources'
+    
+    During handling of the above exception, another exception occurred:
+    
+    Traceback (most recent call last):
+      File "<string>", line 1, in <module>
+      File "/tmp/pip-install-msdvslhb/cassandra-driver_ce1bd17d9bc94fdc9a78dd3ad1c79006/setup.py", line 31, in <module>
+        ez_setup.use_setuptools()
+      File "/tmp/pip-install-msdvslhb/cassandra-driver_ce1bd17d9bc94fdc9a78dd3ad1c79006/ez_setup.py", line 116, in use_setuptools
+        return _do_download(version, download_base, to_dir, download_delay)
+      File "/tmp/pip-install-msdvslhb/cassandra-driver_ce1bd17d9bc94fdc9a78dd3ad1c79006/ez_setup.py", line 101, in _do_download
+        _build_egg(egg, tarball, to_dir)
+      File "/tmp/pip-install-msdvslhb/cassandra-driver_ce1bd17d9bc94fdc9a78dd3ad1c79006/ez_setup.py", line 74, in _build_egg
+        _extractall(tar)
+      File "/tmp/pip-install-msdvslhb/cassandra-driver_ce1bd17d9bc94fdc9a78dd3ad1c79006/ez_setup.py", line 212, in _extractall
+        self.chown(tarinfo, dirpath)
+    TypeError: chown() missing 1 required positional argument: 'numeric_owner'
+    ----------------------------------------
+WARNING: Discarding https://files.pythonhosted.org/packages/90/d7/d68083117bf50941870a795150f3261c5270e74c2d57ca3af0bd8423ed74/cassandra-driver-3.23.0.tar.gz#sha256=a3b075bfd36677024b1dcf55a561fac161fc4f4065f01557b21a0b02ebad05c2 (from https://pypi.org/simple/cassandra-driver/). Command errored out with exit status 1: python setup.py egg_info Check the logs for full command output.
+ERROR: Could not find a version that satisfies the requirement cassandra-driver==3.23.0 (from versions: 1.0.0b5, 1.0.0b6, 1.0.0b7, 1.0.0, 1.0.1, 1.0.2, 1.1.0, 1.1.1, 1.1.2, 2.0.0b1, 2.0.0, 2.0.1, 2.0.2, 2.1.0b1, 2.1.0rc1, 2.1.0, 2.1.1, 2.1.2, 2.1.3, 2.1.4, 2.5.0, 2.5.1, 2.6.0rc1, 2.6.0rc2, 2.6.0, 2.7.0, 2.7.1, 2.7.2, 3.0.0a1, 3.0.0a2, 3.0.0a3, 3.0.0rc1, 3.0.0, 3.1.0a1, 3.1.0a2, 3.1.0, 3.1.1, 3.2.0a1, 3.2.0, 3.2.1, 3.2.2, 3.3.0, 3.4.0, 3.4.1, 3.5.0, 3.6.0, 3.7.0, 3.7.1, 3.8.0, 3.8.1, 3.9.0, 3.10, 3.11.0, 3.12.0, 3.13.0, 3.14.0, 3.15.0, 3.15.1, 3.16.0, 3.17.0, 3.17.1, 3.18.0, 3.19.0, 3.20.0, 3.20.1, 3.20.2, 3.21.0, 3.22.0, 3.23.0, 3.24.0, 3.25.0, 3.26.0, 3.27.0, 3.28.0, 3.29.0, 3.29.1, 3.29.2, 3.29.3)
+ERROR: No matching distribution found for cassandra-driver==3.23.0
+
+nox > Session pytest-parametrized-3.9(crypto=None, transport='zeromq', coverage=False) failed.
+nox > Ran multiple sessions:
+nox > * pytest-3.9(coverage=False): success
+nox > * pytest-parametrized-3.9(crypto=None, transport='zeromq', coverage=False): failed
