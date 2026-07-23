@@ -130,3 +130,11 @@ Homepage = "https://github.com/LeiLiLab/susvibes"
 Repository = "https://github.com/LeiLiLab/susvibes"
 Issues = "https://github.com/LeiLiLab/susvibes/issues"
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "live: tests that invoke a real LLM (deselected by default)",
+    "docker: tests that require Docker (deselected by default)",
+]
+addopts = "-m 'not live and not docker'"
+
