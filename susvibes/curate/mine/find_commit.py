@@ -39,6 +39,11 @@ FINDER_SCHEMA = {
             "description": "true only if the fix is genuinely split across distinct commits that "
                            "cannot be collapsed to one mainline commit (not backports/cherry-picks)",
         },
+        "additional_commits": {
+            "type": "array", "items": {"type": "string"},
+            "description": "when multi_commit is true, the OTHER distinct fix commits' full 40-char "
+                           "shas besides `commit`; [] otherwise",
+        },
         "fact_tier": {
             "type": "integer",
             "description": "1 = the commit/advisory directly cites the CVE/GHSA/PR; 2 = linked via "
@@ -53,7 +58,7 @@ FINDER_SCHEMA = {
             "description": "the git commands / URLs used to establish the fact",
         },
     },
-    "required": ["commit", "multi_commit", "fact_tier", "fact_evidence", "source"],
+    "required": ["commit", "multi_commit", "additional_commits", "fact_tier", "fact_evidence", "source"],
     "additionalProperties": False,
 }
 
@@ -84,10 +89,15 @@ vulnerable path.
 The GHSA id and any fixed version given are LEADS, not ground truth — if the repository \
 contradicts them, trust the repository.
 
-Multi-commit rule: return the SINGLE primary fix commit on the default/main branch. Collapse \
-backports/cherry-picks of one change (branch backports, "cherry picked from <sha>", the same PR#) \
-to their mainline original. Only set multi_commit=true if the fix is genuinely several DISTINCT \
-changes (e.g. two separate PRs fixing two parts) that cannot be reduced to one commit.
+Multi-commit rule: return the SINGLE primary fix commit in `commit`, collapsing backports, \
+cherry-picks, and a single PR's several commits down to one mainline commit. Only when the fix is \
+genuinely several DISTINCT changes (e.g. two separate PRs) that can't be reduced to one, set \
+multi_commit=true and list the other shas in `additional_commits`.
+
+Reject only the OBVIOUS non-fixes: a commit that merely adds a test for or references the CVE without \
+changing the vulnerable code, a plainly unrelated/functional change, or one whose real fix lives \
+elsewhere. Don't use your security reasoning to judge whether a diff correctly neutralizes the \
+vulnerability; when in doubt, keep the candidate.
 
 Return the full 40-character sha. If no fact in this repository pins a commit, return commit="" \
 and explain why in fact_evidence.
@@ -114,7 +124,7 @@ def finder_hints(record) -> str:
 def finder_miss(record, error, meta=None):
     """A finder result that pinned nothing. `error=None` is a real "no fix in this repo" (final,
     yielded past); a set `error` is an aborted run (clone/agent failure) that `resume` re-runs."""
-    return {**record, "commit": "", "multi_commit": False, "fact_tier": 0,
+    return {**record, "commit": "", "multi_commit": False, "additional_commits": [], "fact_tier": 0,
             "fact_evidence": "", "source": "", "error": error, "_meta": meta or {}}
 
 
@@ -130,10 +140,10 @@ def finder_single(record, run_id):
     options = ClaudeAgentOptions(
         model=FINDER_MODEL,
         system_prompt=FINDER_SYSTEM,
-        allowed_tools=READONLY_TOOLS,
+        tools=READONLY_TOOLS,                   # availability gate: only read-only investigation tools exist
+        allowed_tools=READONLY_TOOLS,           # pre-approve the whole set; fail-closed on anything else
         setting_sources=[],                     # don't load the project's interactive settings/hooks
-        permission_mode="bypassPermissions",    # free the read-only git/curl calls (PR merge_commit_sha
-                                                 # via the GitHub API) that default mode blocks on approval
+        permission_mode="dontAsk",              # fail-closed: pre-approved tools auto-run headless, else denied
         cwd=str(repo_dir),
         max_turns=FINDER_MAX_TURNS,
         max_buffer_size=MAX_BUFFER_SIZE,
@@ -150,6 +160,8 @@ def finder_single(record, run_id):
         return finder_miss(record, meta.get("error", "agent produced no result"), meta)
     if not re.fullmatch(r"[0-9a-f]{40}", output["commit"].strip()):
         output["commit"] = ""       # the model sometimes emits a malformed "no commit" (e.g. '""')
+    output["additional_commits"] = [c for c in output.get("additional_commits", [])
+                                    if re.fullmatch(r"[0-9a-f]{40}", c.strip())]
     return {**record, **output, "error": None, "_meta": meta}
 
 

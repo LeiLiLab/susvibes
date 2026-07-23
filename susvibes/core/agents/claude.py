@@ -1,15 +1,16 @@
-"""Thin Claude Agent SDK glue for the curate read-only agents (finder, triage) on Bedrock.
+"""Thin Claude Agent SDK glue for the curate read-only agents (finder, inspect) on Bedrock.
 
 `run_agent` runs the SDK's `query()` to completion, streams the trajectory to a jsonl log as
 each message arrives, and returns the schema-validated structured output — the SDK does the
 JSON-schema validation + retry itself via `options.output_format`, so parsing/retry is not our
-job. Callers build a full `ClaudeAgentOptions` (model, allowed_tools, cwd, output_format, …) and
+job. Callers build a full `ClaudeAgentOptions` (model, tools, allowed_tools, permission_mode, cwd,
+output_format, …) and
 pass it through; nothing is hidden. This is deliberately not a Port/class (that would duplicate
 and hide the SDK's own option surface — see docs/mine-filters "Agent calls").
 
 Bedrock config comes from `.env` (`CLAUDE_CODE_USE_BEDROCK=1`, `AWS_BEARER_TOKEN_BEDROCK`,
 `AWS_REGION_NAME`); the model is a Bedrock inference profile, e.g. `us.anthropic.claude-sonnet-5`
-(finder) or `us.anthropic.claude-haiku-4-5-20251001-v1:0` (triage).
+(finder) or `us.anthropic.claude-haiku-4-5-20251001-v1:0` (inspect).
 """
 
 import json

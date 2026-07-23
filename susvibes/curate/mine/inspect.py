@@ -17,9 +17,10 @@ from susvibes.core.agents.claude import run_agent_retrying, AGENT_ENV, MAX_BUFFE
 from susvibes.curate.constants import get_log_dir
 
 INSPECT_MODEL = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
-# WebSearch is unavailable on this (Bedrock) deployment, so the agent searches via `Bash`
-# (curl the GitHub search API — clean JSON, unlike the JS-rendered github.com/search page) + WebFetch.
-INSPECT_TOOLS = ["Bash", "WebFetch"]
+# Web search + fetch, plus Bash to curl the GitHub API. WebSearch isn't provisioned on Bedrock (the
+# CLI silently drops it, so the agent searches via `curl` there); it stays in the list so a future
+# WebSearch-capable deployment works with no code change.
+INSPECT_TOOLS = ["Bash", "WebFetch", "WebSearch"]
 INSPECT_WORKERS = 12
 INSPECT_MAX_TURNS = 50
 
@@ -69,13 +70,13 @@ NVD references:
 """
 
 
-def inspect_miss(record, error, meta):
+def inspect_miss(record, error, meta=None):
     """An inspect result that resolved nothing (aborted run). `error` set → `resume` re-runs it."""
     return {**record, "repo": "", "vulnerable_files": [], "languages": [], "reason": "",
             "error": error, "_meta": meta or {}}
 
 
-def _refs_block(refs) -> str:
+def refs_block(refs) -> str:
     """The raw NVD references (url + tags) as prompt lines — NVD's own data, not the prefilter's
     filtered repo guess, so inspect resolves the real repo independently."""
     lines = []
@@ -92,17 +93,17 @@ def inspect_single(record, run_id):
     options = ClaudeAgentOptions(
         model=INSPECT_MODEL,
         system_prompt=INSPECT_SYSTEM,
-        allowed_tools=INSPECT_TOOLS,
+        tools=INSPECT_TOOLS,                    # availability gate: only these tools exist (see INSPECT_TOOLS)
+        allowed_tools=INSPECT_TOOLS,            # pre-approve the whole set; fail-closed on anything else
         setting_sources=[],                     # don't load the project's interactive settings/hooks
-        permission_mode="bypassPermissions",    # THE fix: default mode blocks curl on approval, so
-                                                 # the agent can't reach the GitHub search API; bypass frees it
+        permission_mode="dontAsk",              # fail-closed: pre-approved tools auto-run headless, else denied
         max_turns=INSPECT_MAX_TURNS,
         max_buffer_size=MAX_BUFFER_SIZE,
         env=AGENT_ENV,
         output_format={"type": "json_schema", "schema": INSPECT_SCHEMA},
     )
     prompt = INSPECT_USER.format(
-        cve_id=record["cve_id"], desc=record["desc"], refs=_refs_block(record["refs"]))
+        cve_id=record["cve_id"], desc=record["desc"], refs=refs_block(record["refs"]))
     log_path = get_log_dir(run_id, "mine", "inspect") / record["cve_id"] / "trajectory.jsonl"
     output, meta = run_agent_retrying(prompt, options, log_path=log_path)
     if output is None:
