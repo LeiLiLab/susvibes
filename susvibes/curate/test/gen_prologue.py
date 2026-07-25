@@ -11,7 +11,6 @@ python -m susvibes.curate.test.gen_prologue \
 
 import argparse
 import json
-from enum import StrEnum
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import docker
@@ -21,12 +20,9 @@ from jinja2 import Template
 
 from susvibes.core.constants import get_dataset_path
 from susvibes.curate.constants import get_log_dir, get_agent_setting_path
-from susvibes.curate.test.prompts import (
-    SEC_TEST_GEN_PATCH_SECFIX_PROMPT_TEMPLATE,
-    SEC_TEST_GEN_SECFIX_PROMPT_TEMPLATE,
-)
+from susvibes.curate.test.prompts import SEC_TEST_GEN_PATCH_SECFIX_PROMPT_TEMPLATE
 from susvibes.curate.utils import extract_repo_test_cmd, reverse_patch
-from susvibes.core.agents.ports import SWEAgentPort
+from susvibes.core.agents.sweagent import SWEAgentPort
 from susvibes.core.env import Env, Deployment
 from susvibes.env_specs import WORKSPACE_DIR_NAME
 from susvibes.core.utils import load_file, get_image_name, parse_instance_id, setup_instance_logger, get_env_specs
@@ -35,17 +31,6 @@ LOG_INSTANCE = "gen_prologue.log"
 SECURITY_PATCH_FILE_NAME = ".susvibes.security_patch.diff"  # kept in repo root for state toggling
 
 docker_client = docker.from_env()
-
-
-class HintStrategy(StrEnum):
-    PATCH_SECFIX = "patch_secfix"
-    SECFIX = "secfix"
-
-
-HINT_STRATEGY_TEMPLATES = {
-    HintStrategy.PATCH_SECFIX: SEC_TEST_GEN_PATCH_SECFIX_PROMPT_TEMPLATE,
-    HintStrategy.SECFIX: SEC_TEST_GEN_SECFIX_PROMPT_TEMPLATE,
-}
 
 
 def build_rollback_deployment(data_record, env_spec, target_image_name, log_dir) -> Deployment | None:
@@ -86,7 +71,7 @@ def build_rollback_deployment(data_record, env_spec, target_image_name, log_dir)
     return deployment
 
 
-def build_rollback_threadpool(records, env_specs, log_dir, max_workers, force=False):
+def build_rollback_threadpool(records, env_specs, log_dir, max_workers):
     """Build rollback images for the given records in parallel.
     Returns (image_by_id, failed) — a dict of successful builds and a list of failures."""
     image_by_id, failed = {}, []
@@ -129,11 +114,9 @@ def build_rollback_threadpool(records, env_specs, log_dir, max_workers, force=Fa
     return image_by_id, failed
 
 
-def prologue(run_id, strategy, max_workers, instance_ids=None, force=False):
-    strategy = HintStrategy(strategy)
-    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")), run_name=f"{__spec__.name}_{strategy.value}")
-
-    prompt_template = HINT_STRATEGY_TEMPLATES[strategy]
+def prologue(run_id, max_workers, instance_ids=None):
+    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")),
+        run_name=__spec__.name, output_dir=get_log_dir(run_id, "test", "gen_prologue"))
 
     dataset_path = get_dataset_path('env_dataset', run_id)
     log_dir = get_log_dir(run_id, "test")
@@ -146,7 +129,7 @@ def prologue(run_id, strategy, max_workers, instance_ids=None, force=False):
         candidates = [r for r in candidates if r["instance_id"] in set(instance_ids)]
 
     image_by_id, failed = build_rollback_threadpool(
-        candidates, env_specs, log_dir, max_workers, force=force)
+        candidates, env_specs, log_dir, max_workers)
 
     added = 0
     for record in candidates:
@@ -157,10 +140,9 @@ def prologue(run_id, strategy, max_workers, instance_ids=None, force=False):
         render_kwargs = {
             "SECURITY_PATCH": record.get("security_patch", ""),
             "REPO_TEST_CMD": repo_test_cmd,
+            "PATCH": reverse_patch(record["mask_patch"]),
         }
-        if strategy is HintStrategy.PATCH_SECFIX:
-            render_kwargs["PATCH"] = reverse_patch(record["mask_patch"])
-        problem_statement = Template(prompt_template).render(**render_kwargs)
+        problem_statement = Template(SEC_TEST_GEN_PATCH_SECFIX_PROMPT_TEMPLATE).render(**render_kwargs)
 
         port.add_task(
             image=image_by_id[instance_id],
@@ -185,13 +167,6 @@ if __name__ == "__main__":
         help="Run ID (datasets/<run_id>/...)",
     )
     parser.add_argument(
-        "--strategy",
-        type=str,
-        default=HintStrategy.PATCH_SECFIX.value,
-        choices=[s.value for s in HintStrategy],
-        help="Hint strategy for the problem statement.",
-    )
-    parser.add_argument(
         "--max_workers",
         type=int,
         default=5,
@@ -203,16 +178,9 @@ if __name__ == "__main__":
         default=None,
         help="Only run for the given instance IDs.",
     )
-    parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Force re-build the rollback images even if they already exist locally.",
-    )
     args = parser.parse_args()
     prologue(
         run_id=args.run_id,
-        strategy=args.strategy,
         max_workers=args.max_workers,
         instance_ids=args.instance_ids,
-        force=args.force,
     )

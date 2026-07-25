@@ -16,7 +16,6 @@ ENV_SPEC_FILE_NAMES = {
 
 EVAL_LOG_DIR = root_dir / "logs/eval"
 LOG_SUMMARY = "summary.json"
-AGENT_RUN_LOG_DIR = root_dir / "logs/agent_runs"
 DATASETS_DIR = root_dir / "datasets"
 
 

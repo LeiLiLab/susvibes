@@ -9,7 +9,6 @@ python -m susvibes.curate.env_setup.build_repo \
 
 python -m susvibes.curate.env_setup.build_repo \
     --epilogue \
-    --agent_output_dir <path_to_agent_output> \
     --max_workers 5 \
     --run_id playground
 """
@@ -30,7 +29,7 @@ from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_agent_se
 from susvibes.core.env import Deployment
 from susvibes.env_specs import dockerfiles, DOCKERFILE_PATTERN, GIT_AUTHOR_CONFIGS, WORKSPACE_DIR_NAME
 from susvibes.curate.env_setup.prompts import INSTALL_TEST_PROMPT_TEMPLATE
-from susvibes.core.agents.ports import SWEAgentPort
+from susvibes.core.agents.sweagent import SWEAgentPort
 from susvibes.core.utils import load_file, save_file, filter_target_files, get_image_name, setup_instance_logger, parse_instance_id, touched_files, get_env_specs, save_env_specs
 from susvibes.curate.utils import (
     RepoLocks,
@@ -150,7 +149,8 @@ def prologue(
         def __missing__(self, key):
             return '{' + key + '}'
 
-    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("env_build")), run_name=__spec__.name)
+    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("env_build")),
+        run_name=__spec__.name, output_dir=get_log_dir(run_id, "env_setup", "build_repo"))
     task_dataset = load_file(task_dataset_path)
     env_specs = get_env_specs(run_id, ("dev_tools",))
     if instance_ids is not None:
@@ -206,11 +206,11 @@ def epilogue(
     dataset_path: Path,
     env_setup_log_dir: Path,
     max_workers: int,
-    agent_output_dir: Path = None,
+    output_dir: Path = None,
     save_specs: bool = True,
     instance_ids: list = None,
 ):
-    predictions, _ = SWEAgentPort.after_completion(agent_output_dir) if agent_output_dir else (None, None)
+    predictions, _ = SWEAgentPort.after_completion(output_dir) if output_dir else (None, None)
     task_dataset = load_file(task_dataset_path)
     dataset = build_repo_threadpool(
         run_id, task_dataset, max_workers, env_setup_log_dir,
@@ -350,11 +350,6 @@ if __name__ == "__main__":
         help="Run the epilogue: build env images from agent output.",
     )
     parser.add_argument(
-        "--agent_output_dir",
-        type=Path,
-        help="Directory where the agent output is stored.",
-    )
-    parser.add_argument(
         "--from_existing_dockerfiles",
         action="store_true",
         help="Reuse the dockerfile stored in env_specs instead of extracting it from agent output.",
@@ -422,10 +417,10 @@ if __name__ == "__main__":
     elif args.epilogue:
         dataset_path = get_dataset_path('env_dataset', args.run_id)
         env_setup_log_dir = get_log_dir(args.run_id, "env_setup")
-        agent_output_dir = None if args.from_existing_dockerfiles else args.agent_output_dir
+        output_dir = None if args.from_existing_dockerfiles else get_log_dir(args.run_id, "env_setup", "build_repo")
         epilogue(
             args.run_id, task_dataset_path, dataset_path, env_setup_log_dir,
-            args.max_workers, agent_output_dir,
+            args.max_workers, output_dir,
             save_specs=not args.skip_specs,
             instance_ids=args.instance_ids,
         )

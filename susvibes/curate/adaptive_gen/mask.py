@@ -4,9 +4,9 @@ from tqdm import tqdm
 from pathlib import Path
 from jinja2 import Template
 
-from susvibes.curate.constants import LOCAL_REPOS_DIR, get_agent_setting_path
+from susvibes.curate.constants import LOCAL_REPOS_DIR, get_agent_setting_path, get_log_dir
 from susvibes.curate.adaptive_gen.prompts import MASK_GEN_PROMPT_TEMPLATE
-from susvibes.core.agents.ports import SWEAgentPort
+from susvibes.core.agents.sweagent import SWEAgentPort
 from susvibes.core.utils import load_file, save_file, touched_files, filter_target_files, setup_logger
 from susvibes.curate.utils import (
     get_repo_dir,
@@ -24,12 +24,14 @@ def init_logger(adaptive_gen_log_dir):
 
 def prologue(
     fix_dataset_path: Path,
+    output_dir: Path,
     length_ratio: int = 1,
     max_length: int = None,
     instance_ids: list = None,
     require_test: bool = True,
 ):
-    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")), run_name=__spec__.name)
+    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")),
+        run_name=__spec__.name, output_dir=output_dir)
     fix_dataset = load_file(fix_dataset_path)
     if instance_ids is not None:
         fix_dataset = [data_record for data_record in fix_dataset
@@ -62,7 +64,7 @@ def prologue(
     return port
 
 def epilogue(
-    agent_output_dir: Path,
+    output_dir: Path,
     fix_dataset_path: Path,
     task_dataset_path: Path,
     length_ratio: int = 1,
@@ -70,7 +72,7 @@ def epilogue(
     ratio_tolerance: float = 0,
     require_test: bool = True,
 ):
-    predictions, total_cost = SWEAgentPort.after_completion(agent_output_dir, submitted_only=True)
+    predictions, total_cost = SWEAgentPort.after_completion(output_dir, submitted_only=True)
     fix_dataset_by_id = {data_record["instance_id"]: data_record
         for data_record in load_file(fix_dataset_path)}
     task_dataset = load_file(task_dataset_path) if task_dataset_path.exists() else []
@@ -137,6 +139,7 @@ def epilogue(
 def pipeline(
     fix_dataset_path: Path,
     task_dataset_path: Path,
+    output_dir: Path,
     length_ratio: int = 1,
     max_length: int = None,
     ratio_tolerance: float = 0,
@@ -148,14 +151,15 @@ def pipeline(
                 iter_id, length_ratio)
     port = prologue(
         fix_dataset_path=fix_dataset_path,
+        output_dir=output_dir,
         length_ratio=length_ratio,
         max_length=max_length,
         instance_ids=instance_ids,
         require_test=require_test,
     )
-    agent_output_dir = port.run_batch()
+    output_dir = port.run_batch()
     successful_instance_ids, total_cost = epilogue(
-        agent_output_dir=agent_output_dir,
+        output_dir=output_dir,
         fix_dataset_path=fix_dataset_path,
         task_dataset_path=task_dataset_path,
         length_ratio=length_ratio,
@@ -165,11 +169,6 @@ def pipeline(
     )
     logger.info("  Agent cost: $%.2f", total_cost or 0)
     return successful_instance_ids, total_cost
-
-def remove_results(instance_ids: list):
-    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")), run_name=__spec__.name)
-    port.remove_results(instance_ids)
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run prologue or epilogue for mask generation.")
@@ -195,22 +194,24 @@ if __name__ == "__main__":
         help="Path to the dataset file of created tasks, required in epilogue.",
     )
     parser.add_argument(
-        "--agent_output_dir",
-        type=Path,
-        help="Directory where the agent output is stored, required in epilogue.",
-    )
-    parser.add_argument(
         "--require_test",
         type=json.loads,
         default=True,
         help="Require repo-provided tests (default True); false uses the synthesized-test path.",
     )
+    parser.add_argument(
+        "--run_id",
+        type=str,
+        default="default",
+        help="Run ID; locates the agent output dir logs/curate/<run_id>/adaptive_gen/mask/.",
+    )
     args = parser.parse_args()
+    output_dir = get_log_dir(args.run_id, "adaptive_gen", "mask")
     if args.prologue:
-        prologue(args.fix_dataset_path, require_test=args.require_test)
+        prologue(args.fix_dataset_path, output_dir=output_dir, require_test=args.require_test)
     elif args.epilogue:
-        epilogue(args.agent_output_dir, args.fix_dataset_path,
+        epilogue(output_dir, args.fix_dataset_path,
             task_dataset_path=args.task_dataset_path, require_test=args.require_test)
     else:
-        pipeline(fix_dataset_path=args.fix_dataset_path,
+        pipeline(fix_dataset_path=args.fix_dataset_path, output_dir=output_dir,
             task_dataset_path=args.task_dataset_path, require_test=args.require_test)

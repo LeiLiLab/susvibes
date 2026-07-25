@@ -46,19 +46,3 @@ Identify the security vulnerability that `<security_fix>` addresses and create
 *dynamic security tests* that detect it.
 
 """ + _DYNAMIC_TESTS_DEFINITION + "\n" + _ENV_INFO
-
-
-SEC_TEST_GEN_SECFIX_PROMPT_TEMPLATE = """\
-<security_fix>
-{{ SECURITY_PATCH }}
-</security_fix>
-
-""" + _VULN_STATE_PREAMBLE + """
-`<security_fix>` shows the fix that would close the vulnerability (NOT applied
-to the repo). Use it to understand what security properties must be maintained.
-
-Your task:
-Identify the security vulnerability that `<security_fix>` addresses and create
-*dynamic security tests* that detect it.
-
-""" + _DYNAMIC_TESTS_DEFINITION + "\n" + _ENV_INFO

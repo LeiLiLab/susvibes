@@ -98,6 +98,7 @@ def adaptive_task_gen(
         successful_instance_ids, mask_cost = mask.pipeline(
             fix_dataset_path=fix_dataset_path,
             task_dataset_path=task_dataset_path,
+            output_dir=adaptive_gen_log_dir / "mask" / f"iter{iter_id + 1}",
             length_ratio=LENGTH_RATIO_FUNC[iter_id],
             max_length=TASK_MAX_LENGTH,
             ratio_tolerance=MASK_RATIO_TOLERANCE,
@@ -121,6 +122,7 @@ def adaptive_task_gen(
         stage2_input = len(pending_instance_ids)
         successful_instance_ids, gen_cost = problem_gen.pipeline(
             task_dataset_path=task_dataset_path,
+            output_dir=adaptive_gen_log_dir / "problem_gen" / f"iter{iter_id + 1}",
             instance_ids=pending_instance_ids,
             require_test=require_test,
             iter_id=iter_id + 1,
@@ -141,6 +143,7 @@ def adaptive_task_gen(
         stage3_input = len(pending_instance_ids)
         successful_instance_ids, verified_instance_ids, verify_cost = verifier.pipeline(
             task_dataset_path=task_dataset_path,
+            output_dir=adaptive_gen_log_dir / "verifier" / f"iter{iter_id + 1}",
             instance_ids=pending_instance_ids,
             require_test=require_test,
             iter_id=iter_id + 1,
@@ -179,10 +182,8 @@ def adaptive_task_gen(
             break
 
         pending_instance_ids = remaining_instance_ids + failed_instances
-        if not debug:
-            mask.remove_results(pending_instance_ids)
-            problem_gen.remove_results(pending_instance_ids)
-            verifier.remove_results(pending_instance_ids)
+        # Each iteration writes to its own agent output dir (…/iter<N>/), so a pending instance's
+        # fresh iteration re-runs from an empty dir — no need to delete the prior iteration's results.
         logger.info("  Retrying %d instances (%d unverified + %d failed).",
                      len(pending_instance_ids), len(remaining_instance_ids), total_failed)
 

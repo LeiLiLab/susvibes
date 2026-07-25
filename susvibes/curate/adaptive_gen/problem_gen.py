@@ -5,9 +5,9 @@ from tqdm import tqdm
 from pathlib import Path
 from jinja2 import Template
 
-from susvibes.curate.constants import LOCAL_REPOS_DIR, get_agent_setting_path
+from susvibes.curate.constants import LOCAL_REPOS_DIR, get_agent_setting_path, get_log_dir
 from susvibes.curate.adaptive_gen.prompts import PROBLEM_GEN_PROMPT_TEMPLATE
-from susvibes.core.agents.ports import SWEAgentPort
+from susvibes.core.agents.sweagent import SWEAgentPort
 from susvibes.core.utils import load_file, save_file, setup_logger
 from susvibes.curate.utils import (
     get_repo_dir,
@@ -35,8 +35,9 @@ def init_logger(adaptive_gen_log_dir):
     global logger
     logger = setup_logger(adaptive_gen_log_dir, "problem_gen.log", __name__, add_stdout=False)
 
-def prologue(task_dataset_path: Path, instance_ids: list = None, require_test: bool = True):
-    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")), run_name=__spec__.name)
+def prologue(task_dataset_path: Path, output_dir: Path, instance_ids: list = None, require_test: bool = True):
+    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")),
+        run_name=__spec__.name, output_dir=output_dir)
     task_dataset = load_file(task_dataset_path)
     if instance_ids is not None:
         task_dataset = [data_record for data_record in task_dataset
@@ -58,8 +59,8 @@ def prologue(task_dataset_path: Path, instance_ids: list = None, require_test: b
     port.before_start()
     return port
 
-def epilogue(agent_output_dir: Path, task_dataset_path: Path, require_test: bool = True):
-    predictions, total_cost = SWEAgentPort.after_completion(agent_output_dir, submitted_only=True)
+def epilogue(output_dir: Path, task_dataset_path: Path, require_test: bool = True):
+    predictions, total_cost = SWEAgentPort.after_completion(output_dir, submitted_only=True)
     task_dataset_by_id = {data_record["instance_id"]: data_record
         for data_record in load_file(task_dataset_path)}
 
@@ -94,22 +95,17 @@ def epilogue(agent_output_dir: Path, task_dataset_path: Path, require_test: bool
     save_file(task_dataset_by_id.values(), task_dataset_path)
     return successful_instance_ids, total_cost
 
-def pipeline(task_dataset_path: Path, instance_ids: list = None, require_test: bool = True, iter_id: int = None):
+def pipeline(task_dataset_path: Path, output_dir: Path, instance_ids: list = None, require_test: bool = True, iter_id: int = None):
     logger.info("=== Problem generation pipeline started (iter=%s) ===", iter_id)
-    port = prologue(task_dataset_path, instance_ids, require_test=require_test)
-    agent_output_dir = port.run_batch()
+    port = prologue(task_dataset_path, output_dir, instance_ids, require_test=require_test)
+    output_dir = port.run_batch()
     successful_instance_ids, total_cost = epilogue(
-        agent_output_dir=agent_output_dir,
+        output_dir=output_dir,
         task_dataset_path=task_dataset_path,
         require_test=require_test,
     )
     logger.info("  Agent cost: $%.2f", total_cost or 0)
     return successful_instance_ids, total_cost
-
-def remove_results(instance_ids: list):
-    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")), run_name=__spec__.name)
-    port.remove_results(instance_ids)
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run prologue or epilogue for problem generation.")
@@ -130,20 +126,22 @@ if __name__ == "__main__":
         help="Path to the dataset file of created tasks.",
     )
     parser.add_argument(
-        "--agent_output_dir",
-        type=Path,
-        help="Directory where the agent output is stored, required in epilogue.",
-    )
-    parser.add_argument(
         "--require_test",
         type=json.loads,
         default=True,
         help="Require repo-provided tests (default True); false uses the synthesized-test path.",
     )
+    parser.add_argument(
+        "--run_id",
+        type=str,
+        default="default",
+        help="Run ID; locates the agent output dir logs/curate/<run_id>/adaptive_gen/problem_gen/.",
+    )
     args = parser.parse_args()
+    output_dir = get_log_dir(args.run_id, "adaptive_gen", "problem_gen")
     if args.prologue:
-        prologue(args.task_dataset_path, require_test=args.require_test)
+        prologue(args.task_dataset_path, output_dir=output_dir, require_test=args.require_test)
     elif args.epilogue:
-        epilogue(args.agent_output_dir, args.task_dataset_path, require_test=args.require_test)
+        epilogue(output_dir, args.task_dataset_path, require_test=args.require_test)
     else:
-        pipeline(args.task_dataset_path, require_test=args.require_test)
+        pipeline(args.task_dataset_path, output_dir=output_dir, require_test=args.require_test)

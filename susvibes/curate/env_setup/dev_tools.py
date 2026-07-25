@@ -16,7 +16,7 @@ from susvibes.core.constants import *
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_agent_setting_path
 from susvibes.env_specs import DEV_TOOL_VERSIONS
 from susvibes.curate.env_setup.prompts import DEV_TOOLS_PROMPT_TEMPLATE
-from susvibes.core.agents.ports import SWEAgentPort
+from susvibes.core.agents.sweagent import SWEAgentPort
 from susvibes.core.utils import load_file, setup_logger, parse_instance_id, touched_files, get_env_specs, save_env_specs
 from susvibes.curate.utils import (
     get_repo_dir,
@@ -34,8 +34,10 @@ def init_loggers(log_dir):
     logger = setup_logger(log_dir, "dev_tools.log", f"{__name__}.summary", add_stdout=True, mode="w")
     detail_logger = setup_logger(log_dir, "dev_tools_details.log", f"{__name__}.detail", add_stdout=False, mode="w")
 
-def prologue(fix_dataset_path: Path, instance_ids: list = None):
-    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")), run_name=__spec__.name)
+def prologue(fix_dataset_path: Path, run_id: str = "default", instance_ids: list = None):
+    output_dir = get_log_dir(run_id, "env_setup", "dev_tools")
+    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")),
+        run_name=__spec__.name, output_dir=output_dir)
     fix_dataset = load_file(fix_dataset_path)
     kept = [data_record for data_record in fix_dataset
         if all(data_record.get("post", {}).values())]
@@ -61,8 +63,8 @@ def prologue(fix_dataset_path: Path, instance_ids: list = None):
     port.before_start()
     return port
 
-def epilogue(agent_output_dir: Path, run_id: str = "default", instance_ids: list = None):
-    predictions, total_cost = SWEAgentPort.after_completion(agent_output_dir)
+def epilogue(output_dir: Path, run_id: str = "default", instance_ids: list = None):
+    predictions, total_cost = SWEAgentPort.after_completion(output_dir)
     if instance_ids is not None:
         predictions = [pred for pred in predictions
             if pred["instance_id"] in set(instance_ids)]
@@ -118,9 +120,9 @@ def epilogue(agent_output_dir: Path, run_id: str = "default", instance_ids: list
 
 def pipeline(fix_dataset_path: Path, run_id: str = "default", instance_ids: list = None):
     logger.info("Dev tools pipeline started.")
-    port = prologue(fix_dataset_path, instance_ids=instance_ids)
-    agent_output_dir = port.run_batch()
-    epilogue(agent_output_dir, run_id=run_id, instance_ids=instance_ids)
+    port = prologue(fix_dataset_path, run_id=run_id, instance_ids=instance_ids)
+    output_dir = port.run_batch()
+    epilogue(output_dir, run_id=run_id, instance_ids=instance_ids)
     logger.info("Dev tools pipeline finished.")
 
 if __name__ == "__main__":
@@ -134,11 +136,6 @@ if __name__ == "__main__":
         "--epilogue",
         action="store_true",
         help="Run the epilogue of dev tools setup.",
-    )
-    parser.add_argument(
-        "--agent_output_dir",
-        type=Path,
-        help="Directory where the agent output is stored.",
     )
     parser.add_argument(
         "--instance_ids",
@@ -162,8 +159,8 @@ if __name__ == "__main__":
         exit(1)
 
     if args.prologue:
-        prologue(fix_dataset_path, instance_ids=args.instance_ids)
+        prologue(fix_dataset_path, run_id=args.run_id, instance_ids=args.instance_ids)
     elif args.epilogue:
-        epilogue(args.agent_output_dir, run_id=args.run_id, instance_ids=args.instance_ids)
+        epilogue(get_log_dir(args.run_id, "env_setup", "dev_tools"), run_id=args.run_id, instance_ids=args.instance_ids)
     else:
         pipeline(fix_dataset_path, run_id=args.run_id, instance_ids=args.instance_ids)

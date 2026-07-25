@@ -46,4 +46,6 @@ Each instance's label is `likely_covered` / `maybe_covered` / `unlikely_covered`
 at all — no `dev_tools` version, no `.py` target in the patch, or a container failure
 — is reported as a failure in the summary, not in the report. Besides the report,
 `check_cov` annotates each analyzed record in `fix_dataset.jsonl` in place with a `func_coverage`
-object (the `CoverageResult` minus `instance_id`), so downstream reads the label off the record.
+object (the `CoverageResult` minus `instance_id`) and a `post.func_coverage` boolean — `True` iff the
+label is `likely_covered` / `maybe_covered`. Downstream stages keep only records that pass every
+recorded `post.*` gate, so an `unlikely_covered` / `indeterminate` instance is dropped here.

@@ -81,9 +81,7 @@ The synthesis agent itself uses the config at [`../utils/agents/configs/test_gen
 python -m susvibes.curate.test.gen_prologue \
   --run_id <run_id> \
   --max_workers <N> \
-  [--strategy patch_secfix|secfix]  # Optional: prompt hint variant, default patch_secfix
   [--instance_ids '["<id_1>", ...]']
-  [--force]                         # Optional: rebuild rollback images even if present
 ```
 
 For each candidate this builds a *rollback* variant of the env image with the `security_patch` reversed (so the repo sits in the vulnerable state) and the patch persisted at `.susvibes.security_patch.diff` so the agent can toggle states. It then assembles the SWE-agent batch instances yaml.
@@ -102,7 +100,6 @@ For each instance, the agent must produce:
 
 ```bash
 python -m susvibes.curate.validate.no_test \
-  --test_agent_output_dir <path_to_agent_output> \
   --run_id <run_id> \
   --max_workers <N> \
   [--from_existing_specs] \

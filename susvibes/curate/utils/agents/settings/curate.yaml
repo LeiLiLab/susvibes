@@ -1,9 +1,9 @@
-dir: ../SWE-agent
+sweagent_dir: ../SWE-agent
 run_name: swe-agent_default
 model:
   name: claude-sonnet-4-5-20250929
   per_instance_cost_limit: 0.0
   per_instance_call_limit: 100
-agent_env: sweagent1.1.0
+conda_env: sweagent1.1.0
 config_name: susvibes_curate
 num_workers: 20

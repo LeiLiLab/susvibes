@@ -95,7 +95,6 @@ After the agent finishes, build the environment images from its output, producin
 ```bash
 python -m susvibes.curate.env_setup.build_repo \
   --epilogue \
-  --agent_output_dir <path_to_agent_output> \
   --max_workers 5 \
   --run_id playground \
   [--from_existing_dockerfiles]  # Optional: reuse the cached dockerfile in env_specs instead of re-extracting it from agent output

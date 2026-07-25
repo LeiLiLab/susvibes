@@ -4,7 +4,6 @@ agent rather than from the repo's own test commits. The repo's test suite is sti
 used for functional regression checks.
 
 python -m susvibes.curate.validate.no_test \
-    --test_agent_output_dir <path_to_agent_output> \
     --max_workers 5 \
     --run_id playground
 """
@@ -24,7 +23,7 @@ from susvibes.core.logs import LogsHandler, get_llm_cost, reset_llm_cost
 from susvibes.curate.validate.constants import LOG_INSTANCE, LOG_TEST_OUTPUT, LOG_TIMEOUT, LOG_SUMMARY
 from susvibes.curate.validate.utils import build_clean_eval_deployment
 from susvibes.curate.utils import get_summary, print_summary
-from susvibes.core.agents.ports import SWEAgentPort
+from susvibes.core.agents.sweagent import SWEAgentPort
 from susvibes.core.utils import load_file, save_file, get_image_name, setup_instance_logger, parse_instance_id, filter_binary_files, get_env_specs, save_env_specs, Route
 
 REPO_TEST_RUNS = ["base", "rollback", "task"]
@@ -393,12 +392,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(
         description="Validate task instances (no test mode) using synthesized security tests via test execution.")
     parser.add_argument(
-        "--test_agent_output_dir",
-        type=Path,
-        required=True,
-        help="Directory where the test synthesis agent output is stored.",
-    )
-    parser.add_argument(
         "--max_workers",
         type=int,
         default=5,
@@ -435,8 +428,8 @@ if __name__ == "__main__":
     dataset = load_file(dataset_path)
     stats = load_file(stats_path) if stats_path.exists() else {}
 
-    # Load test synthesis agent predictions
-    predictions, _ = SWEAgentPort.after_completion(args.test_agent_output_dir)
+    # Load the test-synthesis agent's predictions from its output dir (test.gen_prologue's batch).
+    predictions, _ = SWEAgentPort.after_completion(get_log_dir(args.run_id, "test", "gen_prologue"))
     test_patches = {pred["instance_id"]: filter_binary_files(pred.get("model_patch", "")) for pred in predictions}
 
     validate_threadpool(
