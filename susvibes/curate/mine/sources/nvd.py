@@ -3,9 +3,9 @@ uncovered by OSV/Morefixes/ReposVul, dug out of a ~48k low-signal haystack (othe
 PoC/writeup repos). The pipeline: prefilter (deterministic, recall-first) → inspect (Haiku, extract
 repo + vulnerable_files + languages) → route → finder (Sonnet). See docs/mine-filters Issue C.
 
-This file = the deterministic prefilter (`nvd_universe` + `prefilter`) and `route`; the inspect
-agent is in `mine/inspect.py` and the finder in `mine/find_commit.py`. Wiring them into an
-`NVDSource` (prefilter → inspect → route → finder) lands next.
+This file = the deterministic prefilter (`nvd_universe` + `prefilter`), `route`, and the `NVDSource`
+wiring them together (prefilter → inspect → route → finder); the inspect agent is in
+`mine/sources/inspect.py` and the finder in `mine/sources/find_commit.py`.
 """
 
 import json
@@ -20,8 +20,8 @@ from susvibes.core.utils import load_file, save_file
 from susvibes.curate.mine.constants import TARGET_LANG, LANG_EXTENSIONS
 from susvibes.curate.mine.utils import get_repo_language, split_to_file_patches
 from susvibes.curate.mine.dedup import KnownSet
-from susvibes.curate.mine.inspect import inspect_threadpool
-from susvibes.curate.mine.find_commit import finder_threadpool
+from susvibes.curate.mine.sources.inspect import inspect_threadpool
+from susvibes.curate.mine.sources.find_commit import finder_threadpool
 from susvibes.curate.mine.sources.constants import REF_REPO, GITHUB_NON_OWNER, GITHUB_NON_REPO
 from susvibes.curate.mine.sources.utils import fetch_github_commit_patch
 from susvibes.curate.mine.sources.osv import known_source_cves, read_osv_fix_commits, OSV_ZIP_PATH

@@ -13,7 +13,6 @@ from susvibes.core.utils import (
     setup_logger,
 )
 from susvibes.curate.utils import len_patch, dump_task
-from susvibes.curate.mine.check_cov.engine.constants import CoverageLabel
 
 LENGTH_RATIO_FUNC = [1, 2, 5, 15, 30, 50]
 TASK_MAX_LENGTH = 2000
@@ -31,7 +30,6 @@ def init_loggers(adaptive_gen_log_dir):
 def adaptive_task_gen(
     fix_dataset_path: Path,
     task_dataset_path: Path,
-    coverage_report_path: Path,
     adaptive_gen_log_dir: Path,
     instance_ids: list = None,
     max_iters: int = None,
@@ -40,9 +38,10 @@ def adaptive_task_gen(
     debug: bool = False,
 ):
     fix_dataset = load_file(fix_dataset_path)
-    # Only keep instances check_cov found (likely/maybe) test-covered.
-    covered_ids = {r["instance_id"] for r in load_file(coverage_report_path)
-        if r["label"] in (CoverageLabel.LIKELY, CoverageLabel.MAYBE)}
+    # Only keep instances that cleared every post-stage gate (`all(post)`) and were coverage-analyzed
+    # (`func_coverage` present) — the post-stage booleans are written by check_cov / secprop.
+    covered_ids = {r["instance_id"] for r in fix_dataset
+        if "func_coverage" in r and all(r.get("post", {}).values())}
     fix_dataset = [data_record for data_record in fix_dataset
         if data_record["instance_id"] in covered_ids]
     if instance_ids is not None:
@@ -255,14 +254,12 @@ if __name__ == "__main__":
 
     fix_dataset_path = get_dataset_path('fix_dataset', args.run_id)
     task_dataset_path = get_dataset_path('task_dataset', args.run_id)
-    coverage_report_path = get_dataset_path('coverage_report', args.run_id)
     stats_path = get_dataset_path('stats', args.run_id)
     examples_path = get_dataset_path('examples', args.run_id)
 
     adaptive_task_gen(
         fix_dataset_path=fix_dataset_path,
         task_dataset_path=task_dataset_path,
-        coverage_report_path=coverage_report_path,
         adaptive_gen_log_dir=adaptive_gen_log_dir,
         instance_ids=args.instance_ids,
         max_iters=args.max_iters,

@@ -1,6 +1,6 @@
 """Static file-level test-coverage analysis for collected CVE instances.
 
-Runs after `process`. For each instance in ``fix_dataset.jsonl`` it decides, by
+Runs after `mine.core`. For each instance in ``fix_dataset.jsonl`` it decides, by
 static analysis only (no execution), whether the repo's own test suite covers the
 ``security_patch`` files — at the FILE level. Analysis runs on the rollback tree
 (``base_commit`` + reverse(security_patch), the vulnerable state), so targets are the
@@ -9,7 +9,7 @@ patch's PRE-side files.
 Per-version Docker isolation. Each instance is analyzed INSIDE a container whose
 Python version matches the instance (from ``dev_tools.json``), so the engine runs on
 that interpreter's NATIVE ast/jedi/parso — no py2/py3 parser conflicts. The self
-contained ``engine/`` package (S*/F*/H* scoring; see check_cov.md) is COPYied into
+contained ``engine/`` package (S*/F*/H* scoring; see engine/README.md) is COPYied into
 a thin per-instance image built ``FROM`` the version-matched cov_py image (prebuilt by build_base),
 run once, and torn down (image + container removed). The host only orchestrates:
 roll the repo back to the vulnerable tree, snapshot sources, build/run the container,
@@ -24,7 +24,7 @@ The goal is to MINIMIZE false negatives: a file that really is tested must not b
 marked uncovered.
 
 Usage:
-    python -m susvibes.curate.mine.check_cov --run_id <id> [--max_workers N]
+    python -m susvibes.curate.mine.post.check_cov --run_id <id> [--max_workers N]
 """
 import argparse
 import json
@@ -55,12 +55,14 @@ from susvibes.curate.utils import (
     print_summary,
 )
 from susvibes.core.env import Deployment
-from susvibes.curate.mine.check_cov.engine.constants import SymbolTrace
-from susvibes.curate.mine.check_cov.engine.extract_facts import TARGET_EXTENSIONS
+from susvibes.curate.mine.post.check_cov.engine.constants import SymbolTrace, CoverageLabel
+from susvibes.curate.mine.post.check_cov.engine.extract_facts import TARGET_EXTENSIONS
 
 LOG_INSTANCE = "check_cov.log"
 LOG_COV_OUTPUT = "cov_output.txt"
 LOG_SUMMARY = "summary.json"
+
+PASS_LABELS = {CoverageLabel.LIKELY, CoverageLabel.MAYBE}   # labels that clear the coverage gate
 
 # Files laid into each per-instance build context (context_path) and where each lands in
 # the image (by prepare_engine_context + compose_cov_dockerfile):
@@ -194,6 +196,8 @@ def check_cov_single(data_record: dict, check_cov_log_dir: Path, dev_tools: dict
         logger.info("Container logs found; reusing.")
         result = parse_cov_result(load_file(cov_output_path))
         reason = None if result is not None else "Failed to parse coverage logs."
+    elif instance_id not in dev_tools:
+        return None, "No dev_tools version identified for this instance."
     else:
         version = dev_tools[instance_id]["version"]
         # Targets are the security_patch's PRE-side files (the names present in the
@@ -263,6 +267,9 @@ def check_cov_threadpool(fix_dataset: list, max_workers: int, coverage_report_pa
     if instance_ids is not None:
         wanted = set(instance_ids)
         records = [r for r in records if r["instance_id"] in wanted]
+    # Only records that cleared every post-stage gate (`all(post)`): a rejected/errored secprop
+    # instance was dropped by the dev_tools gate, so it has no version and must not reach the lookup.
+    records = [r for r in records if all(r.get("post", {}).values())]
 
     # Cov images are a hard dependency for instances that will run — an instance reused
     # from its existing cov_output.txt needs none. Fail fast if a needed version is missing.
@@ -361,6 +368,17 @@ def main() -> None:
         max_depth=args.max_depth,
         force=args.force,
     )
+
+    # Annotate fix_dataset in place: each record gets a `func_coverage` object (the whole
+    # CoverageResult minus instance_id) so downstream reads the label off the record itself.
+    coverage = {r["instance_id"]: r for r in load_file(coverage_report_path)}
+    for record in fix_dataset:
+        result = coverage.get(record["instance_id"])
+        if result is not None:
+            record["func_coverage"] = {k: v for k, v in result.items() if k != "instance_id"}
+            record.setdefault("post", {})["func_coverage"] = result["label"] in PASS_LABELS
+    save_file(fix_dataset, fix_dataset_path)
+    print(f"fix_dataset annotated in place with func_coverage: {fix_dataset_path}.")
 
 
 if __name__ == "__main__":

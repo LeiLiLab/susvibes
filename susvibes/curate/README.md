@@ -7,7 +7,7 @@ The pipeline runs in this order (all artifacts land under `datasets/<run_id>/` a
 1. [`mine/core`](mine/) — mine vulnerability-fixing commits → `fix_dataset.jsonl`
 2. [`env_setup/dev_tools`](env_setup/) — identify each repo's Python version → `dev_tools.json`
 3. [`env_setup/build_base`](env_setup/) `--mode pull` — pull the `base_py` / `dind_py` / `cov_py` images for those versions
-4. [`mine/check_cov`](mine/check_cov/) — label each instance's test coverage → `coverage_report.jsonl`
+4. [`mine/post/check_cov`](mine/post/check_cov/) — label each instance's test coverage → `coverage_report.jsonl`
 5. [`adaptive_gen`](adaptive_gen/) — generate masks + problem statements for the covered instances → `task_dataset.jsonl`
 6. [`env_setup/build_repo`](env_setup/) — build a per-instance environment image → `env_dataset.jsonl`
 7. [`validate`](validate/) — validate via execution, then publish the dataset
@@ -49,10 +49,10 @@ python -m susvibes.curate.env_setup.build_base \
 
 ## 4. Checking Test Coverage
 
-For each instance, statically decide (no execution) whether the repo's own test suite covers the files touched by the security fix, inside a version-matched `cov_py` container. This labels each instance (`likely_covered` / `maybe_covered` / `unlikely_covered` / `unknown`) and writes `coverage_report.jsonl`; only `likely_covered` / `maybe_covered` instances proceed to the next step. See [`mine/check_cov/`](mine/check_cov/) for details.
+For each instance, statically decide (no execution) whether the repo's own test suite covers the files touched by the security fix, inside a version-matched `cov_py` container. This labels each instance (`likely_covered` / `maybe_covered` / `unlikely_covered` / `indeterminate`) and writes `coverage_report.jsonl`; only `likely_covered` / `maybe_covered` instances proceed to the next step. See [`mine/post/check_cov/`](mine/post/check_cov/) for details.
 
 ```bash
-python -m susvibes.curate.mine.check_cov \
+python -m susvibes.curate.mine.post.check_cov \
   --run_id playground \
   --max_workers 5
 ```

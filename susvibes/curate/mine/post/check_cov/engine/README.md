@@ -23,7 +23,7 @@ back to the host).
 | `likely_covered`   | strong evidence (a test reaches a target symbol directly, or imports the target module) |
 | `maybe_covered`    | indirect evidence (multi-hop symbol chain, import graph, conftest, framework route/CLI, string ref) |
 | `unlikely_covered` | repo analyzable but no evidence links any test to the file (incl. no test suite) |
-| `unknown`          | the analysis ran but could not decide: jedi unreliable, or the target file would not parse |
+| `indeterminate`          | the analysis ran but could not decide: jedi unreliable, or the target file would not parse |
 
 The instance label is the **best** over its per-file results (`LABEL_RANK`, then score)
 — any covered security-patch file is positive evidence. `classify` maps a score to a
@@ -160,12 +160,12 @@ literal path. `@expose` (Flask-AppBuilder / flask-classful) counts as a route de
 - **Decorator detection** matches the last dotted segment exactly (`app.route` →
   `route`), so `@mock.patch` etc. don't masquerade as routes.
 
-## Reliability and `unknown`
+## Reliability and `indeterminate`
 `symbol_trace.score` returns `(evidence, reliable)`. `reliable` is **False** only when
 the trace could not complete — the target file did not parse, or too many
 `get_references` calls failed — **and** no hit was found; that empty result is then
-reported as **`unknown`**, never a false `unlikely_covered`. A found hit is always
-reliable. The file engine has the analogous "mostly unparseable → unknown" override.
+reported as **`indeterminate`**, never a false `unlikely_covered`. A found hit is always
+reliable. The file engine has the analogous "mostly unparseable → indeterminate" override.
 
 ## Where the rest lives
 Tunable thresholds (score cutoff, graph depths, distinctiveness, jedi caps, retry /

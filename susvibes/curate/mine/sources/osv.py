@@ -23,7 +23,7 @@ from susvibes.curate.mine.sources.morefixes import MorefixesHandler
 from susvibes.curate.mine.sources.reposvul import ReposVulHandler
 from susvibes.curate.mine.utils import split_to_file_patches
 from susvibes.curate.mine.dedup import KnownSet, normalize_commit
-from susvibes.curate.mine.find_commit import finder_threadpool
+from susvibes.curate.mine.sources.find_commit import finder_threadpool
 
 OSV_ZIP_PATH = get_dataset_path('raw_cve') / 'OSV' / 'pypi.zip'
 OSV_CACHE_PATH = get_dataset_path('raw_cve') / 'OSV' / 'osv_fixes.jsonl'

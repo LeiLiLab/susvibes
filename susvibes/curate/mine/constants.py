@@ -1,8 +1,8 @@
-"""Constants for the collect stage.
+"""Constants for the mine stage.
 
 Single source of truth for language / file-classification settings shared by
-collect.process (patch classification), collect.utils (test detection), and
-collect.check_cov (repo test-suite discovery & module mapping), so all three
+mine.core (patch classification), mine.utils (test detection), and
+mine.post.check_cov (repo test-suite discovery & module mapping), so all three
 agree on the target language, its file extensions, and what counts as a "test".
 """
 
@@ -47,4 +47,4 @@ PATCH_MAX_LENGTH = 500
 PATCH_MAX_FILE_COUNT = 10
 REPO_MAX_SIZE_KB = 2 * 1024 * 1024  # 2 GB
 
-# check_cov's own scoring/engine tuning lives in collect/check_cov/constants.py.
+# check_cov's own scoring/engine tuning lives in mine/check_cov/engine/constants.py.

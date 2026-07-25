@@ -30,7 +30,6 @@ from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir, get_agent_se
 from susvibes.core.env import Deployment
 from susvibes.env_specs import dockerfiles, DOCKERFILE_PATTERN, GIT_AUTHOR_CONFIGS, WORKSPACE_DIR_NAME
 from susvibes.curate.env_setup.prompts import INSTALL_TEST_PROMPT_TEMPLATE
-from susvibes.curate.mine.check_cov.engine.constants import CoverageLabel
 from susvibes.core.agents.ports import SWEAgentPort
 from susvibes.core.utils import load_file, save_file, filter_target_files, get_image_name, setup_instance_logger, parse_instance_id, touched_files, get_env_specs, save_env_specs
 from susvibes.curate.utils import (
@@ -406,9 +405,8 @@ if __name__ == "__main__":
                 # processed by coverage (mirrors adaptive_gen, since task_dataset isn't produced yet).
                 LOCAL_REPOS_DIR = "/mnt/data2/songwenzhao/projects1"
                 processed = load_file(fallback_path)
-                covered = {r["instance_id"] for r in load_file(get_dataset_path('coverage_report', args.run_id))
-                    if r["label"] in (CoverageLabel.LIKELY, CoverageLabel.MAYBE)}
-                processed = [r for r in processed if r["instance_id"] in covered]
+                processed = [r for r in processed
+                    if "func_coverage" in r and all(r.get("post", {}).values())]
                 task_dataset_path = fallback_path.parent / "fix_dataset_cov.jsonl"
                 save_file(processed, task_dataset_path)
             else:

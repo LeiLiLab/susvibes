@@ -49,7 +49,7 @@ FINDER_SCHEMA = {
             "description": "1 = the commit/advisory directly cites the CVE/GHSA/PR; 2 = linked via "
                            "component+fixed-version or PR XREF; 0 when commit is \"\"",
         },
-        "fact_evidence": {
+        "evidence": {
             "type": "string",
             "description": "the concrete fact(s) that pin the commit, or why none was found",
         },
@@ -58,7 +58,7 @@ FINDER_SCHEMA = {
             "description": "the git commands / URLs used to establish the fact",
         },
     },
-    "required": ["commit", "multi_commit", "additional_commits", "fact_tier", "fact_evidence", "source"],
+    "required": ["commit", "multi_commit", "additional_commits", "fact_tier", "evidence", "source"],
     "additionalProperties": False,
 }
 
@@ -100,7 +100,7 @@ elsewhere. Don't use your security reasoning to judge whether a diff correctly n
 vulnerability; when in doubt, keep the candidate.
 
 Return the full 40-character sha. If no fact in this repository pins a commit, return commit="" \
-and explain why in fact_evidence.
+and explain why in evidence.
 """
 
 FINDER_USER = """\
@@ -125,12 +125,12 @@ def finder_miss(record, error, meta=None):
     """A finder result that pinned nothing. `error=None` is a real "no fix in this repo" (final,
     yielded past); a set `error` is an aborted run (clone/agent failure) that `resume` re-runs."""
     return {**record, "commit": "", "multi_commit": False, "additional_commits": [], "fact_tier": 0,
-            "fact_evidence": "", "source": "", "error": error, "_meta": meta or {}}
+            "evidence": "", "source": "", "error": error, "_meta": meta or {}}
 
 
 def finder_single(record, run_id):
     """Pin the fix commit for one CVE (retryable failures retried under the hood). Returns the
-    record merged with the finder's output (`commit`/`multi_commit`/`fact_tier`/`fact_evidence`/
+    record merged with the finder's output (`commit`/`multi_commit`/`fact_tier`/`evidence`/
     `source`) plus `error` and `_meta` (cost/turns). `commit=""` with `error=None` is a real miss
     (final); `commit=""` with `error` set is an aborted run that `resume` re-runs."""
     project = f"{record['owner']}/{record['repo']}".lower()

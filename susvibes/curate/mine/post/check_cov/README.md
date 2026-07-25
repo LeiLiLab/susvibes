@@ -1,6 +1,6 @@
 # check_cov — static file-level test-coverage analysis
 
-`check_cov` runs **after `process`**. For each instance in
+`check_cov` runs **after `mine.core`**. For each instance in
 `datasets/<run_id>/fix_dataset.jsonl` it decides — at `base_commit`, by static
 analysis only (no execution) — whether the repo's own test suite covers the files
 touched by the `security_patch`, at the **file level**: does any test reach any one of
@@ -18,7 +18,7 @@ documented in [`engine/README.md`](engine/README.md).
 ## Usage
 
 ```bash
-python -m susvibes.curate.mine.check_cov \
+python -m susvibes.curate.mine.post.check_cov \
     --run_id playground \
     --max_workers 5 \
     [--instance_ids '["id1", ...]'] \
@@ -42,7 +42,8 @@ python -m susvibes.curate.env_setup.build_base \
   instances succeeded and why the rest failed; also printed to stdout.
 
 Each instance's label is `likely_covered` / `maybe_covered` / `unlikely_covered` /
-`unknown` (see [`engine/README.md`](engine/README.md)). An instance that could not run
+`indeterminate` (see [`engine/README.md`](engine/README.md)). An instance that could not run
 at all — no `dev_tools` version, no `.py` target in the patch, or a container failure
-— is reported as a failure in the summary, not in the report. `check_cov` does not
-modify `fix_dataset.jsonl`.
+— is reported as a failure in the summary, not in the report. Besides the report,
+`check_cov` annotates each analyzed record in `fix_dataset.jsonl` in place with a `func_coverage`
+object (the `CoverageResult` minus `instance_id`), so downstream reads the label off the record.

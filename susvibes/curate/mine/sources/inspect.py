@@ -45,9 +45,9 @@ INSPECT_SCHEMA = {
                            "extensions first, else the real repo's major languages; [] only if "
                            "truly undeterminable",
         },
-        "reason": {"type": "string", "description": "brief justification citing what you read/found"},
+        "evidence": {"type": "string", "description": "brief justification citing what you read/found"},
     },
-    "required": ["repo", "vulnerable_files", "languages", "reason"],
+    "required": ["repo", "vulnerable_files", "languages", "evidence"],
     "additionalProperties": False,
 }
 
@@ -72,7 +72,7 @@ NVD references:
 
 def inspect_miss(record, error, meta=None):
     """An inspect result that resolved nothing (aborted run). `error` set → `resume` re-runs it."""
-    return {**record, "repo": "", "vulnerable_files": [], "languages": [], "reason": "",
+    return {**record, "repo": "", "vulnerable_files": [], "languages": [], "evidence": "",
             "error": error, "_meta": meta or {}}
 
 

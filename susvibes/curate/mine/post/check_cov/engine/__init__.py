@@ -5,7 +5,7 @@ This whole package is COPYied into per-version ``cov_py`` containers and run und
 that interpreter's native ast/jedi/parso, so it has ZERO susvibes dependencies and
 is written in the py2/py3 common subset (no StrEnum/TypedDict/f-string/py3-only
 annotations). Internal imports are RELATIVE so the package works both as
-``susvibes.curate.mine.check_cov.engine`` (host) and as a top-level
+``susvibes.curate.mine.post.check_cov.engine`` (host) and as a top-level
 ``_susvibes_cov_engine`` package (container: ``python -m _susvibes_cov_engine.worker``).
 """
 from __future__ import print_function, division, absolute_import, unicode_literals

@@ -29,14 +29,14 @@ class CoverageLabel(object):
     LIKELY = "likely_covered"
     MAYBE = "maybe_covered"
     UNLIKELY = "unlikely_covered"
-    UNKNOWN = "unknown"
+    INDETERMINATE = "indeterminate"
 
 
 LABEL_RANK = {
     CoverageLabel.LIKELY: 3,
     CoverageLabel.MAYBE: 2,
     CoverageLabel.UNLIKELY: 1,
-    CoverageLabel.UNKNOWN: 0,
+    CoverageLabel.INDETERMINATE: 0,
 }
 
 # A per-instance coverage result is a plain dict (no typing.TypedDict — 3.8+ only).
@@ -102,7 +102,7 @@ class SymbolTrace(object):
     # many times (rebuilding the Script) before giving up.
     GET_REFERENCES_RETRIES = 2
     # If more than this many get_references calls permanently fail during one target's
-    # backward trace AND no test was reached, report `unknown` rather than a
+    # backward trace AND no test was reached, report `indeterminate` rather than a
     # possibly-false `unlikely_covered`.
     MAX_FAILURES = 3
     # The top-level-reach backstop only counts when a test DIRECTLY imports the file

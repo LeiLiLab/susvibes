@@ -37,6 +37,11 @@ def init_loggers(log_dir):
 def prologue(fix_dataset_path: Path, instance_ids: list = None):
     port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")), run_name=__spec__.name)
     fix_dataset = load_file(fix_dataset_path)
+    kept = [data_record for data_record in fix_dataset
+        if all(data_record.get("post", {}).values())]
+    logger.info("%d / %d records pass the post-stage gates (every recorded post check true, or none run).",
+        len(kept), len(fix_dataset))
+    fix_dataset = kept
     if instance_ids is not None:
         fix_dataset = [data_record for data_record in fix_dataset
             if data_record["instance_id"] in set(instance_ids)]

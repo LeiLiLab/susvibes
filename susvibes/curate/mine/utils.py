@@ -4,10 +4,10 @@ import itertools
 import difflib
 import requests
 
-# is_test_file / path_has_keyword now live in the self-contained check_cov engine
-# (vendored py2/py3 into the cov_py containers); re-export so process keeps importing
+# is_test_file / path_has_keyword are defined in the self-contained check_cov engine
+# (vendored py2/py3 into the cov_py containers); re-export so mine.core keeps importing
 # them from here. Importing engine.extract_facts stays light — engine/__init__ pulls in no jedi.
-from susvibes.curate.mine.check_cov.engine.extract_facts import (  # noqa: F401
+from susvibes.curate.mine.post.check_cov.engine.extract_facts import (  # noqa: F401
     path_has_keyword,
     is_test_file,
 )

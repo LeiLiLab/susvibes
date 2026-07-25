@@ -35,7 +35,7 @@ from claude_agent_sdk import (
     ToolResultBlock,
 )
 
-READONLY_TOOLS = ["Bash", "Read", "Grep", "WebFetch"]  # read-only investigation, no Write/Edit
+READONLY_TOOLS = ["Bash", "Read", "Grep", "WebFetch", "WebSearch"]  # read-only investigation, no Write/Edit (WebSearch is silently dropped on Bedrock, harmless)
 
 # Shared agent-subprocess hardening. `AGENT_ENV` is overlaid on os.environ (which carries the
 # Bedrock creds), so it only adds ANTHROPIC_MAX_RETRIES — the CLI then honours retry-after on
