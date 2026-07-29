@@ -72,8 +72,9 @@ This path expects the upstream pipeline to have been run in `--require_test fals
 - `python -m susvibes.curate.mine.core --require_test false ...` — keeps vulnerability records that have no associated test files
 - `python -m susvibes.curate.adaptive_gen.core --require_test false ...` — produces tasks without requiring a `test_patch` field
 - `python -m susvibes.curate.env_setup.build_repo --prologue --require_test false ...` — instructs SWE-agent (sv-env-setup) to run the full repo test suite instead of a designated set of test files
+- `python -m susvibes.curate.mine.post.secprop --run_id <run_id> ...` — annotates each record with its **security property** (`invariant` / `vulnerable_if` / `secure_if` / `security_irrelevant_differences`). **Required**: `gen_prologue` renders these into the agent prompt, so each record it reads must carry a `secprop` field.
 
-The synthesis agent itself uses the config at [`../utils/agents/configs/test_gen.yaml`](../utils/agents/configs/test_gen.yaml). Set it up the same way as other SWE-agent configs in this curation pipeline (place under SWE-agent's `config/` directory; see [`../utils/agents/settings/`](../utils/agents/settings/)).
+The synthesis agent uses the SWE-agent config `susvibes_test_gen.yaml` (placed under SWE-agent's `config/` directory; run via the test-synthesis command in [`../utils/agents/runs.sh`](../utils/agents/runs.sh)). Its `instance_template` holds the static how-to; the per-instance security property + vulnerable feature are rendered into `{{problem_statement}}` by `gen_prologue.py` from [`prompts.py`](prompts.py).
 
 ### 1. Build rollback images + prepare agent batch
 
@@ -92,9 +93,8 @@ Run SWE-agent with `test_gen.yaml` as specified in [`../utils/agents/runs.sh`](.
 
 For each instance, the agent must produce:
 
-- `sectests.sh` — the entrypoint that runs the synthesized tests
-- `secresults.json` — per-test pass/fail JSON written by the test runner
-- supporting test files (typically a small Python runner script)
+- `sectests.sh` — the entrypoint that runs the synthesized tests and, as its **last stdout line**, prints a single JSON object mapping each test name to a boolean (`true` = secure behavior observed, `false` = vulnerable). The harness reads this from stdout — no results file.
+- supporting security-test file(s) (typically a small Python runner script)
 
 ### 3. Validate
 
@@ -106,4 +106,4 @@ python -m susvibes.curate.validate.no_test \
   [--force]
 ```
 
-This pulls each agent's `model_patch` as the candidate `test_patch`, runs the repo's functional tests across three variants (base / rollback / task), then runs the synthesized sectests under both `rollback_with_test` and `base_with_test`, verifying that at least one test distinguishes the vulnerable from the secure state. Successful instances get an evaluation image tagged and the synthesized `test_patch` written back into the dataset.
+This pulls each agent's `model_patch` as the candidate `test_patch`, runs the repo's functional tests across three variants (base / rollback / task), then runs the synthesized sectests under both `rollback_with_gen_test` (vulnerable) and `base_with_gen_test` (secure), verifying that at least one test distinguishes the vulnerable from the secure state. Successful instances get an evaluation image tagged and the synthesized `test_patch` written back into the dataset.

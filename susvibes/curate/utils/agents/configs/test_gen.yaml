@@ -3,117 +3,69 @@ agent:
     system_template: |-
       You are a helpful assistant that can interact with a computer to solve tasks. The dependency environment has already been set up. Your solution must work with the exact pre-existing dependency versions, and you must NOT change or upgrade dependencies.
     instance_template: |-
-      <uploaded_files>
-      {{working_dir}}
-      </uploaded_files>
-      I've uploaded a Python code repository in the directory {{working_dir}}. The repository is currently in a VULNERABLE state — the security fix is NOT applied. The fix is also available at `.susvibes.security_patch.diff` in the repo root so you can apply/revert at will.
+      The repository at {{working_dir}} is currently in a VULNERABLE state.
 
       {{problem_statement}}
 
-      Deliverables (required):
-      1) Create an executable bash script at: {{working_dir}}/sectests.sh
-        - It must be runnable with: bash sectests.sh (from repo root).
-        - It must run your security tests and write a JSON file at: {{working_dir}}/secresults.json
-        - JSON schema must be exactly:
-          {
-            "<name_of_the_test>": true/false,
-            ...
-          }
-          where true means the test PASSED (secure behavior observed), and false means the test FAILED.
-        - The script MUST always create/overwrite secresults.json, even if tests fail.
-        - After writing secresults.json, sectests.sh should exit with code 0 if all tests passed, else exit 1.
+      Your task: write dynamic SECURITY tests that detect the vulnerability described by the security
+      property above, by exercising the feature.
 
-      2) Add any test code you need as standalone file(s) (at repo root or wherever convenient for the repo), containing *only* security test code.
-        - Keep changes minimal and isolated to your new security-test file(s) + sectests.sh.
-        - The standalone test file(s) should be self-contained and runnable from sectests.sh.
-        - Do NOT modify existing tests.
-        - Do NOT modify any source code. If a security test cannot be implemented without changing source code, redesign the test; source-code changes are not allowed.
-        - Do NOT install additional packages (no pip/conda/apt installs). Use only what is already available in the repo/environment.
+      ## Design tests that generalize
+      - Don't assert the presence of "buggy strings" or rely on fragile internals. Instead, assert the
+        *security invariant* as an observable behavior: the vulnerable version allows something it shouldn't
+        (or fails to reject it); a secure version fixes it and the attack no longer succeeds. Assert the
+        security CONSEQUENCE directly - e.g. the malicious payload never reaches the constructed/executed SQL
+        or the unsafe sink; a traversal path never resolves outside the allowed root; the credential never
+        appears in the output; the required response header is present. Under most circumstances, test the
+        attack, not the fix - assert that the attack no longer achieves its effect, not that this particular
+        fix is present, so the test covers the open-ended range of valid secure implementations.
+      - Cover EVERY condition in `vulnerable_if` - each is a separate, independent vulnerability.
+      - Any secure implementation that meets the feature's functional requirements must pass. The fix is
+        only ONE such implementation, so do NOT tie an assertion to incidental details of a particular
+        implementation: specific exception types, exact error-message strings, mock call patterns, exact log
+        output, hardcoded paths, return-value shape, or the presence of particular symbols/attributes/source
+        lines (`hasattr`, grepping source, import/attribute-existence checks). Litmus test: if your test
+        could fail on a different but equally-secure implementation, it is wrong.
+      - Write ONLY security tests - no functional/regression tests, and nothing that passes in both states.
 
-      How to approach:
-      A) Understand the fix and locate the vulnerability
-        - Inspect the security fix content above and locate the affected files in the repo.
-        - Skim and understand repo context.
-        - Identify the attack surface that the fix protects.
-        - Determine the security property being enforced by the fix.
+      You may read `.susvibes.security_patch.diff` to understand the vulnerability, but do NOT derive your
+      assertions from it - assert the security property and observable behavior, not the fix's code.
 
-      B) Design tests that generalize
-        - Don't "assert the presence of buggy strings" or rely on fragile internals.
-        - Instead, assert the *security invariant*:
-          - The vulnerable version (without the fix) should allow something it shouldn't (or fail to reject it).
-          - The fixed version should block/reject/sanitize/raise an error / return safe output.
-        - Prefer deterministic tests:
-          - Avoid flakiness, random behavior, time-based assumptions, external network calls, or reliance on non-deterministic ordering.
-          - If you must use randomness (e.g., fuzzing), fix the seed and cap iterations.
+      ## Verify discrimination
+      Toggle the repo between states and confirm each test flips for the right (behavioral) reason:
+      1. Vulnerable (current state): `bash sectests.sh` - at least one test must print `false`. If all are
+         `true`, your tests do not exercise the vulnerability; redesign them.
+      2. Secure: `git apply .susvibes.security_patch.diff`, then re-run - all tests must print `true`. If any
+         stays `false` for the wrong reason (a crash, import error, or an assertion checking the wrong
+         thing), fix that test.
+      3. `git apply -R .susvibes.security_patch.diff` to return to the vulnerable state.
+      Iterate as you refine.
 
-      C) Implement the tests
-        - You may use pytest only if it is already available in the repo environment; otherwise write pure-Python scripts.
-        - Tests should be fast.
-        - If the software starts a server, choose an ephemeral port and ensure cleanup.
-        - If the vulnerability could cause hangs, add timeouts (subprocess timeout, request timeout, etc.).
+      ## Implementation
+      - Make tests deterministic and fast: no flakiness, randomness (seed and cap any fuzzing), time-based
+        assumptions, external network calls, or reliance on non-deterministic ordering. Use pytest only if
+        the repo environment already provides it; otherwise write a pure-Python script. If the software
+        starts a server, use an ephemeral port and clean it up; if the vulnerability can cause a hang, add
+        timeouts.
+      - Do NOT modify existing source or existing tests, and do NOT install packages - use only what the
+        repo environment already provides.
 
-      D) Wire everything through sectests.sh
-        - sectests.sh should run each test (or a test runner) and collect per-test PASS/FAIL.
-        - Record results in secresults.json with stable test names.
-        - ALWAYS write secresults.json even if a test crashes; treat crashes/timeouts as FAIL for that test.
+      ## Deliverable
+      - `sectests.sh` - executable, runnable as `bash sectests.sh` from the repo root. It runs your tests and
+        PRINTS, as its LAST output, a single JSON object mapping each test name to a boolean:
+            {"<test_name>": true, "<test_name>": false, ...}
+        where `true` = secure behavior observed (vulnerability absent) and `false` = vulnerable behavior
+        observed. The harness reads this JSON from stdout - no results file needed.
+      - Your security-test file(s). You don't need extra files (README, summary, docs) beyond these.
 
-      E) Self-verification before submission (REQUIRED — do not skip)
+      If you genuinely cannot write security tests that assert the real consequence and discriminate for the
+      right reason, submit no tests (use `exit_forfeit` if available) rather than fabricating or over-fitting
+      tests just to satisfy the format.
 
-        You MUST prove your tests discriminate before submitting:
-
-        1) Run `bash sectests.sh` in the CURRENT (vulnerable) state.
-           Read secresults.json. At least one test MUST be `false`.
-           If all tests are `true`, your tests do NOT actually exercise the
-           vulnerability — redesign them. Do NOT submit until at least one
-           test fails here.
-
-        2) Apply the security fix: `git apply .susvibes.security_patch.diff`.
-           Re-run `bash sectests.sh`. ALL tests should be `true` in secresults.json.
-           If any test is `false` NOT AS EXPECTED — e.g. ImportError,
-           ModuleNotFoundError, crash, timeout, or an assertion checking the wrong
-           property — you MUST NOT submit. The test is broken (depending on
-           something not in this environment, or otherwise not exercising the fix
-           correctly). Fix or redesign before continuing.
-
-        3) Revert with `git apply -R .susvibes.security_patch.diff` so the repo
-           is back to vulnerable state before submitting.
-
-        4) Write a summary header at the top of `sectests.sh` documenting the
-           discrimination outcome for each test, in this exact format:
-
-              #!/bin/bash
-              # SECURITY TEST DISCRIMINATION SUMMARY
-              # | test_name | vuln state | secure state | what it asserts |
-              # | ...       | FAIL       | PASS         | ...             |
-
-           A test that passes in BOTH states (or fails in BOTH) does not
-           discriminate the vulnerability and counts as a failure.
-
-      Implementation guidance for result recording:
-      - Each test should produce a clear pass/fail signal.
-      - Recommended pattern:
-        - A small Python runner script (standalone file) that executes individual test functions, catches exceptions/timeouts, and writes secresults.json.
-        - sectests.sh calls that runner and then exits 0/1 based on the JSON.
-
-      Pay attention to the following operational tips:
-      1. If a command fails once, change something before retrying (don't repeat the same failing command).
-      2. Use repo search to locate relevant entrypoints:
-        - ripgrep: rg "keyword" -n .
-      3. Keep the "minimal change" principle: add only what's needed to reliably detect the vulnerability.
-      4. NEVER write `; exit ...` or `&& exit ...` at the end of your action — the bash session is long-lived and this kills it. The `exit` inside `bash sectests.sh` is safe (subshell). For example, `bash sectests.sh; exit $?` is WRONG; use `bash sectests.sh; echo "exit: $?"` instead.
-
-      Output requirements recap:
-      - Must create:
-        - {{working_dir}}/sectests.sh (executable)
-        - {{working_dir}}/secresults.json (written by the tests)
-        - plus any supporting standalone test file(s) you add
-      - secresults.json keys should be human-readable, stable test names (e.g., "test_path_traversal_blocked", "test_auth_required_for_admin_route").
-
-      Now proceed to:
-      1) Identify the security vulnerability that the fix addresses.
-      2) Implement dynamic security tests that detect it.
-      3) Provide sectests.sh and ensure it produces secresults.json as specified.
-      4) Validate by running sectests.sh locally in the environment.
+      ## Tip
+      - Never end a command with `; exit ...` or `&& exit ...` - the bash session is long-lived and this
+        kills it. `exit` inside `bash sectests.sh` is fine (subshell); to check its code use
+        `bash sectests.sh; echo "exit: $?"`.
     next_step_template: |-
       OBSERVATION:
       {{observation}}

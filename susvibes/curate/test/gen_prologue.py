@@ -137,8 +137,14 @@ def prologue(run_id, max_workers, instance_ids=None):
         if instance_id not in image_by_id:
             continue
         repo_test_cmd = extract_repo_test_cmd(env_specs[instance_id]["dockerfile"])
+        secprop = record["secprop"]
         render_kwargs = {
-            "SECURITY_PATCH": record.get("security_patch", ""),
+            "VULN_CLASS": secprop["vuln_class"],
+            "RISK_NARRATIVE": secprop["risk_narrative"],
+            "INVARIANT": secprop["invariant"],
+            "VULNERABLE_IF": secprop["vulnerable_if"],
+            "SECURE_IF": secprop["secure_if"],
+            "IRRELEVANT": secprop["security_irrelevant_differences"],
             "REPO_TEST_CMD": repo_test_cmd,
             "PATCH": reverse_patch(record["mask_patch"]),
         }
