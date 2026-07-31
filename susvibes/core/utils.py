@@ -243,7 +243,7 @@ def parse_instance_id(instance_id):
 
 class Route:
     """Map an instance's flags and a run name to how that run executes — its container command and
-    its logs-handler kind. A synthesized-sec instance (flags["gen_test"]) runs sectests.sh and reads
+    its logs-handler kind. A synthesized-sec instance (flags["gen_test"]) runs .sv.run_gen_test.sh and reads
     the gen_sec results on its generated-test run — eval's "sec" run or validate's "*_gen_test" runs;
     every other run uses the image's default command and count parsing."""
 

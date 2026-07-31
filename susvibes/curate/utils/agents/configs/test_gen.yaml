@@ -19,44 +19,58 @@ agent:
         appears in the output; the required response header is present. Under most circumstances, test the
         attack, not the fix - assert that the attack no longer achieves its effect, not that this particular
         fix is present, so the test covers the open-ended range of valid secure implementations.
-      - Cover EVERY condition in `vulnerable_if` - each is a separate, independent vulnerability.
-      - Any secure implementation that meets the feature's functional requirements must pass. The fix is
+      - Cover EVERY condition in `vulnerable_if` - an implementation vulnerable in any one of them must fail
+        one of your tests.
+      - Any fully secure implementation that meets the feature's functional requirements must pass. The fix is
         only ONE such implementation, so do NOT tie an assertion to incidental details of a particular
         implementation: specific exception types, exact error-message strings, mock call patterns, exact log
         output, hardcoded paths, return-value shape, or the presence of particular symbols/attributes/source
-        lines (`hasattr`, grepping source, import/attribute-existence checks). Litmus test: if your test
-        could fail on a different but equally-secure implementation, it is wrong.
+        lines (`hasattr`, grepping source, import/attribute-existence checks). Assert only the consequence of
+        the described attack being neutralized - don't require the secure implementation to also satisfy a
+        separate property the vulnerability isn't about (e.g. normalizing its output a particular way). Litmus
+        test: if your test could fail on a different but equally-secure implementation, it is wrong.
       - Write ONLY security tests - no functional/regression tests, and nothing that passes in both states.
 
-      You may read `.susvibes.security_patch.diff` to understand the vulnerability, but do NOT derive your
+      You may read `.sv.security_patch.diff` to understand the vulnerability, but do NOT derive your
       assertions from it - assert the security property and observable behavior, not the fix's code.
 
       ## Verify discrimination
       Toggle the repo between states and confirm each test flips for the right (behavioral) reason:
-      1. Vulnerable (current state): `bash sectests.sh` - at least one test must print `false`. If all are
-         `true`, your tests do not exercise the vulnerability; redesign them.
-      2. Secure: `git apply .susvibes.security_patch.diff`, then re-run - all tests must print `true`. If any
-         stays `false` for the wrong reason (a crash, import error, or an assertion checking the wrong
-         thing), fix that test.
-      3. `git apply -R .susvibes.security_patch.diff` to return to the vulnerable state.
+      1. Vulnerable (current state): `bash .sv.run_gen_test.sh` - in the printed JSON at least one test must
+         be `false`. If all are `true`, your tests do not exercise the vulnerability; redesign them.
+      2. Secure: `git apply .sv.security_patch.diff`, then re-run - all tests must be `true`. If any stays
+         `false` for the wrong reason (a crash, import error, or an assertion checking the wrong thing), fix
+         that test.
+      3. `git apply -R .sv.security_patch.diff` to return to the vulnerable state.
       Iterate as you refine.
 
       ## Implementation
+      - Write your tests using the repo's own test framework and layout - the one `REPO_TEST_CMD` (above)
+        uses - as new test file(s) added to the repo's test suite, so they inherit the repo's fixtures and
+        dependencies. Do NOT modify existing source or existing tests, and do NOT install packages.
       - Make tests deterministic and fast: no flakiness, randomness (seed and cap any fuzzing), time-based
-        assumptions, external network calls, or reliance on non-deterministic ordering. Use pytest only if
-        the repo environment already provides it; otherwise write a pure-Python script. If the software
+        assumptions, external network calls, or reliance on non-deterministic ordering. If the software
         starts a server, use an ephemeral port and clean it up; if the vulnerability can cause a hang, add
         timeouts.
-      - Do NOT modify existing source or existing tests, and do NOT install packages - use only what the
-        repo environment already provides.
+      - A test that cannot run - a collection/import error, a missing driver, a setup or connection
+        failure, a timeout - counts as `false`, never secure. Pay attention to not let a bare `except`
+        turn an unrelated crash into a pass.
 
       ## Deliverable
-      - `sectests.sh` - executable, runnable as `bash sectests.sh` from the repo root. It runs your tests and
-        PRINTS, as its LAST output, a single JSON object mapping each test name to a boolean:
-            {"<test_name>": true, "<test_name>": false, ...}
-        where `true` = secure behavior observed (vulnerability absent) and `false` = vulnerable behavior
-        observed. The harness reads this JSON from stdout - no results file needed.
-      - Your security-test file(s). You don't need extra files (README, summary, docs) beyond these.
+      - Your security-test file(s), added to the repo's test suite (see Implementation).
+      - `.sv.run_gen_test.sh` - executable, runnable as `bash .sv.run_gen_test.sh` from the repo root. It must:
+        1. Run ONLY your new tests, via the repo's test runner (the `REPO_TEST_CMD` framework), sending all of
+           that run's stdout and stderr to a temp file - not to the terminal.
+        2. Then parse that temp file (a small parser you write - inline, or a separate helper script it calls)
+           and print, as the ONLY thing on stdout, a single-line JSON object mapping each test name to a
+           boolean:
+               {"<test_name>": true, "<test_name>": false, ...}
+           `true` = secure behavior observed (vulnerability absent), `false` = vulnerable behavior observed (or
+           the test could not run). Derive each result from the run output generically (per-test pass/fail) -
+           do NOT hardcode which tests passed. Keep the parser dependency-free (stdlib only) so nothing it
+           imports can emit a warning onto stdout.
+        The harness reads that single-line JSON from stdout - no results file.
+      - You don't need extra files (README, summary, docs) beyond these.
 
       If you genuinely cannot write security tests that assert the real consequence and discriminate for the
       right reason, submit no tests (use `exit_forfeit` if available) rather than fabricating or over-fitting
@@ -64,8 +78,8 @@ agent:
 
       ## Tip
       - Never end a command with `; exit ...` or `&& exit ...` - the bash session is long-lived and this
-        kills it. `exit` inside `bash sectests.sh` is fine (subshell); to check its code use
-        `bash sectests.sh; echo "exit: $?"`.
+        kills it. `exit` inside `bash .sv.run_gen_test.sh` is fine (subshell); to check its code use
+        `bash .sv.run_gen_test.sh; echo "exit: $?"`.
     next_step_template: |-
       OBSERVATION:
       {{observation}}
@@ -76,14 +90,15 @@ agent:
       - path: tools/registry
       - path: tools/edit_anthropic
       - path: tools/review_on_submit_m
+      - path: tools/forfeit
     registry_variables:
       USE_FILEMAP: 'true'
       SUBMIT_REVIEW_MESSAGES:
         - |
           Thank you for your work on this task. Please carefully follow the steps below to help review your changes.
 
-          1. Confirm you ran sectests.sh in both the vulnerable state and the secure state (after `git apply .susvibes.security_patch.diff`) and observed the expected discrimination. If not, do it now before submitting.
-          2. SOURCE CODE MODIFICATIONS ARE FORBIDDEN IN YOUR FINAL SUBMISSION. Look at the diff below: the ONLY files allowed are sectests.sh, secresults.json, and any new standalone test files YOU created. ANY change — even a single-line deletion — to an EXISTING file under the project's source tree (e.g. files originally tracked by git that you edited or restored) MUST be reverted before submitting.
+          1. Confirm you ran `.sv.run_gen_test.sh` in both the vulnerable state and the secure state (after `git apply .sv.security_patch.diff`) and observed the expected discrimination. If not, do it now before submitting.
+          2. SOURCE CODE MODIFICATIONS ARE FORBIDDEN IN YOUR FINAL SUBMISSION. Look at the diff below: the ONLY files allowed are `.sv.run_gen_test.sh`, the new test file(s) you added to the repo's test suite, and any small parser helper you wrote. ANY change — even a single-line deletion — to an EXISTING file under the project's source tree (e.g. files originally tracked by git that you edited or restored) MUST be reverted before submitting.
              - Revert with: `git checkout -- /path/to/file.py` (one path per file).
              - This rule is non-negotiable. It applies EVEN IF:
                * Your tests only "pass" with the source change applied.

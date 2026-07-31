@@ -44,7 +44,7 @@ WORKSPACE_DIR_NAME = "project"                            # repo working tree (W
 # susvibes namespace for data it injects into instance images (separate from the project
 # copy that the env build already lays down). build_data/ holds build-time inputs and is
 # removed at the end of the build; runtime_data/ holds files the container needs at run time.
-SUSVIBES_DIR = "/.susvibes"
+SUSVIBES_DIR = "/.sv"
 SUSVIBES_BUILD_DATA_DIR = f"{SUSVIBES_DIR}/build_data"
 SUSVIBES_RUNTIME_DATA_DIR = f"{SUSVIBES_DIR}/runtime_data"
 GIT_AUTHOR_CONFIGS = [
@@ -52,6 +52,6 @@ GIT_AUTHOR_CONFIGS = [
     "git config --global user.name SusVibes"
 ]
 BANNED_REINSTALL_FOR_INSTANCE = {}
-# Container command for synthesized security tests: run the injected sectests.sh and emit its
-# JSON results for the gen_sec logs handler to parse.
-GEN_SEC_TEST_CMD = ["bash", "-c", "bash sectests.sh ; cat secresults.json"]
+# Container command for synthesized security tests: run the injected .sv.run_gen_test.sh, which prints
+# its single-line JSON pass-map to stdout for the gen_sec logs handler to parse.
+GEN_SEC_TEST_CMD = ["bash", "-c", "bash .sv.run_gen_test.sh"]

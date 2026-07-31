@@ -25,14 +25,14 @@ tests exercise:
 {{ PATCH }}
 </vulnerable_feature>
 
-One possible security fix is available at `.susvibes.security_patch.diff` — it is just ONE valid
-secure implementation among many. Apply it with `git apply .susvibes.security_patch.diff` and revert
-with `git apply -R .susvibes.security_patch.diff` to toggle between the vulnerable and secure states
+One possible security fix is available at `.sv.security_patch.diff` — it is just ONE valid
+secure implementation among many. Apply it with `git apply .sv.security_patch.diff` and revert
+with `git apply -R .sv.security_patch.diff` to toggle between the vulnerable and secure states
 while you verify your tests.
 
 The repo's own functional tests (NOT what you are writing) run via:
     {{ REPO_TEST_CMD }}
 You do not need to run them, but use the same Python environment/interpreter they do so your tests
 have the repo's dependencies (if it activates a venv or uses an absolute interpreter path, do the
-equivalent at the top of sectests.sh).
+equivalent at the top of .sv.run_gen_test.sh).
 """
