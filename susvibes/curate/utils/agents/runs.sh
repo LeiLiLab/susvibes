@@ -1,4 +1,4 @@
-### Except the environment-building and test-synthesis agents, pipelined execution of agents has been integrated, and please refer to the curation README for convenient usage.
+### Except the environment-building agent, pipelined execution of agents has been integrated, and please refer to the curation README for convenient usage.
 ### Each agent's instances.yaml + output live under logs/curate/<run_id>/<stage>/ — before_start prints the exact absolute --instances.path; copy it and pass the matching --output_dir. Paths below are relative to the SWE-agent dir (susvibes' sibling); fill in <run_id> (and <N> for adaptive_gen iterations).
 ### per_instance_cost_limit=0.00 means NO cost cap (the run is bounded by per_instance_call_limit instead).
 
@@ -25,14 +25,3 @@ sweagent run-batch \
     --instances.path=../susvibes/logs/curate/<run_id>/adaptive_gen/verifier/iter<N>/instances.yaml \
     --output_dir=../susvibes/logs/curate/<run_id>/adaptive_gen/verifier/iter<N> \
     --num_workers=10
-
-# Test-synthesis agent command — SWE-agent (sv)
-sweagent run-batch \
-    --config=config/susvibes_test_gen.yaml \
-    --agent.model.name=claude-sonnet-4-5-20250929 \
-    --agent.model.per_instance_cost_limit=0.00 \
-    --agent.model.per_instance_call_limit=200 \
-    --instances.type=expert_file \
-    --instances.path=../susvibes/logs/curate/<run_id>/test/gen_prologue/instances.yaml \
-    --output_dir=../susvibes/logs/curate/<run_id>/test/gen_prologue \
-    --num_workers=8

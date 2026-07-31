@@ -1,10 +1,10 @@
 """
-Purpose: Prologue for security test generation. Build a rollback variant
-of each instance's env image (security_patch reversed, original patch persisted
-at .susvibes.security_patch.diff so the agent can toggle states), then assemble
-the SWE-agent batch instances yaml.
+Purpose: Security test generation. Build a rollback variant of each instance's env
+image (security_patch reversed, original patch persisted at .sv.security_patch.diff
+so the agent can toggle states), assemble the SWE-agent batch, and run the
+test-synthesis agent (SWE-agent, sv) over it in-process.
 
-python -m susvibes.curate.test.gen_prologue \
+python -m susvibes.curate.test.gen \
     --max_workers 5 \
     --run_id playground
 """
@@ -13,7 +13,6 @@ import argparse
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-import docker
 import docker.errors
 from tqdm import tqdm
 from jinja2 import Template
@@ -27,21 +26,19 @@ from susvibes.core.env import Env, Deployment
 from susvibes.env_specs import WORKSPACE_DIR_NAME
 from susvibes.core.utils import load_file, get_image_name, parse_instance_id, setup_instance_logger, get_env_specs
 
-LOG_INSTANCE = "gen_prologue.log"
-SECURITY_PATCH_FILE_NAME = ".susvibes.security_patch.diff"  # kept in repo root for state toggling
-
-docker_client = docker.from_env()
+LOG_BUILD = "build_rollback_image.log"
+SECURITY_PATCH_FILE_NAME = ".sv.security_patch.diff"  # kept in repo root for state toggling
 
 
 def build_rollback_deployment(data_record, env_spec, target_image_name, log_dir) -> Deployment | None:
     """Build a rollback variant of the env image with security_patch reversed
     (so /project sits in the vulnerable state) and the patch persisted at
-    .susvibes.security_patch.diff, tagged target_image_name. Returns the
+    .sv.security_patch.diff, tagged target_image_name. Returns the
     Deployment (or None on failure)."""
     instance_id = data_record["instance_id"]
     project, _ = parse_instance_id(instance_id)
 
-    log_file = log_dir / instance_id / LOG_INSTANCE
+    log_file = log_dir / instance_id / LOG_BUILD
     logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
 
     try:
@@ -114,12 +111,13 @@ def build_rollback_threadpool(records, env_specs, log_dir, max_workers):
     return image_by_id, failed
 
 
-def prologue(run_id, max_workers, instance_ids=None):
-    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("curate")),
-        run_name=__spec__.name, output_dir=get_log_dir(run_id, "test", "gen_prologue"))
+def prologue(run_id, max_workers, instance_ids=None) -> SWEAgentPort:
+    """Build the rollback images and assemble the SWE-agent batch; return the port."""
+    gen_log_dir = get_log_dir(run_id, "test", "gen")
+    port = SWEAgentPort.from_settings(load_file(get_agent_setting_path("test_gen")),
+        run_name=__spec__.name, output_dir=gen_log_dir)
 
     dataset_path = get_dataset_path('env_dataset', run_id)
-    log_dir = get_log_dir(run_id, "test")
 
     dataset = load_file(dataset_path)
     env_specs = get_env_specs(run_id, ("dev_tools", "dockerfile"))
@@ -129,7 +127,7 @@ def prologue(run_id, max_workers, instance_ids=None):
         candidates = [r for r in candidates if r["instance_id"] in set(instance_ids)]
 
     image_by_id, failed = build_rollback_threadpool(
-        candidates, env_specs, log_dir, max_workers)
+        candidates, env_specs, gen_log_dir, max_workers)
 
     added = 0
     for record in candidates:
@@ -161,11 +159,25 @@ def prologue(run_id, max_workers, instance_ids=None):
 
     port.before_start()
     print(f"Added {added} tasks. {len(failed)} builds failed.")
+    return port
+
+
+def pipeline(run_id, max_workers, instance_ids=None):
+    """Build rollback images, run the test-synthesis agent over them, and report."""
+    port = prologue(run_id, max_workers, instance_ids)
+    if not port.task_instances:
+        return
+    output_dir = port.run_batch()
+    predictions, total_cost = SWEAgentPort.after_completion(output_dir)
+    with_patch = sum(1 for pred in predictions if (pred.get("model_patch") or "").strip())
+    cost = f"${total_cost:.2f}" if total_cost is not None else "unknown"
+    print(f"{with_patch}/{len(predictions)} produced a test patch. Total cost: {cost}.")
 
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(
-        description="Build rollback env images and prepare SWE-agent batch for security test generation.")
+        description="Build rollback env images, prepare the SWE-agent batch, and run the security "
+                    "test-synthesis agent over it.")
     parser.add_argument(
         "--run_id",
         type=str,
@@ -185,7 +197,7 @@ if __name__ == "__main__":
         help="Only run for the given instance IDs.",
     )
     args = parser.parse_args()
-    prologue(
+    pipeline(
         run_id=args.run_id,
         max_workers=args.max_workers,
         instance_ids=args.instance_ids,

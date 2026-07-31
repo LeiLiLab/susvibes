@@ -130,7 +130,7 @@ The seven steps above are the **main pipeline**: each task's security `test_patc
 The second pipeline reuses the same stages, differing only in three points:
 
 - Steps 1, 5, 6 (`mine.core`, `adaptive_gen.core`, `build_repo --prologue`) take `--require_test false` — keeping only the test-less records; steps 2–4 are unchanged.
-- A test-synthesis stage is inserted before validation: `test.gen_prologue` drives a SWE-agent to author the security tests.
+- A test-synthesis stage is inserted before validation: `test.gen` builds rollback images and runs a SWE-agent to author the security tests.
 - Step 7 validation uses `validate.no_test` instead of `validate.with_test`; `wrap_up` is shared.
 
 See [`test`](test/) for the full second-pipeline walkthrough (it also covers manually editing an existing `test_patch`).

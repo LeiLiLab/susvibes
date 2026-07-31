@@ -428,8 +428,8 @@ if __name__ == "__main__":
     dataset = load_file(dataset_path)
     stats = load_file(stats_path) if stats_path.exists() else {}
 
-    # Load the test-synthesis agent's predictions from its output dir (test.gen_prologue's batch).
-    predictions, _ = SWEAgentPort.after_completion(get_log_dir(args.run_id, "test", "gen_prologue"))
+    # Load the test-synthesis agent's predictions from its output dir (test.gen's batch).
+    predictions, _ = SWEAgentPort.after_completion(get_log_dir(args.run_id, "test", "gen"))
     test_patches = {pred["instance_id"]: filter_binary_files(pred.get("model_patch", "")) for pred in predictions}
 
     validate_threadpool(
