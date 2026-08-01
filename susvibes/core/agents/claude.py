@@ -1,4 +1,4 @@
-"""Thin Claude Agent SDK glue for the curate read-only agents (finder, inspect) on Bedrock.
+"""Thin Claude Agent SDK glue for the curate read-only agents (finder, inspect, secprop).
 
 `run_agent` runs the SDK's `query()` to completion, streams the trajectory to a jsonl log as
 each message arrives, and returns the schema-validated structured output — the SDK does the
@@ -8,9 +8,15 @@ output_format, …) and
 pass it through; nothing is hidden. This is deliberately not a Port/class (that would duplicate
 and hide the SDK's own option surface — see docs/mine-filters "Agent calls").
 
+`load_agent_result` / `save_agent_result` are the shared per-item result cache every agent stage
+uses, so one item is never paid for twice: each `<x>_single` writes its outcome — concluded or
+`error`-marked — and reads it back on a re-run. Like `run_agent`'s `log_path`, the path is the
+caller's to choose; only the reuse policy is shared.
+
 Bedrock config comes from `.env` (`CLAUDE_CODE_USE_BEDROCK=1`, `AWS_BEARER_TOKEN_BEDROCK`,
 `AWS_REGION_NAME`); the model is a Bedrock inference profile, e.g. `us.anthropic.claude-sonnet-5`
-(finder) or `us.anthropic.claude-haiku-4-5-20251001-v1:0` (inspect).
+(finder) or `us.anthropic.claude-haiku-4-5-20251001-v1:0` (inspect). secprop overrides this to the
+direct Anthropic API, the only provider that serves WebSearch.
 """
 
 import json
@@ -19,6 +25,8 @@ import asyncio
 from pathlib import Path
 
 from dotenv import load_dotenv
+
+from susvibes.core.utils import load_file, save_file
 
 load_dotenv()
 
@@ -141,3 +149,26 @@ def run_agent_retrying(prompt, options, *, log_path=None,
                 time.sleep(backoff * (2 ** attempt))
                 continue
             return None, {"error": str(e)[:200]}
+
+
+def load_agent_result(result_path, *, force=False, resume=False) -> dict | None:
+    """One item's agent result cached by an earlier run, or None when it must be (re-)run — the
+    three-state ladder every agent stage shares: a plain run reuses whatever is cached (an
+    `error`-marked outcome included, so a permanently failing item costs nothing to re-visit),
+    `resume` re-runs only the errored ones, `force` re-runs everything."""
+    result_path = Path(result_path)
+    if force or not result_path.exists():
+        return None
+    result = load_file(result_path)
+    result.setdefault("error", None)         # caches written before `error` joined the contract
+    if resume and result["error"]:
+        return None
+    return result
+
+
+def save_agent_result(result, result_path) -> None:
+    """Cache one item's agent result the moment it concludes — an aborted run is cached too
+    (`error` set), so the outcome survives a crash mid-batch either way."""
+    result_path = Path(result_path)
+    result_path.parent.mkdir(parents=True, exist_ok=True)
+    save_file(result, result_path)

@@ -13,7 +13,7 @@ from susvibes.core.utils import load_file, save_file
 from susvibes.curate.mine.constants import TARGET_LANG
 from susvibes.curate.mine.utils import split_to_file_patches
 from susvibes.curate.mine.dedup import KnownSet
-from susvibes.curate.mine.sources.utils import fetch_github_commit_patch
+from susvibes.curate.mine.sources.utils import fetch_patch_from_github
 
 MOREFIXES_URL_PATH = get_dataset_path('raw_cve') / 'Morefixes/dataset_url_new.jsonl'
 MOREFIXES_CACHE_PATH = get_dataset_path('raw_cve') / 'Morefixes/dataset_new.jsonl'
@@ -38,7 +38,7 @@ class MorefixesHandler:
             and len(data_record['commits']) == 1]
         for data_record in tqdm(dataset, desc="MoreFixes: fetching patches", dynamic_ncols=True):
             if "patch" not in data_record:
-                data_record["patch"] = fetch_github_commit_patch(
+                data_record["patch"] = fetch_patch_from_github(
                     owner=data_record["owner"],
                     repo=data_record["repo"],
                     commit=data_record["commits"][0]["commit_sha"],
@@ -57,7 +57,7 @@ class MorefixesHandler:
             if not data_record["patch"]:
                 continue
             commit_sha = data_record["commits"][0]['commit_sha']
-            if known.has_commit(commit_sha):
+            if known.has(data_record["cve_id"], commit_sha):
                 continue
             try:
                 file_patches = split_to_file_patches(data_record["patch"])

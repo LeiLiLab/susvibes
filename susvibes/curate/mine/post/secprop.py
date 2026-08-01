@@ -8,15 +8,15 @@ obvious mismatch `rejected` (kept in the dataset, filtered downstream — never 
 re-runs stay consistent).
 
 Run as a standalone, optional stage (like `mine.post.check_cov`) — it annotates `fix_dataset.jsonl`
-in place:  python -m susvibes.curate.mine.post.secprop --run_id <id> [--force] [--max_workers N]
+in place:
+    python -m susvibes.curate.mine.post.secprop --run_id <id> [--resume] [--force] [--max_workers N]
 
 The agent half mirrors `find_commit.py` (read-only Claude Agent SDK on Bedrock, `dontAsk` +
 pre-approved read-only tools + WebSearch, on a `finder_clone`); the `main()` half mirrors
-`mine/core.py`. Each instance's result is cached under the log dir, so a re-run re-annotates from
-cache for free; `--force` re-runs the agent.
+`mine/core.py`. Each instance's result — concluded or errored — is cached under the log dir, so a
+re-run re-annotates from cache for free; `--resume` re-runs the errored ones, `--force` everything.
 """
 
-import json
 import argparse
 from enum import StrEnum
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -27,9 +27,13 @@ from claude_agent_sdk import ClaudeAgentOptions
 from susvibes.core.constants import get_dataset_path
 from susvibes.core.utils import load_file, save_file
 from susvibes.core.agents.claude import (
-    run_agent_retrying, READONLY_TOOLS, AGENT_ENV, MAX_BUFFER_SIZE)
+    run_agent_retrying, load_agent_result, save_agent_result,
+    READONLY_TOOLS, AGENT_ENV, MAX_BUFFER_SIZE)
 from susvibes.curate.constants import get_log_dir
 from susvibes.curate.mine.clone import finder_clone
+
+LOG_TRAJECTORY = "trajectory.jsonl"
+LOG_RESULT = "result.json"
 
 SECPROP_MODEL = "claude-sonnet-5"                        # direct Anthropic API (has WebSearch; Bedrock doesn't)
 SECPROP_WORKERS = 8
@@ -150,67 +154,61 @@ Repository: {project} (cloned at your current working directory)
 Fix commit to verify: {commit}
 """
 
-def secprop_miss(record, error, meta=None):
-    """A secprop record that concluded nothing — an aborted run (clone/agent failure). Recorded
+def secprop_miss(error) -> dict:
+    """A secprop result that concluded nothing — an aborted run (clone/agent failure). Recorded
     (empty property fields + a set `error`) rather than left un-annotated, so downstream tells
-    "secprop errored" from "secprop never ran"; a re-run re-does it (no cache written). Mirrors
-    finder_miss."""
-    secprop = {"vuln_class": "", "risk_narrative": "", "invariant": "", "vulnerable_if": [],
-               "secure_if": "", "security_irrelevant_differences": [], "unresolved": [],
-               "commit_verdict": "", "reject_reason": "", "confidence": "", "evidence": "",
-               "error": error}
-    return {**record, "secprop": secprop, "_meta": meta or {}}
+    "secprop errored" from "secprop never ran". Mirrors finder_miss."""
+    return {"vuln_class": "", "risk_narrative": "", "invariant": "", "vulnerable_if": [],
+            "secure_if": "", "security_irrelevant_differences": [], "unresolved": [],
+            "commit_verdict": "", "reject_reason": "", "confidence": "", "evidence": "",
+            "error": error}
 
 
-def secprop_single(record, run_id, force=False):
-    """Research the security property + verify `base_commit` for one record. Reuses a cached result
-    unless `force`. Mirrors finder_single: always returns the record annotated with `secprop` — the
-    property + verdict (`error=None`) on success, an `error`-marked miss on an aborted run. A miss
-    writes no cache, so a plain re-run re-does it (`--force` re-runs everything)."""
-    instance_id = record["instance_id"]
-    inst_log_dir = get_log_dir(run_id, "mine", "secprop") / instance_id
-    result_path = inst_log_dir / "result.json"
-
-    if not force and result_path.exists():                       # cache reuse — no agent call
-        secprop = json.loads(result_path.read_text())
-        secprop.setdefault("error", None)                        # normalize caches written before `error`
+def secprop_single(record, run_id, force=False, resume=False):
+    """Research the security property + verify `base_commit` for one record, reusing this instance's
+    cached result unless `force`/`resume` asks to re-run it. Mirrors finder_single: always returns
+    the record annotated with `secprop` — the property + verdict (`error=None`) on success, an
+    `error`-marked miss on an aborted run — plus `_meta` (cost/turns, empty on a cache hit)."""
+    log_dir = get_log_dir(run_id, "mine", "secprop") / record["instance_id"]
+    secprop = load_agent_result(log_dir / LOG_RESULT, force=force, resume=resume)
+    if secprop is not None:
         return {**record, "secprop": secprop, "_meta": {}}
 
     project = record["project"].lower()
     repo_dir = finder_clone(project)
     if repo_dir is None:
-        return secprop_miss(record, f"clone failed: {project}")
-    options = ClaudeAgentOptions(
-        model=SECPROP_MODEL,
-        system_prompt=SECPROP_SYSTEM,
-        tools=READONLY_TOOLS,                   # availability gate: only read-only investigation tools exist
-        allowed_tools=READONLY_TOOLS,           # pre-approve the whole set; fail-closed on anything else
-        setting_sources=[],
-        permission_mode="dontAsk",              # fail-closed: pre-approved tools auto-run headless, else denied
-        cwd=str(repo_dir),
-        max_turns=SECPROP_MAX_TURNS,
-        max_buffer_size=MAX_BUFFER_SIZE,
-        env=SECPROP_ENV,
-        output_format={"type": "json_schema", "schema": SECPROP_SCHEMA},
-    )
-    prompt = SECPROP_USER.format(
-        cve_id=record["cve_id"], cwe_ids=", ".join(record.get("cwe_ids") or []) or "(none)",
-        info_page=record.get("info_page", ""), project=project, commit=record["base_commit"])
-    output, meta = run_agent_retrying(prompt, options, log_path=inst_log_dir / "trajectory.jsonl")
-    if output is None:
-        return secprop_miss(record, meta.get("error", "agent produced no result"), meta)
-    secprop = {**output, "error": None}
-    result_path.write_text(json.dumps(secprop, ensure_ascii=False))      # cache the concluded outcome
+        secprop, meta = secprop_miss(f"clone failed: {project}"), {}
+    else:
+        options = ClaudeAgentOptions(
+            model=SECPROP_MODEL,
+            system_prompt=SECPROP_SYSTEM,
+            tools=READONLY_TOOLS,                   # availability gate: only read-only investigation tools exist
+            allowed_tools=READONLY_TOOLS,           # pre-approve the whole set; fail-closed on anything else
+            setting_sources=[],
+            permission_mode="dontAsk",              # fail-closed: pre-approved tools auto-run headless, else denied
+            cwd=str(repo_dir),
+            max_turns=SECPROP_MAX_TURNS,
+            max_buffer_size=MAX_BUFFER_SIZE,
+            env=SECPROP_ENV,
+            output_format={"type": "json_schema", "schema": SECPROP_SCHEMA},
+        )
+        prompt = SECPROP_USER.format(
+            cve_id=record["cve_id"], cwe_ids=", ".join(record.get("cwe_ids") or []) or "(none)",
+            info_page=record.get("info_page", ""), project=project, commit=record["base_commit"])
+        output, meta = run_agent_retrying(prompt, options, log_path=log_dir / LOG_TRAJECTORY)
+        secprop = {**output, "error": None} if output is not None \
+            else secprop_miss(meta.get("error", "agent produced no result"))
+    save_agent_result(secprop, log_dir / LOG_RESULT)
     return {**record, "secprop": secprop, "_meta": meta}
 
 
-def secprop_threadpool(records, run_id, max_workers=SECPROP_WORKERS, force=False):
+def secprop_threadpool(records, run_id, max_workers=SECPROP_WORKERS, force=False, resume=False):
     """Run secprop over records concurrently (web + read-only reads, no shared writes). Returns one
     record per input, each annotated with `secprop` — a concluded verdict or an `error`-marked miss;
     nothing is ever dropped from the dataset."""
     results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(secprop_single, record, run_id, force): record
+        futures = {executor.submit(secprop_single, record, run_id, force, resume): record
                    for record in records}
         with tqdm(total=len(futures), dynamic_ncols=True,
             desc=f"Security property [{max_workers} threads]") as pbar:
@@ -250,12 +248,19 @@ def main():
         action="store_true",
         help="Re-run the agent for every instance instead of reusing cached results.",
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Re-run only the instances whose cached result is an errored run, keeping every "
+             "concluded verdict. If both --force and --resume are given, --force wins.",
+    )
     args = parser.parse_args()
 
     fix_dataset_path = get_dataset_path("fix_dataset", args.run_id)
     secprop_log_dir = get_log_dir(args.run_id, "mine", "secprop")
     fix_dataset = load_file(fix_dataset_path)
-    annotated = secprop_threadpool(fix_dataset, args.run_id, args.max_workers, args.force)
+    annotated = secprop_threadpool(fix_dataset, args.run_id, args.max_workers,
+                                   args.force, args.resume)
     for record in annotated:
         record.pop("_meta", None)
         record.setdefault("post", {})["secprop"] = record["secprop"]["commit_verdict"] in PASS_VERDICTS

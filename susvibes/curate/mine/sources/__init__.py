@@ -31,9 +31,9 @@ class Source(Protocol):
         ...
 
 
-# Order is load-bearing: on a same-commit collision the earlier source's record is kept. The
-# deterministic OSV source runs after Morefixes + ReposVul so it dedups against them; the discovery
-# finders run last — OSV residual (M2), then NVD beyond-ecosystem (M3) — dedup against every source
-# above and are the most speculative.
+# Order is load-bearing: on a collision (same commit or same CVE) the earlier source's record is
+# kept. The deterministic OSV source runs after Morefixes + ReposVul so it dedups against them; the
+# discovery finders run last — OSV residual (M2), then NVD beyond-ecosystem (M3) — dedup against
+# every source above and are the most speculative.
 SOURCES = [ReposVulHandler, MorefixesHandler, OSVSource, OSVResidualSource, NVDSource]
 SOURCE_BY_NAME = {source.__name__: source for source in SOURCES}

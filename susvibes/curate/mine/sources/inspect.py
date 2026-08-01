@@ -13,15 +13,19 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 from claude_agent_sdk import ClaudeAgentOptions
 
-from susvibes.core.agents.claude import run_agent_retrying, AGENT_ENV, MAX_BUFFER_SIZE
+from susvibes.core.agents.claude import (
+    run_agent_retrying, load_agent_result, save_agent_result, AGENT_ENV, MAX_BUFFER_SIZE)
 from susvibes.curate.constants import get_log_dir
+
+LOG_TRAJECTORY = "trajectory.jsonl"
+LOG_RESULT = "result.json"
 
 INSPECT_MODEL = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
 # Web search + fetch, plus Bash to curl the GitHub API. WebSearch isn't provisioned on Bedrock (the
 # CLI silently drops it, so the agent searches via `curl` there); it stays in the list so a future
 # WebSearch-capable deployment works with no code change.
 INSPECT_TOOLS = ["Bash", "WebFetch", "WebSearch"]
-INSPECT_WORKERS = 12
+INSPECT_WORKERS = 16
 INSPECT_MAX_TURNS = 50
 
 INSPECT_SCHEMA = {
@@ -70,10 +74,9 @@ NVD references:
 """
 
 
-def inspect_miss(record, error, meta=None):
+def inspect_miss(error) -> dict:
     """An inspect result that resolved nothing (aborted run). `error` set → `resume` re-runs it."""
-    return {**record, "repo": "", "vulnerable_files": [], "languages": [], "evidence": "",
-            "error": error, "_meta": meta or {}}
+    return {"repo": "", "vulnerable_files": [], "languages": [], "evidence": "", "error": error}
 
 
 def refs_block(refs) -> str:
@@ -86,10 +89,16 @@ def refs_block(refs) -> str:
     return "\n".join(lines) or "  (none)"
 
 
-def inspect_single(record, run_id):
+def inspect_single(record, run_id, force=False, resume=False):
     """Resolve `{repo, vulnerable_files, languages}` for one NVD CVE from its advisory + web search
-    (Haiku, no clone; retryable failures retried). Always returns the record merged with the output
-    plus `error`/`_meta`, so the outcome is cacheable and resumable."""
+    (Haiku, no clone; retryable failures retried), reusing this CVE's cached result unless
+    `force`/`resume` asks to re-run it. Always returns the record merged with the output plus
+    `error`/`_meta` (empty on a cache hit), so the outcome is cacheable and resumable."""
+    log_dir = get_log_dir(run_id, "mine", "inspect") / record["cve_id"]
+    result = load_agent_result(log_dir / LOG_RESULT, force=force, resume=resume)
+    if result is not None:
+        return {**record, **result, "_meta": {}}
+
     options = ClaudeAgentOptions(
         model=INSPECT_MODEL,
         system_prompt=INSPECT_SYSTEM,
@@ -104,18 +113,18 @@ def inspect_single(record, run_id):
     )
     prompt = INSPECT_USER.format(
         cve_id=record["cve_id"], desc=record["desc"], refs=refs_block(record["refs"]))
-    log_path = get_log_dir(run_id, "mine", "inspect") / record["cve_id"] / "trajectory.jsonl"
-    output, meta = run_agent_retrying(prompt, options, log_path=log_path)
-    if output is None:
-        return inspect_miss(record, meta.get("error", "agent produced no result"), meta)
-    return {**record, **output, "error": None, "_meta": meta}
+    output, meta = run_agent_retrying(prompt, options, log_path=log_dir / LOG_TRAJECTORY)
+    result = {**output, "error": None} if output is not None \
+        else inspect_miss(meta.get("error", "agent produced no result"))
+    save_agent_result(result, log_dir / LOG_RESULT)
+    return {**record, **result, "_meta": meta}
 
 
-def inspect_threadpool(records, run_id, max_workers=INSPECT_WORKERS):
+def inspect_threadpool(records, run_id, max_workers=INSPECT_WORKERS, force=False, resume=False):
     """Run inspect over records concurrently (web-only reads, no shared state). One result per record."""
     results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(inspect_single, record, run_id): record["cve_id"]
+        futures = {executor.submit(inspect_single, record, run_id, force, resume): record["cve_id"]
                    for record in records}
         with tqdm(total=len(futures), dynamic_ncols=True,
             desc=f"Inspecting [{max_workers} threads]") as pbar:

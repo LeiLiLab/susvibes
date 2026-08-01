@@ -11,19 +11,23 @@ always returns a result dict (encoding "not found" as `commit=""`) so the source
 outcome and never pay for the same agent run twice.
 """
 
-import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from tqdm import tqdm
 from claude_agent_sdk import ClaudeAgentOptions
 
 from susvibes.core.agents.claude import (
-    run_agent_retrying, READONLY_TOOLS, AGENT_ENV, MAX_BUFFER_SIZE)
+    run_agent_retrying, load_agent_result, save_agent_result,
+    READONLY_TOOLS, AGENT_ENV, MAX_BUFFER_SIZE)
 from susvibes.curate.constants import get_log_dir
 from susvibes.curate.mine.clone import finder_clone
+from susvibes.curate.mine.sources.constants import COMMIT_SHA
+
+LOG_TRAJECTORY = "trajectory.jsonl"
+LOG_RESULT = "result.json"
 
 FINDER_MODEL = "us.anthropic.claude-sonnet-5"
-FINDER_WORKERS = 8
+FINDER_WORKERS = 16
 FINDER_MAX_TURNS = 50
 
 FINDER_SCHEMA = {
@@ -121,57 +125,71 @@ def finder_hints(record) -> str:
     return "\n".join(lines) + "\n" if lines else ""
 
 
-def finder_miss(record, error, meta=None):
+def finder_miss(error) -> dict:
     """A finder result that pinned nothing. `error=None` is a real "no fix in this repo" (final,
     yielded past); a set `error` is an aborted run (clone/agent failure) that `resume` re-runs."""
-    return {**record, "commit": "", "multi_commit": False, "additional_commits": [], "fact_tier": 0,
-            "evidence": "", "source": "", "error": error, "_meta": meta or {}}
+    return {"commit": "", "multi_commit": False, "additional_commits": [], "fact_tier": 0,
+            "evidence": "", "source": "", "error": error}
 
 
-def finder_single(record, run_id):
-    """Pin the fix commit for one CVE (retryable failures retried under the hood). Returns the
-    record merged with the finder's output (`commit`/`multi_commit`/`fact_tier`/`evidence`/
-    `source`) plus `error` and `_meta` (cost/turns). `commit=""` with `error=None` is a real miss
+def finder_result(output) -> dict:
+    """The finder's structured output as a cacheable result: the model sometimes emits a malformed
+    "no commit" (e.g. '""'), and only a well-formed sha counts as an additional fix commit."""
+    commit = output["commit"].strip()
+    return {**output,
+            "commit": commit if COMMIT_SHA.fullmatch(commit) else "",
+            "additional_commits": [c for c in output["additional_commits"]
+                                   if COMMIT_SHA.fullmatch(c.strip())],
+            "error": None}
+
+
+def finder_single(record, run_id, force=False, resume=False):
+    """Pin the fix commit for one CVE (retryable failures retried under the hood), reusing this
+    CVE's cached result unless `force`/`resume` asks to re-run it. Returns the record merged with
+    the finder's output (`commit`/`multi_commit`/`fact_tier`/`evidence`/`source`) plus `error` and
+    `_meta` (cost/turns, empty on a cache hit). `commit=""` with `error=None` is a real miss
     (final); `commit=""` with `error` set is an aborted run that `resume` re-runs."""
+    log_dir = get_log_dir(run_id, "mine", "find_commit") / record["cve_id"]
+    result = load_agent_result(log_dir / LOG_RESULT, force=force, resume=resume)
+    if result is not None:
+        return {**record, **result, "_meta": {}}
+
     project = f"{record['owner']}/{record['repo']}".lower()
     repo_dir = finder_clone(project)
     if repo_dir is None:
-        return finder_miss(record, f"clone failed: {project}")
-    options = ClaudeAgentOptions(
-        model=FINDER_MODEL,
-        system_prompt=FINDER_SYSTEM,
-        tools=READONLY_TOOLS,                   # availability gate: only read-only investigation tools exist
-        allowed_tools=READONLY_TOOLS,           # pre-approve the whole set; fail-closed on anything else
-        setting_sources=[],                     # don't load the project's interactive settings/hooks
-        permission_mode="dontAsk",              # fail-closed: pre-approved tools auto-run headless, else denied
-        cwd=str(repo_dir),
-        max_turns=FINDER_MAX_TURNS,
-        max_buffer_size=MAX_BUFFER_SIZE,
-        env=AGENT_ENV,
-        output_format={"type": "json_schema", "schema": FINDER_SCHEMA},
-    )
-    prompt = FINDER_USER.format(
-        cve_id=record["cve_id"], ghsa=record.get("ghsa", ""),
-        repo=project, hints=finder_hints(record),
-    )
-    log_path = get_log_dir(run_id, "mine", "find_commit") / record["cve_id"] / "trajectory.jsonl"
-    output, meta = run_agent_retrying(prompt, options, log_path=log_path)
-    if output is None:
-        return finder_miss(record, meta.get("error", "agent produced no result"), meta)
-    if not re.fullmatch(r"[0-9a-f]{40}", output["commit"].strip()):
-        output["commit"] = ""       # the model sometimes emits a malformed "no commit" (e.g. '""')
-    output["additional_commits"] = [c for c in output.get("additional_commits", [])
-                                    if re.fullmatch(r"[0-9a-f]{40}", c.strip())]
-    return {**record, **output, "error": None, "_meta": meta}
+        result, meta = finder_miss(f"clone failed: {project}"), {}
+    else:
+        options = ClaudeAgentOptions(
+            model=FINDER_MODEL,
+            system_prompt=FINDER_SYSTEM,
+            tools=READONLY_TOOLS,                   # availability gate: only read-only investigation tools exist
+            allowed_tools=READONLY_TOOLS,           # pre-approve the whole set; fail-closed on anything else
+            setting_sources=[],                     # don't load the project's interactive settings/hooks
+            permission_mode="dontAsk",              # fail-closed: pre-approved tools auto-run headless, else denied
+            cwd=str(repo_dir),
+            max_turns=FINDER_MAX_TURNS,
+            max_buffer_size=MAX_BUFFER_SIZE,
+            env=AGENT_ENV,
+            output_format={"type": "json_schema", "schema": FINDER_SCHEMA},
+        )
+        prompt = FINDER_USER.format(
+            cve_id=record["cve_id"], ghsa=record.get("ghsa", ""),
+            repo=project, hints=finder_hints(record),
+        )
+        output, meta = run_agent_retrying(prompt, options, log_path=log_dir / LOG_TRAJECTORY)
+        result = finder_result(output) if output is not None \
+            else finder_miss(meta.get("error", "agent produced no result"))
+    save_agent_result(result, log_dir / LOG_RESULT)
+    return {**record, **result, "_meta": meta}
 
 
-def finder_threadpool(records, run_id, max_workers=FINDER_WORKERS):
+def finder_threadpool(records, run_id, max_workers=FINDER_WORKERS, force=False, resume=False):
     """Run the finder over records concurrently (reads are concurrency-safe; clone.py serializes
     the writes). Returns one result dict per record."""
     results = []
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
-            executor.submit(finder_single, record, run_id): record["cve_id"]
+            executor.submit(finder_single, record, run_id, force, resume): record["cve_id"]
             for record in records
         }
         with tqdm(total=len(futures), dynamic_ncols=True,

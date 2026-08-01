@@ -23,7 +23,7 @@ from susvibes.curate.mine.dedup import KnownSet
 from susvibes.curate.mine.sources.inspect import inspect_threadpool
 from susvibes.curate.mine.sources.find_commit import finder_threadpool
 from susvibes.curate.mine.sources.constants import REF_REPO, GITHUB_NON_OWNER, GITHUB_NON_REPO
-from susvibes.curate.mine.sources.utils import fetch_github_commit_patch
+from susvibes.curate.mine.sources.utils import fetch_pinned_patches
 from susvibes.curate.mine.sources.osv import known_source_cves, read_osv_fix_commits, OSV_ZIP_PATH
 
 NVD_INSPECT_CACHE_PATH = get_dataset_path('raw_cve') / 'NVD' / 'nvd_inspect.jsonl'
@@ -194,10 +194,11 @@ def finder_record(inspected) -> dict:
 
 class NVDSource:
     """M3 — NVD github-linked CVEs uncovered by OSV/Morefixes/ReposVul, dug out of the ~48k
-    haystack: prefilter (deterministic) → inspect (Haiku) → route → finder (Sonnet). The two agent
-    stages each cache (inspect at NVD_INSPECT_CACHE_PATH, finder at cache_path) so a re-run never
-    re-pays, and `--resume` re-runs only the errored ones. `run_id` (set by `core` alongside
-    `force`/`resume`) routes both agents' trajectories under `logs/curate/<run_id>/mine/`."""
+    haystack: prefilter (deterministic) → inspect (Haiku) → route → finder (Sonnet). Both agent
+    stages cache per CVE so a re-run never re-pays, and `--resume` re-runs only the errored ones;
+    their assembled datasets (inspect at NVD_INSPECT_CACHE_PATH, finder at cache_path) are what a
+    plain run reads. `run_id` (set by `core` alongside `force`/`resume`) routes both agents'
+    trajectories and results under `logs/curate/<run_id>/mine/`."""
     name = "NVD"
     cache_path = NVD_CACHE_PATH
     force = False
@@ -205,49 +206,30 @@ class NVDSource:
     run_id = None
 
     @classmethod
-    def _inspect_cached(cls, survivors):
-        """Run inspect over the prefilter survivors, caching outcomes; force re-inspects all,
-        resume re-runs only the errored, neither reads the cache."""
-        if cls.force or not NVD_INSPECT_CACHE_PATH.exists():
-            inspected = inspect_threadpool(survivors, cls.run_id)
-        elif cls.resume:
-            done = {r["cve_id"]: r for r in load_file(NVD_INSPECT_CACHE_PATH) if not r.get("error")}
-            todo = [s for s in survivors if s["cve_id"] not in done]
-            inspected = list(done.values()) + inspect_threadpool(todo, cls.run_id)
-        else:
-            return load_file(NVD_INSPECT_CACHE_PATH)
-        save_file(inspected, NVD_INSPECT_CACHE_PATH)
-        return inspected
-
-    @classmethod
-    def _fetch(cls, prior=None):
-        """prefilter → inspect (cached) → route → finder over the stage2 CVEs `prior` hasn't
-        concluded, fetching each single-commit pin's `.patch`. Returns every finder outcome."""
+    def _fetch(cls):
+        """prefilter → inspect → route → finder over the stage2 CVEs, fetching each single-commit
+        pin's `.patch`. Returns every finder outcome. Both agent stages reuse per-CVE, so each is
+        handed its whole input and only re-pays for what `force`/`resume` asks to redo."""
         _, survivors = prefilter(force=cls.force)
-        inspected = cls._inspect_cached(survivors)
+        inspected = inspect_threadpool(survivors, cls.run_id, force=cls.force, resume=cls.resume)
+        save_file(inspected, NVD_INSPECT_CACHE_PATH)
         stage2 = [finder_record(r) for r in inspected if route(r) == "stage2"]
-        done = {r["cve_id"]: r for r in (prior or []) if not r.get("error")}
-        fresh = finder_threadpool([r for r in stage2 if r["cve_id"] not in done], cls.run_id)
-        for result in fresh:
-            if result["commit"] and not result["multi_commit"]:
-                result["patch"] = fetch_github_commit_patch(
-                    result["owner"], result["repo"], result["commit"])
-        return list(done.values()) + fresh
+        results = finder_threadpool(stage2, cls.run_id, force=cls.force, resume=cls.resume)
+        return fetch_pinned_patches(results, cls.cache_path)
 
     @classmethod
     def records(cls, known: KnownSet):
-        if cls.force or not cls.cache_path.exists():
+        # force/resume reconcile the pool against the per-CVE caches and rewrite the assembled
+        # dataset; neither reads that dataset as-is, doing no work at all.
+        if cls.force or cls.resume or not cls.cache_path.exists():
             results = cls._fetch()
-            save_file(results, cls.cache_path)
-        elif cls.resume:
-            results = cls._fetch(load_file(cls.cache_path))
             save_file(results, cls.cache_path)
         else:
             results = load_file(cls.cache_path)
         for result in results:
             if not result["commit"] or result["multi_commit"]:
                 continue
-            if known.has_commit(result["commit"]):
+            if known.has(result["cve_id"], result["commit"]):
                 continue
             if not result.get("patch"):
                 continue

@@ -1,8 +1,17 @@
-"""S4 clone tier for the finder — a blobless-bare clone carries the full commit history without
-the file blobs or a work tree, which is all the fact-finder reads (git log/show/grep over history,
-never a checkout). If the repo is already fully cloned under LOCAL_REPOS_DIR (a shared curate
-clone), the finder reads that instead. Survivors — the CVEs the finder pinned a commit for — get
-the full working-tree clone later, at clone_repos_and_verify_fixes (apply-verify needs the tree).
+"""The mining stage's clone tier — every git clone the pipeline makes.
+
+One primitive, `clone_into`, does the cloning; the `*_clone` functions each hand back the path to
+a ready clone of one kind, making it only if it isn't there yet:
+
+- `full_clone` — the full working-tree clone the funnel needs to reverse/forward-apply a patch
+  (`validate_patches`) and that every later stage builds on.
+- `blobless_clone` — the finder's cheap tier (S4): bare and `--filter=blob:none`, so it carries
+  the full commit history without the file blobs or a work tree, which is all the fact-finder
+  reads (git log/show/grep over history, never a checkout). These live under `LOCAL_REPOS_DIR`
+  too, in `.sv.blobless/` — one configured root holds every clone, and the dot keeps them apart
+  from the `owner__repo` full clones beside them.
+- `finder_clone` — which of the two the finder gets: an existing full clone if there is one, else
+  a blobless one.
 
 This layer owns every git write: clones are serialized per-repo by RepoLocks so concurrent finder
 threads never clone one repo twice; the agents themselves only read (no fetch/checkout/reset).
@@ -15,7 +24,8 @@ from pathlib import Path
 from susvibes.curate.constants import LOCAL_REPOS_DIR
 from susvibes.curate.utils import run, get_repo_dir, is_git_repo, RepoLocks
 
-BLOBLESS_DIR = Path(LOCAL_REPOS_DIR).parent / "blobless"
+BLOBLESS_DIR = Path(LOCAL_REPOS_DIR) / ".sv.blobless"    # a dotted sibling of the owner__repo clones
+CLONE_RETRIES = 3
 
 
 def is_bare_repo(repo_dir) -> bool:
@@ -30,35 +40,59 @@ def is_bare_repo(repo_dir) -> bool:
         return False
 
 
-def bare_blobless(project, max_retries=3):
-    """Clone project ("owner/repo") bare with --filter=blob:none into BLOBLESS_DIR — full commit
-    graph and trees, no file blobs (fetched lazily on access), no work tree. Reuses an existing
-    clone; returns the clone path."""
-    dest = get_repo_dir(project, BLOBLESS_DIR)
-    if is_bare_repo(dest):
-        return dest
-    BLOBLESS_DIR.mkdir(parents=True, exist_ok=True)
+def clone_into(project, dest, *flags):
+    """Clone project ("owner/repo") into dest, retrying from a clean slate — a clone that died
+    partway leaves a half-written tree, so each attempt starts by removing whatever is there.
+    Returns dest, or raises the last failure once the retries are spent."""
+    dest = Path(dest)
+    dest.parent.mkdir(parents=True, exist_ok=True)
     repo_url = f"https://github.com/{project}.git"
-    while max_retries > 0:
-        max_retries -= 1
+    for attempt in range(CLONE_RETRIES):
         try:
             if dest.exists():
                 shutil.rmtree(dest)
-            run(["git", "clone", "--bare", "--filter=blob:none", repo_url, str(dest)])
+            run(["git", "clone", *flags, repo_url, str(dest)])
             return dest
-        except subprocess.SubprocessError as e:
-            if not max_retries:
-                raise e
+        except subprocess.SubprocessError:
+            if attempt == CLONE_RETRIES - 1:
+                raise
+
+
+def full_clone(project, root_dir, force=False):
+    """The full working-tree clone of project ("owner/repo") under root_dir, as the funnel and
+    every later stage need it. Reuses an existing clone unless `force`; returns the clone path."""
+    dest = get_repo_dir(project, root_dir)
+    if is_git_repo(dest) and not force:
+        return dest
+    return clone_into(project, dest)
+
+
+def blobless_clone(project):
+    """The bare `--filter=blob:none` clone of project ("owner/repo") under BLOBLESS_DIR — full
+    commit graph and trees, no file blobs (fetched lazily on access), no work tree. Reuses an
+    existing clone; returns the clone path."""
+    dest = get_repo_dir(project, BLOBLESS_DIR)
+    if is_bare_repo(dest):
+        return dest
+    return clone_into(project, dest, "--bare", "--filter=blob:none")
+
+
+def fetch_commit(repo_dir, commit):
+    """Fetch one commit by sha into an existing clone. A clone copies only what the repo's refs
+    reach, so a fix commit whose branch was deleted or whose PR was squash-merged is missing even
+    from a current clone (`git clone` never fetches `refs/pull/*`) — GitHub still serves it on
+    demand. Raises if the commit isn't there either."""
+    run(["git", "fetch", "--no-tags", "origin", commit], cwd=repo_dir)
 
 
 def finder_clone(project):
     """A history-carrying clone for the finder: the existing full clone if there is one, otherwise
-    a blobless-bare one. Serialized per-repo so concurrent finder threads clone the repo once.
+    a blobless one. Serialized per-repo so concurrent finder threads clone the repo once.
     Returns the clone path, or None if the clone failed."""
     if is_git_repo(get_repo_dir(project, LOCAL_REPOS_DIR)):
         return get_repo_dir(project, LOCAL_REPOS_DIR)
     with RepoLocks.locked(project):
         try:
-            return bare_blobless(project)
+            return blobless_clone(project)
         except subprocess.SubprocessError:
             return None

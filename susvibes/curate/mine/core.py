@@ -1,7 +1,9 @@
 import argparse
+import os
 import random
 import re
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 from pathlib import Path
 from typing import TypedDict, NotRequired
@@ -11,7 +13,6 @@ from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir
 from susvibes.core.utils import load_file, save_file, setup_logger, get_instance_id
 from susvibes.curate.utils import (
     get_repo_dir,
-    clone_github_repo,
     reset_to_commit,
     apply_patch,
     commit_changes,
@@ -36,8 +37,11 @@ from susvibes.curate.mine.constants import (
     PATCH_MAX_LENGTH,
     PATCH_MAX_FILE_COUNT,
 )
+from susvibes.curate.mine.clone import full_clone, fetch_commit
 from susvibes.curate.mine.dedup import KnownSet
 from susvibes.curate.mine.sources import SOURCES, SOURCE_BY_NAME
+
+CLONE_WORKERS = 8
 
 logger = None
 
@@ -137,52 +141,90 @@ def build_fix_dataset(sources, target_lang, test_lang, require_test=None, shuffl
             lambda r: code_test_split(r, target_lang, test_lang, require_test)))
         net_new_start = len(accepted)
         for data_record in fix_dataset:
-            if known.has_commit(data_record["base_commit"]):
+            if known.has(data_record["cve_id"], data_record["base_commit"]):
                 collapsed += 1
                 continue
             known.add(data_record)
             accepted.append(data_record)
         logger.info("[%s] +%d net-new instances (running total %d).", source.name, len(accepted) - net_new_start, len(accepted))
     fix_dataset = accepted
-    logger.info("%d records processed successfully from datasets (%d duplicate commits collapsed).", len(fix_dataset), collapsed)
+    logger.info("%d records processed successfully from datasets (%d duplicates collapsed — same commit or same CVE).", len(fix_dataset), collapsed)
     if shuffle:
         random.shuffle(fix_dataset)
     if max_records is not None:
         fix_dataset = fix_dataset[:max_records]
     return fix_dataset
 
-def clone_repos_and_verify_fixes(fix_dataset, root_dir):
-    projects = set(data_record['project'] for data_record in fix_dataset)
-    skipped_projects = set()
-    with tqdm(total=len(projects), dynamic_ncols=True) as pbar:
-        for project in projects:
-            pbar.set_description(f"Cloning {project}")
-            repo_size = get_repo_size(project)
-            if repo_size is not None and repo_size > REPO_MAX_SIZE_KB:
-                logger.warning("Skipping %s: repo size %.1f GB exceeds limit", project, repo_size / 1024 / 1024)
-                skipped_projects.add(project)
+def clone_repo_single(project, root_dir) -> str | None:
+    """Clone one project's repo, unless it is too large to be worth curating. Returns None once the
+    repo is on disk, or the reason it is not — the driver only needs to know which projects to drop,
+    the detail is already logged here."""
+    repo_size = get_repo_size(project)
+    if repo_size is not None and repo_size > REPO_MAX_SIZE_KB:
+        logger.warning("Skipping %s: repo size %.1f GB exceeds limit", project, repo_size / 1024 / 1024)
+        return "repo too large"
+    try:
+        full_clone(project, root_dir)
+    except Exception as e:
+        logger.error("Error cloning repository %s: %s", project, e)
+        return "clone failed"
+    return None
+
+
+def clone_repo_threadpool(projects, root_dir, max_workers=CLONE_WORKERS) -> set:
+    """Clone every project concurrently and return the ones that are not on disk afterwards.
+
+    Each project owns a distinct clone dir (`owner__repo`), so the writes never overlap and no
+    per-repo lock is needed. Cloning is dominated by per-repo latency rather than bandwidth — the
+    repos are small (median ~29 MB) and most time goes to GitHub's pack build — which is what makes
+    the concurrency pay off."""
+    skipped_projects, cloned = set(), 0
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = {executor.submit(clone_repo_single, project, root_dir): project
+                   for project in projects}
+        with tqdm(total=len(futures), dynamic_ncols=True,
+            desc=f"Cloning repos [{max_workers} threads]") as pbar:
+            for future in as_completed(futures):
+                project = futures[future]
+                try:
+                    reason = future.result()
+                except Exception as e:
+                    raise RuntimeError(f"Internal error for {project}: {e}")
+                if reason is None:
+                    cloned += 1
+                else:
+                    skipped_projects.add(project)
                 pbar.update(1)
-                continue
-            try:
-                clone_github_repo(project, root_dir, force=False)
-            except Exception as e:
-                logger.error("Error cloning repository %s: %s", project, e)
-                skipped_projects.add(project)
-            pbar.update(1)
-    patch_successfully_applied = []
-    for data_record in tqdm(fix_dataset, desc="Verifying patches"):
+                pbar.set_description(f"{cloned} cloned, {len(skipped_projects)} skipped")
+    logger.info("%d repos cloned successfully (%d skipped).", cloned, len(skipped_projects))
+    return skipped_projects
+
+
+def validate_patches(fix_dataset, root_dir, skipped_projects):
+    """Keep the records whose patches really apply against their `base_commit`: roll the clone to
+    that commit and reverse- then forward-apply each patch. Records under `skipped_projects` (what
+    `clone_repo_threadpool` could not put on disk) have no tree to validate against and are dropped."""
+    patch_validated = []
+    for data_record in tqdm(fix_dataset, desc="Validating patches"):
         instance_id = data_record['instance_id']
+        base_commit = data_record['base_commit']
         if data_record['project'] in skipped_projects:
             logger.warning("%s skipped: project not cloned or too large", instance_id)
             continue
         repo_dir = get_repo_dir(data_record['project'], root_dir)
         try:
-            reset_to_commit(repo_dir, data_record['base_commit'], new_branch=False)
-        except Exception as e:
-            logger.error("%s reset_to_commit failed: %s", instance_id, e)
-            continue
+            reset_to_commit(repo_dir, base_commit, new_branch=False)
+        except Exception:
+            # A fix commit no ref reaches is missing from the clone however current it is;
+            # fetching it by sha recovers it (see fetch_commit).
+            try:
+                fetch_commit(repo_dir, base_commit)
+                reset_to_commit(repo_dir, base_commit, new_branch=False)
+            except Exception as e:
+                logger.error("%s reset_to_commit failed: %s", instance_id, e)
+                continue
         if not data_record.get('cve_fix_date'):
-            data_record['cve_fix_date'] = get_commit_date(repo_dir, data_record['base_commit'])
+            data_record['cve_fix_date'] = get_commit_date(repo_dir, base_commit)
         is_valid = True
         patches_to_verify = [("security_patch", data_record['security_patch'])]
         if 'test_patch' in data_record:
@@ -197,14 +239,21 @@ def clone_repos_and_verify_fixes(fix_dataset, root_dir):
                 is_valid = False
                 break
         if is_valid:
-            patch_successfully_applied.append(data_record)
+            patch_validated.append(data_record)
 
-    logger.info("%d patches verified successfully.", len(patch_successfully_applied))
-    return patch_successfully_applied
+    logger.info("%d patches validated successfully.", len(patch_validated))
+    return patch_validated
 
-def expand_test_mask(fix_dataset, test_lang):
-    expanded = []
+def expand_tests(fix_dataset, test_lang):
+    """Rewrite every with-test record's `test_patch` into a test *mask*: the diff that puts back the
+    test functions the fix commit touched, so the task can ship a tree with them removed. A record
+    carrying no `test_patch` has no security test to hide and passes through untouched — which is
+    what makes this safe to run over a combined (`--require_test` omitted) dataset."""
+    kept, expanded = [], 0
     for data_record in tqdm(fix_dataset, desc="Making test masks"):
+        if "test_patch" not in data_record:
+            kept.append(data_record)
+            continue
         is_syntax_error = False
         base_commit = data_record["base_commit"]
         repo_dir = get_repo_dir(data_record['project'], LOCAL_REPOS_DIR)
@@ -217,22 +266,23 @@ def expand_test_mask(fix_dataset, test_lang):
                 apply_patch(repo_dir, merge_file_patches({file_path: file_patch}), reverse=True)
                 code_before = load_file(repo_dir / file_path)
                 try:
-                    mask_patch = mask_test_funcs(file_patch, code_before, code_after)
+                    test_mask_patch = mask_test_funcs(file_patch, code_before, code_after)
                 except ValueError as e:
                     is_syntax_error = True
                     break
-                if mask_patch.strip():
-                    apply_patch(repo_dir, merge_file_patches({file_path: mask_patch}))
+                if test_mask_patch.strip():
+                    apply_patch(repo_dir, merge_file_patches({file_path: test_mask_patch}))
             else:
                 apply_patch(repo_dir, merge_file_patches({file_path: file_patch}), reverse=True)
 
         if not is_syntax_error:
             test_mask_commit = commit_changes(repo_dir, f'Test mask at {base_commit}')
             data_record["test_patch"] = get_diff_patch(repo_dir, test_mask_commit, base_commit)
-            expanded.append(data_record)
+            kept.append(data_record)
+            expanded += 1
 
-    logger.info("%d test masks expanded successfully.", len(expanded))
-    return expanded
+    logger.info("%d test masks expanded successfully.", expanded)
+    return kept
 
 
 if __name__ == "__main__":
@@ -290,6 +340,11 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
+    # The funnel only ever reads source text, so a clone or checkout must not stop to pull a repo's
+    # LFS assets: git-lfs fails the whole `git reset --hard` when a download does (jumpserver's
+    # 74 MB GeoIP database), and the pointer files it leaves instead cost the funnel nothing.
+    os.environ["GIT_LFS_SKIP_SMUDGE"] = "1"
+
     core_log_dir = get_log_dir(args.run_id, "mine", "core")
     init_loggers(core_log_dir)
 
@@ -314,21 +369,21 @@ if __name__ == "__main__":
         if hasattr(source, "run_id"):
             source.run_id = args.run_id
 
-    require_test = args.require_test
     fix_dataset = build_fix_dataset(
         sources=dataset_sources,
         target_lang=TARGET_LANG,
         test_lang=TARGET_LANG,
-        require_test=require_test,
+        require_test=args.require_test,
         shuffle=args.shuffle,
         max_records=args.max_records
     )
     if args.skip_verify:
         logger.info("--skip_verify: saving %d text-level (unverified) records; skipping clone, apply-verify, and test-mask expansion.", len(fix_dataset))
     else:
-        fix_dataset = clone_repos_and_verify_fixes(fix_dataset, LOCAL_REPOS_DIR)
-        if require_test:
-            fix_dataset = expand_test_mask(fix_dataset, TARGET_LANG)
+        projects = set(data_record["project"] for data_record in fix_dataset)
+        skipped_projects = clone_repo_threadpool(projects, LOCAL_REPOS_DIR)
+        fix_dataset = validate_patches(fix_dataset, LOCAL_REPOS_DIR, skipped_projects)
+        fix_dataset = expand_tests(fix_dataset, TARGET_LANG)
     fix_dataset_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(fix_dataset, fix_dataset_path)
     print(f"Fix dataset saved to {fix_dataset_path}.")

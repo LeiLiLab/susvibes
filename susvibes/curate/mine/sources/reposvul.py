@@ -9,11 +9,10 @@ here but dies later in `apply_patch` — see B7 in docs/mine-filters. `_python` 
 is the CVE's tag, not the repo's, so language filtering is entirely `code_test_split`'s job.
 """
 
-import requests
-
 from susvibes.core.constants import get_dataset_path
 from susvibes.core.utils import load_file, save_file
-from susvibes.curate.mine.constants import GITHUB_HEADERS, TARGET_LANG
+from susvibes.curate.mine.constants import TARGET_LANG
+from susvibes.curate.mine.utils import github_get
 from susvibes.curate.mine.dedup import KnownSet
 
 REPOSVUL_RAW_PATH = get_dataset_path('raw_cve') / f'ReposVul/ReposVul_{TARGET_LANG}.jsonl'
@@ -27,17 +26,10 @@ class ReposVulHandler:
     force = False
 
     @classmethod
-    def remotely_active(cls, data_record, max_retries=3) -> bool:
-        diff_url = data_record['html_url'] + '.patch'
-        while max_retries > 0:
-            max_retries -= 1
-            try:
-                r = requests.get(diff_url, headers=GITHUB_HEADERS, allow_redirects=True, timeout=10)
-                if r.status_code == 200:
-                    return True
-            except requests.RequestException as e:
-                continue
-        return False
+    def remotely_active(cls, data_record) -> bool:
+        """Whether the record's fix commit is still reachable on GitHub — the raw dataset carries
+        links to repos and commits that have since gone."""
+        return github_get(data_record['html_url'] + '.patch', allow_redirects=True) is not None
 
     @classmethod
     def _fetch(cls):
@@ -58,4 +50,5 @@ class ReposVulHandler:
         else:
             dataset = cls._fetch()
             save_file(dataset, cls.cache_path)
-        return [record for record in dataset if not known.has_commit(record["commit_id"])]
+        return [record for record in dataset
+                if not known.has(record["cve_id"], record["commit_id"])]

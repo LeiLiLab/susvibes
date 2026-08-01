@@ -8,6 +8,7 @@ project source, so GITHUB_NON_OWNER / GITHUB_NON_REPO filter it out. (`GITHUB_HE
 
 import re
 
+COMMIT_SHA = re.compile(r'[0-9a-f]{40}')
 COMMIT_URL = re.compile(r'https?://github\.com/([^/\s]+)/([^/\s]+)/commit/([0-9a-f]{7,40})')
 REPO_URL = re.compile(r'github\.com/([^/\s]+)/([^/\s]+?)(?:\.git)?/?$')
 REF_REPO = re.compile(r'github\.com/([^/\s]+)/([^/\s?#]+)')

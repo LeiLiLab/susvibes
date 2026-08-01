@@ -1,6 +1,5 @@
 import re
 import uuid
-import shutil
 import subprocess
 import threading
 import time
@@ -59,25 +58,6 @@ def get_repo_dir(project, root_dir):
     root_dir = Path(root_dir)
     owner, repo = project.split("/", 1)
     return root_dir / f"{owner}__{repo}"
-
-def clone_github_repo(project, root_dir, force=False, max_retries=3, timeout=None):
-    """Clone a GitHub repository ("owner/repo") into the root directory."""
-    root_dir = Path(root_dir)
-    root_dir.mkdir(parents=True, exist_ok=True)
-    repo_url = f"https://github.com/{project}.git"
-    dest = get_repo_dir(project, root_dir)
-    if is_git_repo(dest) and not force:
-        return dest
-    while max_retries > 0:
-        max_retries -= 1
-        try:
-            if dest.exists():
-                shutil.rmtree(dest)
-            run(["git", "clone", repo_url, str(dest)], timeout=timeout)
-        except subprocess.SubprocessError as e:
-            if not max_retries:
-                raise e
-    return dest
 
 def apply_patch(repo_dir, patch, patch_file_name=None, reverse=False):
     """Apply a single patch string to the Git repository by writing it to a patch file."""

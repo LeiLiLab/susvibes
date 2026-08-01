@@ -18,7 +18,7 @@ from susvibes.core.constants import get_dataset_path
 from susvibes.core.utils import load_file, save_file
 from susvibes.curate.mine.sources.constants import (
     COMMIT_URL, REPO_URL, REF_REPO, FROM_COMMIT, GITHUB_NON_OWNER, GITHUB_NON_REPO)
-from susvibes.curate.mine.sources.utils import fetch_github_commit_patch
+from susvibes.curate.mine.sources.utils import fetch_patch_from_github, fetch_pinned_patches
 from susvibes.curate.mine.sources.morefixes import MorefixesHandler
 from susvibes.curate.mine.sources.reposvul import ReposVulHandler
 from susvibes.curate.mine.utils import split_to_file_patches
@@ -190,7 +190,7 @@ class OSVSource:
             candidates.append((cve, owner, repo, commit, entry["cwe_ids"]))
         records = []
         for cve, owner, repo, commit, cwe_ids in tqdm(candidates, desc="OSV: fetching patches", dynamic_ncols=True):
-            patch_text = fetch_github_commit_patch(owner, repo, commit)
+            patch_text = fetch_patch_from_github(owner, repo, commit)
             if not patch_text:
                 continue
             m = FROM_COMMIT.search(patch_text)
@@ -215,7 +215,7 @@ class OSVSource:
             records = cls._fetch()
             save_file(records, cls.cache_path)
         for record in records:
-            if known.has_commit(record["commit_id"]):
+            if known.has(record["cve_id"], record["commit_id"]):
                 continue
             try:
                 patch = split_to_file_patches(record["patch"])
@@ -235,9 +235,9 @@ class OSVSource:
 class OSVResidualSource:
     """M2 — OSV PyPI CVEs with a repo but no commit in any source. The S2 finder pins each fix
     commit by fact; every finder outcome (a pinned commit + evidence, a real miss, or an errored
-    run) is cached so the agent never runs twice, and `--resume` re-runs only the errored ones.
-    `run_id` (set by `core` alongside `force`/`resume`) routes the per-CVE trajectories under
-    `logs/curate/<run_id>/mine/find_commit/`."""
+    run) is cached per CVE so the agent never runs twice, and `--resume` re-runs only the errored
+    ones. `run_id` (set by `core` alongside `force`/`resume`) routes the per-CVE trajectories and
+    results under `logs/curate/<run_id>/mine/find_commit/`."""
     name = "OSV-residual"
     zip_path = OSV_ZIP_PATH
     cache_path = OSV_RESIDUAL_CACHE_PATH
@@ -246,40 +246,30 @@ class OSVResidualSource:
     run_id = None
 
     @classmethod
-    def _fetch(cls, prior=None):
+    def _fetch(cls):
         """Build the residual pool (skipping CVEs Morefixes/ReposVul already cover, before paying
-        the finder), run the finder over the CVEs `prior` hasn't already concluded, fetch the
-        `.patch` for each new single-commit pin, and return every outcome to cache. `prior` (the
-        cached results on a `resume`) carries concluded pins/misses through untouched; only its
-        `error` entries fall back into the finder."""
+        the finder), run the finder over it, fetch the `.patch` for each single-commit pin, and
+        return every outcome. Per-CVE reuse lives in `finder_single` — the pool is handed over
+        whole, and only the CVEs `force`/`resume` asks to redo cost an agent run."""
         residual = read_osv_residual(cls.zip_path)
         skip = known_source_cves()
         pool = [{"cve_id": cve, **meta} for cve, meta in residual.items() if cve not in skip]
-        done = {r["cve_id"]: r for r in (prior or []) if not r.get("error")}
-        todo = [record for record in pool if record["cve_id"] not in done]
-        fresh = finder_threadpool(todo, cls.run_id)
-        for result in fresh:
-            if result["commit"] and not result["multi_commit"]:
-                result["patch"] = fetch_github_commit_patch(
-                    result["owner"], result["repo"], result["commit"])
-        return list(done.values()) + fresh
+        results = finder_threadpool(pool, cls.run_id, force=cls.force, resume=cls.resume)
+        return fetch_pinned_patches(results, cls.cache_path)
 
     @classmethod
     def records(cls, known: KnownSet):
-        # force = re-run the finder on every CVE (discard the cache); resume = re-run only the
-        # errored entries (keep concluded pins/misses); neither = read the cache as-is. force wins.
-        if cls.force or not cls.cache_path.exists():
+        # force/resume reconcile the pool against the per-CVE cache and rewrite the assembled
+        # dataset; neither reads that dataset as-is, doing no work at all.
+        if cls.force or cls.resume or not cls.cache_path.exists():
             results = cls._fetch()
-            save_file(results, cls.cache_path)
-        elif cls.resume:
-            results = cls._fetch(load_file(cls.cache_path))
             save_file(results, cls.cache_path)
         else:
             results = load_file(cls.cache_path)
         for result in results:
             if not result["commit"] or result["multi_commit"]:
                 continue
-            if known.has_commit(result["commit"]):
+            if known.has(result["cve_id"], result["commit"]):
                 continue
             if not result.get("patch"):
                 continue
