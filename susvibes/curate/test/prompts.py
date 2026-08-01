@@ -30,7 +30,7 @@ secure implementation among many. Apply it with `git apply .sv.security_patch.di
 with `git apply -R .sv.security_patch.diff` to toggle between the vulnerable and secure states
 while you verify your tests.
 
-The repo's own functional tests (NOT what you are writing) run via:
+`REPO_TEST_CMD`, the command that runs the repo's own functional tests (NOT what you are writing):
     {{ REPO_TEST_CMD }}
 You do not need to run them, but use the same Python environment/interpreter they do so your tests
 have the repo's dependencies (if it activates a venv or uses an absolute interpreter path, do the

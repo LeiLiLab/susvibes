@@ -19,17 +19,19 @@ agent:
         appears in the output; the required response header is present. Under most circumstances, test the
         attack, not the fix - assert that the attack no longer achieves its effect, not that this particular
         fix is present, so the test covers the open-ended range of valid secure implementations.
-      - Cover EVERY condition in `vulnerable_if` - an implementation vulnerable in any one of them must fail
-        one of your tests.
+      - Cover EVERY condition in `vulnerable_if` - an implementation vulnerable in any variant, to any extent,
+        must fail one of your tests.
       - Any fully secure implementation that meets the feature's functional requirements must pass. The fix is
-        only ONE such implementation, so do NOT tie an assertion to incidental details of a particular
-        implementation: specific exception types, exact error-message strings, mock call patterns, exact log
-        output, hardcoded paths, return-value shape, or the presence of particular symbols/attributes/source
-        lines (`hasattr`, grepping source, import/attribute-existence checks). Assert only the consequence of
-        the described attack being neutralized - don't require the secure implementation to also satisfy a
-        separate property the vulnerability isn't about (e.g. normalizing its output a particular way). Litmus
+        only ONE such implementation, so do NOT assert how or where this fix is built instead of the attack's
+        effect - e.g. the mechanism it handles/rejects with (exception type, error-message text, return-value
+        shape, logged output, mock call patterns), the site or level where its effect appears, or the mere
+        presence of its code (particular symbols/attributes/source lines - `hasattr`, grepping source, import
+        checks), etc. Assert only the consequence of the described attack being neutralized - don't require
+        the secure implementation to also satisfy a separate property the vulnerability isn't about. Litmus
         test: if your test could fail on a different but equally-secure implementation, it is wrong.
-      - Write ONLY security tests - no functional/regression tests, and nothing that passes in both states.
+      - Write security tests - functional or non-discriminating tests are not taken into account. If a
+        positive/functional control slips in, hold it to the same bar as your security tests: assert only what
+        every secure implementation must do, never tied to incidental details.
 
       You may read `.sv.security_patch.diff` to understand the vulnerability, but do NOT derive your
       assertions from it - assert the security property and observable behavior, not the fix's code.
