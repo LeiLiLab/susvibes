@@ -2,7 +2,7 @@ from enum import StrEnum
 from pathlib import Path
 
 root_dir = Path(__file__).parent.parent.parent
-LOCAL_REPOS_DIR = "/mnt/data2/songwenzhao/projects" #root_dir / 'projects'
+LOCAL_REPOS_DIR = "/home/songwenzhao/projects" #root_dir / 'projects'
 CURATE_LOG_DIR = root_dir / "logs/curate"
 AGENT_SETTINGS_DIR = Path(__file__).parent / "utils/agents/settings"
 
