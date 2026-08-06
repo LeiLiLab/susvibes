@@ -6,7 +6,7 @@ keeps the commits Morefixes + ReposVul don't already have (their raw commits) �
 residual — and fetches each `.patch` from GitHub (no clone), resolving the full 40-char commit
 from the patch's `From` header. `records` reads the cache (or `_fetch` + save on first use /
 `--force`), skipping any commit an earlier source already covered. PyPI-scoped, so the ~80%
-cross-language waste of the Morefixes crawl doesn't apply. See docs/mine-filters M1.
+cross-language waste of the Morefixes crawl doesn't apply.
 """
 
 import json
@@ -77,8 +77,11 @@ def read_osv_residual(zip_path) -> dict:
     finder's input. A commit anywhere (GIT-range `fixed` sha or a reference `/commit/` URL, in
     ANY of the CVE's advisories) removes it from the residual; the repo comes from a GIT-range
     `repo` or, failing that, a non-advisory github.com reference. Aggregated per CVE so a
-    commit in one advisory suppresses a repo-only sibling advisory."""
+    commit in one advisory suppresses a repo-only sibling advisory — and so do the CWE ids, since
+    a CVE typically has a GHSA advisory carrying them beside a PYSEC one that does not, and keeping
+    only whichever came last lost them for 85% of the pool."""
     cve_commits: dict = {}
+    cve_cwes: dict = {}
     cve_meta: dict = {}
     with zipfile.ZipFile(zip_path) as z:
         for name in z.namelist():
@@ -116,16 +119,19 @@ def read_osv_residual(zip_path) -> dict:
             cwe_ids = advisory.get("database_specific", {}).get("cwe_ids") or []
             for cve in cves:
                 cve_commits.setdefault(cve, set()).update(commits)
+                for cwe in cwe_ids:
+                    if cwe not in cve_cwes.setdefault(cve, []):
+                        cve_cwes[cve].append(cwe)
                 if repo is not None:
                     cve_meta[cve] = {
                         "owner": repo[0],
                         "repo": repo[1],
                         "ghsa": ghsa,
-                        "cwe_ids": cwe_ids,
                         "fixed_versions": sorted(set(fixed_versions)),
                         "summary": advisory.get("summary", ""),
                     }
-    return {cve: meta for cve, meta in cve_meta.items() if not cve_commits.get(cve)}
+    return {cve: {**meta, "cwe_ids": cve_cwes.get(cve, [])}
+            for cve, meta in cve_meta.items() if not cve_commits.get(cve)}
 
 
 def known_source_commits() -> set:
@@ -134,11 +140,7 @@ def known_source_commits() -> set:
     dataset — the same base the offline M1 model used."""
     commits = set()
     if MorefixesHandler.url_path.exists():
-        for line in MorefixesHandler.url_path.read_text().split("\n"):
-            try:
-                record = json.loads(line)
-            except Exception:
-                continue
+        for record in load_file(MorefixesHandler.url_path):
             for commit in record.get("commits", []):
                 if commit.get("commit_sha"):
                     commits.add(normalize_commit(commit["commit_sha"]))
@@ -154,11 +156,7 @@ def known_source_cves() -> set:
     runs on a CVE an existing source may already pin — the same static base as M1's commit skip."""
     cves = set()
     if MorefixesHandler.url_path.exists():
-        for line in MorefixesHandler.url_path.read_text().split("\n"):
-            try:
-                record = json.loads(line)
-            except Exception:
-                continue
+        for record in load_file(MorefixesHandler.url_path):
             if record.get("cve_id"):
                 cves.add(record["cve_id"])
     if ReposVulHandler.raw_path.exists():

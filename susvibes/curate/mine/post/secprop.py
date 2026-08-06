@@ -11,8 +11,9 @@ Run as a standalone, optional stage (like `mine.post.check_cov`) — it annotate
 in place:
     python -m susvibes.curate.mine.post.secprop --run_id <id> [--resume] [--force] [--max_workers N]
 
-The agent half mirrors `find_commit.py` (read-only Claude Agent SDK on Bedrock, `dontAsk` +
-pre-approved read-only tools + WebSearch, on a `finder_clone`); the `main()` half mirrors
+The agent half mirrors `find_commit.py` (read-only Claude Agent SDK, `dontAsk` + pre-approved
+read-only tools + WebSearch, on a `finder_clone`), on the direct Anthropic API rather than the
+other stages' Bedrock — WebSearch is why, see `SECPROP_ENV`; the `main()` half mirrors
 `mine/core.py`. Each instance's result — concluded or errored — is cached under the log dir, so a
 re-run re-annotates from cache for free; `--resume` re-runs the errored ones, `--force` everything.
 """
@@ -35,11 +36,14 @@ from susvibes.curate.mine.clone import finder_clone
 LOG_TRAJECTORY = "trajectory.jsonl"
 LOG_RESULT = "result.json"
 
-SECPROP_MODEL = "claude-sonnet-5"                        # direct Anthropic API (has WebSearch; Bedrock doesn't)
-SECPROP_WORKERS = 8
+SECPROP_MODEL = "claude-sonnet-5"                        # direct Anthropic API — see SECPROP_ENV
+SECPROP_WORKERS = 16
 SECPROP_MAX_TURNS = 50
-# secprop runs on the direct Anthropic API (ANTHROPIC_API_KEY from .env) so WebSearch is available —
-# Bedrock (the finder/inspect provider) drops it; disable Bedrock for secprop's subprocess.
+# secprop must reach the web — grounding the property in the CVE's primary sources IS the job — and
+# WebSearch is a tool Anthropic runs server-side, which Amazon Bedrock does not expose. It does not
+# fail loudly: the CLI hands the model an empty tool list and the model answers from memory, which
+# reads exactly like a researched property. The provider is chosen by environment alone (no model id
+# or ClaudeAgentOptions field selects it), so unset Bedrock for secprop's subprocess.
 SECPROP_ENV = {**AGENT_ENV, "CLAUDE_CODE_USE_BEDROCK": ""}
 
 

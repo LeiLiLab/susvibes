@@ -230,7 +230,6 @@ def validate_patches(fix_dataset, root_dir, skipped_projects):
         if 'test_patch' in data_record:
             patches_to_verify.append(("test_patch", data_record['test_patch']))
         for patch_name, patch in patches_to_verify:
-            assert patch
             try:
                 apply_patch(repo_dir, patch, reverse=True)
                 apply_patch(repo_dir, patch)

@@ -5,8 +5,8 @@ PR/commit is still reachable on GitHub (`remotely_active`). `_fetch` does that n
 once, keeping the still-reachable records with their patch assembled; `records` reads the
 cache (or `_fetch` + save on first use / `--force`), dropping any commit an earlier source
 already covered. No per-file rename/create/delete check, so an "adds a file" commit survives
-here but dies later in `apply_patch` — see B7 in docs/mine-filters. `_python` in the filename
-is the CVE's tag, not the repo's, so language filtering is entirely `code_test_split`'s job.
+here but dies later in `apply_patch`. `_python` in the filename is the CVE's tag, not the
+repo's, so language filtering is entirely `code_test_split`'s job.
 """
 
 from susvibes.core.constants import get_dataset_path

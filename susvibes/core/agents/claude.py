@@ -4,9 +4,8 @@
 each message arrives, and returns the schema-validated structured output — the SDK does the
 JSON-schema validation + retry itself via `options.output_format`, so parsing/retry is not our
 job. Callers build a full `ClaudeAgentOptions` (model, tools, allowed_tools, permission_mode, cwd,
-output_format, …) and
-pass it through; nothing is hidden. This is deliberately not a Port/class (that would duplicate
-and hide the SDK's own option surface — see docs/mine-filters "Agent calls").
+output_format, …) and pass it through; nothing is hidden. This is deliberately not a Port/class,
+which would duplicate and hide the SDK's own option surface.
 
 `load_agent_result` / `save_agent_result` are the shared per-item result cache every agent stage
 uses, so one item is never paid for twice: each `<x>_single` writes its outcome — concluded or
@@ -68,12 +67,11 @@ AGENT_RETRIES = 2               # extra attempts on a retryable failure (the CLI
 AGENT_BACKOFF_SEC = 30          # exponential backoff base: 30s, 60s, 120s, ... per retry
 
 
-def is_retryable_error(exc) -> bool:
-    """Whether an agent-run exception is worth retrying (a transient API/network/subprocess
-    failure) rather than terminal (max turns, a refusal). Shared by the finder's per-item retry
+def is_retryable_error(error: str) -> bool:
+    """Whether an agent run's failure message is worth retrying (a transient API/network/subprocess
+    failure) rather than terminal (max turns, a refusal). Shared by the agent stages' per-item retry
     and any future docker-run resume that reuses the same retryable/terminal split."""
-    text = str(exc)
-    return any(sub in text for sub in RETRYABLE_ERRORS)
+    return any(sub in error for sub in RETRYABLE_ERRORS)
 
 
 def block_to_dict(block) -> dict:
@@ -106,8 +104,13 @@ def message_to_dict(message) -> dict:
 
 
 async def run_query(prompt: str, options: ClaudeAgentOptions, log_path):
+    """Stream one agent run, returning `(output, meta)`. An aborted run raises AFTER the SDK has
+    already yielded its ResultMessage — max turns is reported that way — so the failure is caught
+    here and reported through `meta["error"]` instead: letting it propagate would throw away the
+    `cost_usd` that run had genuinely spent, which is what used to make every cost figure in this
+    repo an under-report of the abort rate."""
     trajectory = open(log_path, "w") if log_path else None
-    result = None
+    result, error = None, None
     try:
         async for message in query(prompt=prompt, options=options):
             if trajectory:
@@ -115,21 +118,24 @@ async def run_query(prompt: str, options: ClaudeAgentOptions, log_path):
                 trajectory.flush()
             if isinstance(message, ResultMessage):
                 result = message
+    except Exception as e:
+        error = str(e)
     finally:
         if trajectory:
             trajectory.close()
     meta = {"cost_usd": result.total_cost_usd, "num_turns": result.num_turns} if result else {}
-    output = result.structured_output if result and not result.is_error else None
+    if error or (result and result.is_error):
+        meta["error"] = error or "agent returned an error result"
+    output = result.structured_output if result and not result.is_error and not error else None
     return output, meta
 
 
 def run_agent(prompt: str, options: ClaudeAgentOptions, *, log_path=None):
     """Run the agent to completion, streaming its trajectory to `log_path` (jsonl, one message per
     line, flushed live), and return `(output, meta)`: `output` is the schema-validated structured
-    output `options.output_format` produced (None if the run produced no valid result); `meta`
-    carries `cost_usd` / `num_turns` from the SDK's ResultMessage. Raises whatever the SDK raises
-    on an aborted run (max turns, API/subprocess failure) — the caller decides retry vs. terminal
-    via `is_retryable_error`."""
+    output `options.output_format` produced, None if the run produced no valid result; `meta`
+    carries `cost_usd` / `num_turns` from the SDK's ResultMessage, plus `error` when the run
+    aborted. It does not raise — an abort still costs money, so it is reported, not thrown."""
     if log_path:
         Path(log_path).parent.mkdir(parents=True, exist_ok=True)
     return asyncio.run(run_query(prompt, options, log_path))
@@ -138,17 +144,15 @@ def run_agent(prompt: str, options: ClaudeAgentOptions, *, log_path=None):
 def run_agent_retrying(prompt, options, *, log_path=None,
                        retries=AGENT_RETRIES, backoff=AGENT_BACKOFF_SEC):
     """`run_agent` with retries on a retryable failure (exponential backoff). Returns `(output,
-    meta)`: `output` is None on a terminal or retries-exhausted failure; `meta` carries
-    `cost_usd`/`num_turns`, plus an `error` string when the run raised. Shared by the finder and
-    inspect — the per-item worker turns `output is None` into its own miss record."""
+    meta)`: `output` is None on a terminal or retries-exhausted failure, `meta` carries
+    `cost_usd`/`num_turns` — of the last attempt — plus an `error` string when the run failed.
+    Shared by the agent stages; each per-item worker turns `output is None` into its own miss."""
     for attempt in range(retries + 1):
-        try:
-            return run_agent(prompt, options, log_path=log_path)
-        except Exception as e:
-            if is_retryable_error(e) and attempt < retries:
-                time.sleep(backoff * (2 ** attempt))
-                continue
-            return None, {"error": str(e)[:200]}
+        output, meta = run_agent(prompt, options, log_path=log_path)
+        error = meta.get("error")
+        if not error or not is_retryable_error(error) or attempt == retries:
+            return output, meta
+        time.sleep(backoff * (2 ** attempt))
 
 
 def load_agent_result(result_path, *, force=False, resume=False) -> dict | None:

@@ -1,7 +1,7 @@
 """NVD source (M3) — beyond-ecosystem CVEs: NVD CVEs that reference a GitHub repo and are
 uncovered by OSV/Morefixes/ReposVul, dug out of a ~48k low-signal haystack (other languages +
-PoC/writeup repos). The pipeline: prefilter (deterministic, recall-first) → inspect (Haiku, extract
-repo + vulnerable_files + languages) → route → finder (Sonnet). See docs/mine-filters Issue C.
+PoC/writeup repos). The pipeline: prefilter (deterministic, precision-first) → inspect (Haiku,
+extract repo + vulnerable_files + languages) → route → finder (Sonnet).
 
 This file = the deterministic prefilter (`nvd_universe` + `prefilter`), `route`, and the `NVDSource`
 wiring them together (prefilter → inspect → route → finder); the inspect agent is in
@@ -30,8 +30,11 @@ NVD_INSPECT_CACHE_PATH = get_dataset_path('raw_cve') / 'NVD' / 'nvd_inspect.json
 NVD_CACHE_PATH = get_dataset_path('raw_cve') / 'NVD' / 'nvd_fixes.jsonl'
 
 NVD_PATH = get_dataset_path('raw_cve') / 'NVD' / 'nvd.jsonl'
+NVD_UNIVERSE_CACHE_PATH = get_dataset_path('raw_cve') / 'NVD' / 'nvd_universe.jsonl'
 NVD_REPO_LANG_CACHE_PATH = get_dataset_path('raw_cve') / 'NVD' / 'nvd_repo_language.json'
 LANG_WORKERS = 16
+LANG_CACHE_FLUSH = 200      # lookups between cache writes — the pool is tens of thousands of calls
+
 
 # An NVD description hitting one of these keeps the CVE regardless of repo language — a union
 # signal (keyword recall is only ~32%), not the gate. Word-boundary, case-insensitive.
@@ -73,10 +76,16 @@ def covered_cves() -> set:
     return set(known_source_cves()) | set(read_osv_fix_commits(OSV_ZIP_PATH).keys())
 
 
-def nvd_universe() -> list:
+def nvd_universe(force=False) -> list:
     """The M3 haystack: NVD CVEs that reference a GitHub source repo and are uncovered by
-    OSV/Morefixes/ReposVul (~48k). Each entry keeps `{cve_id, desc, cwe_ids, repos,
-    cpe_products}` — cwe_ids/cpe_products carry through to the mined record."""
+    OSV/Morefixes/ReposVul (~48k). Only `cwe_ids` reaches the mined record; `repos` is the
+    prefilter's own signal, `refs` is what inspect resolves the real repo from, and
+    `cpe_products` is carried for a CPE-vs-repo-language prefilter that is not built yet.
+
+    Cached like every other source's expensive input: deriving it streams NVD's 426 MB and reads
+    every other source's raw data behind `covered_cves`, minutes a resume should not repeat."""
+    if not force and NVD_UNIVERSE_CACHE_PATH.exists():
+        return load_file(NVD_UNIVERSE_CACHE_PATH)
     covered = covered_cves()
     universe = []
     for line in open(NVD_PATH):                 # 426M / 366k lines — stream, not a whole-file load
@@ -90,10 +99,12 @@ def nvd_universe() -> list:
             "cve_id": record["id"],
             "desc": record.get("desc", ""),
             "cwe_ids": record.get("cwe_ids", []),
-            "repos": repos,                          # filtered github repos — prefilter's own use
-            "refs": record.get("refs", []),          # raw NVD references — inspect resolves the repo
+            "repos": repos,
+            "refs": record.get("refs", []),
             "cpe_products": record.get("cpe_products", []),
         })
+    NVD_UNIVERSE_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
+    save_file(universe, NVD_UNIVERSE_CACHE_PATH)
     return universe
 
 
@@ -113,43 +124,49 @@ def repos_to_language(universe) -> set:
 def fetch_repo_languages(projects, force=False):
     """Return `{owner/repo: language}` for `projects` via the GitHub API, threaded and cached
     (`NVD_REPO_LANG_CACHE_PATH`). "" means no detected language; a failed lookup is left uncached
-    so a later run retries it."""
+    so a later run retries it. The cache is flushed as answers arrive, not once at the end — the
+    full pool is tens of thousands of calls against an hourly quota, and a crash that lost them
+    would cost hours to earn back."""
     cache = {} if force or not NVD_REPO_LANG_CACHE_PATH.exists() \
         else json.loads(NVD_REPO_LANG_CACHE_PATH.read_text())
     todo = [p for p in projects if p not in cache]
     if todo:
+        NVD_REPO_LANG_CACHE_PATH.parent.mkdir(parents=True, exist_ok=True)
         with ThreadPoolExecutor(max_workers=LANG_WORKERS) as executor:
             futures = {executor.submit(get_repo_language, p): p for p in todo}
-            for future in tqdm(as_completed(futures), total=len(futures),
-                desc="repo languages", dynamic_ncols=True):
+            for done, future in enumerate(tqdm(as_completed(futures), total=len(futures),
+                desc="repo languages", dynamic_ncols=True), start=1):
                 lang = future.result()
                 if lang is not None:            # cache success ("" = no language); retry failures
                     cache[futures[future]] = lang
+                if done % LANG_CACHE_FLUSH == 0:
+                    NVD_REPO_LANG_CACHE_PATH.write_text(json.dumps(cache))
         NVD_REPO_LANG_CACHE_PATH.write_text(json.dumps(cache))
     return cache
 
 
 def should_drop(cve, lang_cache) -> bool:
-    """Recall-first: drop ONLY when every referenced repo has a known, non-target primary language.
-    A target-language keyword hit, a PoC repo, or any repo whose language is unknown/uncached/none
-    keeps it (ambiguity is passed to inspect, never dropped here)."""
+    """Whether the prefilter drops this CVE before inspect is ever paid for. Precision-first: keep
+    only on positive target-language evidence — a keyword in the description, or a referenced repo
+    GitHub labels as the target language. Everything unclear is dropped: a PoC/writeup repo, whose
+    language describes the exploit rather than the vulnerable project, and a repo the API never
+    resolved. That is where the ~10x saving over inspecting the whole haystack comes from, and it
+    is also the only recall this filter gives up.
+
+    Recall-first instead — pay ~10x the inspect bill to keep everything unclear — is the same two
+    signals with the last line inverted: drop only once every referenced repo has a known,
+    non-target language."""
     if PYTHON_KEYWORDS.search(cve["desc"]):
         return False
-    langs = set()
-    for owner, repo in cve["repos"]:
-        if is_poc_repo(owner, repo):
-            return False
-        lang = lang_cache.get(f"{owner}/{repo}")
-        if not lang:                            # None (uncached/failed) or "" (no language) → keep
-            return False
-        langs.add(lang.lower())
-    return TARGET_LANG not in langs             # every repo known and non-target → drop
+    return not any(not is_poc_repo(owner, repo)
+                   and (lang_cache.get(f"{owner}/{repo}") or "").lower() == TARGET_LANG
+                   for owner, repo in cve["repos"])
 
 
 def prefilter(force=False):
-    """Deterministic recall-first cut: the NVD universe minus the CVEs whose every repo is a known
-    non-Python language. Returns `(universe, survivors)`; survivors feed inspect."""
-    universe = nvd_universe()
+    """The deterministic cut ahead of inspect: the NVD universe minus what `should_drop` rejects,
+    6.15% of it surviving. Returns `(universe, survivors)`; survivors feed inspect."""
+    universe = nvd_universe(force=force)
     lang_cache = fetch_repo_languages(repos_to_language(universe), force=force)
     survivors = [cve for cve in universe if not should_drop(cve, lang_cache)]
     return universe, survivors
