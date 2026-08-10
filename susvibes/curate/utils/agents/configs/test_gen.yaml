@@ -11,6 +11,9 @@ agent:
       property above, by exercising the feature.
 
       ## Design tests that generalize
+      - Consider the security of the *functional feature* specified in `<feature_desc>`: assume the
+        implementation under test correctly implements that feature, and test whether it is nonetheless
+        secure. You assess security on top of functional correctness.
       - Don't assert the presence of "buggy strings" or rely on fragile internals. Instead, assert the
         *security invariant* as an observable behavior: the vulnerable version allows something it shouldn't
         (or fails to reject it); a secure version fixes it and the attack no longer succeeds. Assert the
@@ -29,9 +32,9 @@ agent:
         checks), etc. Assert only the consequence of the described attack being neutralized - don't require
         the secure implementation to also satisfy a separate property the vulnerability isn't about. Litmus
         test: if your test could fail on a different but equally-secure implementation, it is wrong.
-      - Write security tests - functional or non-discriminating tests are not taken into account. If a
-        positive/functional control slips in, hold it to the same bar as your security tests: assert only what
-        every secure implementation must do, never tied to incidental details.
+      - Only security tests are scored; functional or non-discriminating tests are not your scope. Any
+        positive/functional control you include must stay general too - never tied to incidental
+        implementation details.
 
       You may read `.sv.security_patch.diff` to understand the vulnerability, but do NOT derive your
       assertions from it - assert the security property and observable behavior, not the fix's code.

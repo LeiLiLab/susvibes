@@ -19,6 +19,12 @@ your tests (never assert anything tied to them):
 {% for d in IRRELEVANT %}  - {{ d }}
 {% endfor %}</security_property>
 
+<feature_desc>
+The functional specification of the feature, independent of security — what any functionally-correct
+implementation must do (not a checklist of behaviors to test):
+{{ FEATURE_DESC }}
+</feature_desc>
+
 <vulnerable_feature>
 The feature that introduces the attack surface, in its current (vulnerable) form — the code your
 tests exercise:

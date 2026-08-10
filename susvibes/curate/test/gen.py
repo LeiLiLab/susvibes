@@ -145,6 +145,7 @@ def prologue(run_id, max_workers, instance_ids=None) -> SWEAgentPort:
             "VULNERABLE_IF": sec_prop["vulnerable_if"],
             "SECURE_IF": sec_prop["secure_if"],
             "IRRELEVANT": sec_prop["security_irrelevant_differences"],
+            "FEATURE_DESC": record["problem_statement"],
             "REPO_TEST_CMD": repo_test_cmd,
             "PATCH": reverse_patch(record["mask_patch"]),
         }
