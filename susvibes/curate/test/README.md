@@ -72,7 +72,7 @@ This path expects the upstream pipeline to have been run in `--require_test fals
 - `python -m susvibes.curate.mine.core --require_test false ...` — keeps vulnerability records that have no associated test files
 - `python -m susvibes.curate.adaptive_gen.core --require_test false ...` — produces tasks without requiring a `test_patch` field
 - `python -m susvibes.curate.env_setup.build_repo --prologue --require_test false ...` — instructs SWE-agent (sv-env-setup) to run the full repo test suite instead of a designated set of test files
-- `python -m susvibes.curate.mine.post.secprop --run_id <run_id> ...` — annotates each record with its **security property** (`invariant` / `vulnerable_if` / `secure_if` / `security_irrelevant_differences`). **Required**: `test.gen` renders these into the agent prompt, so each record it reads must carry a `secprop` field.
+- `python -m susvibes.curate.mine.post.sec_prop --run_id <run_id> ...` — annotates each record with its **security property** (`invariant` / `vulnerable_if` / `secure_if` / `security_irrelevant_differences`). **Required**: `test.gen` renders these into the agent prompt, so each record it reads must carry a `secprop` field.
 
 The synthesis agent uses the SWE-agent config `susvibes_test_gen.yaml` (placed under SWE-agent's `config/` directory) with the run settings in [`../utils/agents/settings/test_gen.yaml`](../utils/agents/settings/test_gen.yaml) (model, workers, conda env). Its `instance_template` holds the static how-to; the per-instance security property + vulnerable feature are rendered into `{{problem_statement}}` by `gen.py` from [`prompts.py`](prompts.py).
 
@@ -92,10 +92,16 @@ For each instance, the agent produces:
 - new security-test file(s) added to the repo's own test suite (written in the repo's test framework, the one `REPO_TEST_CMD` uses).
 - `.sv.run_gen_test.sh` — the entrypoint. It runs only those new tests via the repo's test runner (sending all run output to a temp file), then a small parser it writes reads that file and prints, as the **only stdout line**, a single JSON object mapping each test name to a boolean (`true` = secure observed, `false` = vulnerable or could-not-run). The harness reads this from stdout — no results file.
 
+The epilogue then takes each agent's diff onto its record as `test_patch` — the same field
+`test_mask` writes for the instances that HAD tests to hide — keeping only what `git apply` accepts,
+and records `keep.gen_test`. A patch that will not apply is this stage's failure to conclude, so
+validation never has to be the first to discover the tests were unusable. `--prologue` / `--epilogue`
+split the two halves when the agent batch is run by hand.
+
 ### 2. Validate
 
 ```bash
-python -m susvibes.curate.validate.no_test \
+python -m susvibes.curate.validate.gen_test \
   --run_id <run_id> \
   --max_workers <N> \
   [--from_existing_specs] \

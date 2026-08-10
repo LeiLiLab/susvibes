@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """Self-contained, py2/py3 dual-compatible static coverage engine.
 
-This whole package is COPYied into per-version ``cov_py`` containers and run under
+This whole package is COPYied into per-version ``static_py`` containers and run under
 that interpreter's native ast/jedi/parso, so it has ZERO susvibes dependencies and
 is written in the py2/py3 common subset (no StrEnum/TypedDict/f-string/py3-only
 annotations). Internal imports are RELATIVE so the package works both as

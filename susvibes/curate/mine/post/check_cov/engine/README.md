@@ -1,7 +1,7 @@
 # check_cov engine — in-container scoring
 
 The `engine/` package is the scoring core of `check_cov`. It is **vendored**: the host
-COPYies it into every per-instance `cov_py` container's site-packages as
+COPYies it into every per-instance `static_py` container's site-packages as
 `_susvibes_cov_engine` and runs it there, so it parses each repo with that
 interpreter's **native `ast`/`jedi`/`parso`**. The host orchestration is in
 [`../README.md`](../README.md); this file is the **scoring reference** — what evidence

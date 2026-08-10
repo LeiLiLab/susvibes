@@ -38,7 +38,7 @@ Scope discovery uses parso (the syntax tree), NOT jedi name inference:
 imports, which is not thread-safe and corrupts its pipe under the thread pool.
 Only ``get_references`` (a pure reference search) uses jedi.
 
-Runs inside a version-matched cov_py container, so the jedi/parso here are the
+Runs inside a version-matched static_py container, so the jedi/parso here are the
 ones pinned for the target's Python version (jedi 0.19/parso 0.8 on py3.6+, jedi
 0.17/parso 0.7 on py2.7/3.5) — so jedi parses the sources and the trace is the sole
 coverage engine (no file-level fallback).

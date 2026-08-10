@@ -26,29 +26,29 @@ class ReposVulHandler:
     force = False
 
     @classmethod
-    def remotely_active(cls, data_record) -> bool:
+    def remotely_active(cls, record) -> bool:
         """Whether the record's fix commit is still reachable on GitHub — the raw dataset carries
         links to repos and commits that have since gone."""
-        return github_get(data_record['html_url'] + '.patch', allow_redirects=True) is not None
+        return github_get(record['html_url'] + '.patch', allow_redirects=True) is not None
 
     @classmethod
     def _fetch(cls):
         """Keep the still-reachable records, assemble each patch from details[], and return
         the records to cache."""
-        dataset = list(filter(cls.remotely_active, load_file(cls.raw_path)))
-        for data_record in dataset:
-            data_record["patch"] = {}
-            for file_change in data_record["details"]:
-                data_record["patch"][file_change["file_name"]] = file_change["patch"]
-            data_record["cwe_ids"] = data_record.pop("cwe_id")
-        return dataset
+        records = list(filter(cls.remotely_active, load_file(cls.raw_path)))
+        for record in records:
+            record["patch"] = {}
+            for file_change in record["details"]:
+                record["patch"][file_change["file_name"]] = file_change["patch"]
+            record["cwe_ids"] = record.pop("cwe_id")
+        return records
 
     @classmethod
     def records(cls, known: KnownSet):
         if not cls.force and cls.cache_path.exists():
-            dataset = load_file(cls.cache_path)
+            records = load_file(cls.cache_path)
         else:
-            dataset = cls._fetch()
-            save_file(dataset, cls.cache_path)
-        return [record for record in dataset
+            records = cls._fetch()
+            save_file(records, cls.cache_path)
+        return [record for record in records
                 if not known.has(record["cve_id"], record["commit_id"])]

@@ -1,4 +1,4 @@
-"""Thin Claude Agent SDK glue for the curate read-only agents (finder, inspect, secprop).
+"""Thin Claude Agent SDK glue for the curate read-only agents (finder, inspect, sec_prop).
 
 `run_agent` runs the SDK's `query()` to completion, streams the trajectory to a jsonl log as
 each message arrives, and returns the schema-validated structured output — the SDK does the
@@ -7,14 +7,12 @@ job. Callers build a full `ClaudeAgentOptions` (model, tools, allowed_tools, per
 output_format, …) and pass it through; nothing is hidden. This is deliberately not a Port/class,
 which would duplicate and hide the SDK's own option surface.
 
-`load_agent_result` / `save_agent_result` are the shared per-item result cache every agent stage
-uses, so one item is never paid for twice: each `<x>_single` writes its outcome — concluded or
-`error`-marked — and reads it back on a re-run. Like `run_agent`'s `log_path`, the path is the
-caller's to choose; only the reuse policy is shared.
+Each stage caches its own per-item outcome through `core/report.py`; this module only runs the
+agent and streams its trajectory, which is the evidence beside that report.
 
 Bedrock config comes from `.env` (`CLAUDE_CODE_USE_BEDROCK=1`, `AWS_BEARER_TOKEN_BEDROCK`,
 `AWS_REGION_NAME`); the model is a Bedrock inference profile, e.g. `us.anthropic.claude-sonnet-5`
-(finder) or `us.anthropic.claude-haiku-4-5-20251001-v1:0` (inspect). secprop overrides this to the
+(finder) or `us.anthropic.claude-haiku-4-5-20251001-v1:0` (inspect). sec_prop overrides this to the
 direct Anthropic API, the only provider that serves WebSearch.
 """
 
@@ -25,7 +23,6 @@ from pathlib import Path
 
 from dotenv import load_dotenv
 
-from susvibes.core.utils import load_file, save_file
 
 load_dotenv()
 
@@ -51,9 +48,11 @@ READONLY_TOOLS = ["Bash", "Read", "Grep", "WebFetch", "WebSearch"]  # read-only 
 AGENT_ENV = {"ANTHROPIC_MAX_RETRIES": "10"}
 MAX_BUFFER_SIZE = 10 * 1024 * 1024
 
-# Substrings marking an agent-run failure worth retrying (transient API/network/subprocess) rather
-# than terminal (max turns, a refusal). Matched against str(exc); widen as new shapes surface.
-RETRYABLE_ERRORS = (
+# Substrings marking an agent-run failure that a repeat attempt may get past on its own — a
+# transient API/network/subprocess hiccup — as opposed to a terminal one (max turns, a refusal).
+# Distinct from `--resume`, which re-runs EVERY errored item later: this is the in-loop retry, and
+# only a transient failure is worth one. Matched against str(exc); widen as new shapes surface.
+TRANSIENT_ERRORS = (
     "Command failed with exit code",
     "rate_limit", "rate limit", "Rate limit", "429",
     "overloaded", "Overloaded", "503", "504",
@@ -63,15 +62,15 @@ RETRYABLE_ERRORS = (
 )
 
 
-AGENT_RETRIES = 2               # extra attempts on a retryable failure (the CLI already retries 429/5xx)
+AGENT_RETRIES = 2               # extra attempts on a transient failure (the CLI already retries 429/5xx)
 AGENT_BACKOFF_SEC = 30          # exponential backoff base: 30s, 60s, 120s, ... per retry
 
 
-def is_retryable_error(error: str) -> bool:
-    """Whether an agent run's failure message is worth retrying (a transient API/network/subprocess
-    failure) rather than terminal (max turns, a refusal). Shared by the agent stages' per-item retry
-    and any future docker-run resume that reuses the same retryable/terminal split."""
-    return any(sub in error for sub in RETRYABLE_ERRORS)
+def is_transient_error(error: str) -> bool:
+    """Whether an agent run's failure is transient — a repeat attempt right now may get past it —
+    rather than terminal (max turns, a refusal). Gates the in-loop retry only; `--resume` re-runs
+    every errored item regardless, so do not read this as "retryable"."""
+    return any(sub in error for sub in TRANSIENT_ERRORS)
 
 
 def block_to_dict(block) -> dict:
@@ -143,36 +142,13 @@ def run_agent(prompt: str, options: ClaudeAgentOptions, *, log_path=None):
 
 def run_agent_retrying(prompt, options, *, log_path=None,
                        retries=AGENT_RETRIES, backoff=AGENT_BACKOFF_SEC):
-    """`run_agent` with retries on a retryable failure (exponential backoff). Returns `(output,
+    """`run_agent` with retries on a transient failure (exponential backoff). Returns `(output,
     meta)`: `output` is None on a terminal or retries-exhausted failure, `meta` carries
     `cost_usd`/`num_turns` — of the last attempt — plus an `error` string when the run failed.
     Shared by the agent stages; each per-item worker turns `output is None` into its own miss."""
     for attempt in range(retries + 1):
         output, meta = run_agent(prompt, options, log_path=log_path)
         error = meta.get("error")
-        if not error or not is_retryable_error(error) or attempt == retries:
+        if not error or not is_transient_error(error) or attempt == retries:
             return output, meta
         time.sleep(backoff * (2 ** attempt))
-
-
-def load_agent_result(result_path, *, force=False, resume=False) -> dict | None:
-    """One item's agent result cached by an earlier run, or None when it must be (re-)run — the
-    three-state ladder every agent stage shares: a plain run reuses whatever is cached (an
-    `error`-marked outcome included, so a permanently failing item costs nothing to re-visit),
-    `resume` re-runs only the errored ones, `force` re-runs everything."""
-    result_path = Path(result_path)
-    if force or not result_path.exists():
-        return None
-    result = load_file(result_path)
-    result.setdefault("error", None)         # caches written before `error` joined the contract
-    if resume and result["error"]:
-        return None
-    return result
-
-
-def save_agent_result(result, result_path) -> None:
-    """Cache one item's agent result the moment it concludes — an aborted run is cached too
-    (`error` set), so the outcome survives a crash mid-batch either way."""
-    result_path = Path(result_path)
-    result_path.parent.mkdir(parents=True, exist_ok=True)
-    save_file(result, result_path)

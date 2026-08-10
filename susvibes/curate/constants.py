@@ -7,6 +7,21 @@ CURATE_LOG_DIR = root_dir / "logs/curate"
 AGENT_SETTINGS_DIR = Path(__file__).parent / "utils/agents/settings"
 
 
+class KeepStage(StrEnum):
+    """Every stage that records a verdict under a record's `keep`. Centralized because a gate name
+    is data: a module importing another one just to learn a string drags its dependencies along.
+    This list IS the set of gates — what `wrap_up` reasons over, and what a reader checks a stage's
+    `exclude` / `required` against."""
+    DEV_TOOLS = "dev_tools"
+    TEST_MASK = "test_mask"
+    SEC_PROP = "sec_prop"
+    CHECK_COV = "func_coverage"         # the field it writes, not the module's name
+    BUILD_REPO = "build_repo"
+    ADAPTIVE_GEN = "adaptive_gen"
+    GEN_TEST = "gen_test"
+    VALIDATE = "validate"
+
+
 def get_log_dir(run_id: str, *module: str) -> Path:
     """Log dir for a run, grouped by run_id first then module:
     ``logs/curate/<run_id>/<module...>/`` — e.g.

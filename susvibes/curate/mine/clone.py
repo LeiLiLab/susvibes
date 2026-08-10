@@ -10,8 +10,8 @@ a ready clone of one kind, making it only if it isn't there yet:
   reads (git log/show/grep over history, never a checkout). These live under `LOCAL_REPOS_DIR`
   too, in `.sv.blobless/` — one configured root holds every clone, and the dot keeps them apart
   from the `owner__repo` full clones beside them.
-- `finder_clone` — which of the two the finder gets: an existing full clone if there is one, else
-  a blobless one.
+- `blobless_clone` — also what a read-only investigation agent gets: the only clone no other
+  stage writes to.
 
 This layer owns every git write: clones are serialized per-repo by RepoLocks so concurrent finder
 threads never clone one repo twice; the agents themselves only read (no fetch/checkout/reset).
@@ -69,12 +69,19 @@ def full_clone(project, root_dir, force=False):
 
 def blobless_clone(project):
     """The bare `--filter=blob:none` clone of project ("owner/repo") under BLOBLESS_DIR — full
-    commit graph and trees, no file blobs (fetched lazily on access), no work tree. Reuses an
-    existing clone; returns the clone path."""
-    dest = get_repo_dir(project, BLOBLESS_DIR)
-    if is_bare_repo(dest):
-        return dest
-    return clone_into(project, dest, "--bare", "--filter=blob:none")
+    commit graph and trees, no file blobs (fetched lazily on access), no work tree. This is what a
+    read-only investigation agent reads: no work tree to write into, and the one clone no other
+    stage resets under it while the agent spends minutes there. Reuses an existing clone, under the
+    lock so concurrent threads clone it once. Returns the clone path, or None if the clone failed.
+    """
+    with RepoLocks.locked(project):
+        dest = get_repo_dir(project, BLOBLESS_DIR)
+        if is_bare_repo(dest):
+            return dest
+        try:
+            return clone_into(project, dest, "--bare", "--filter=blob:none")
+        except subprocess.SubprocessError:
+            return None
 
 
 def fetch_commit(repo_dir, commit):
@@ -85,14 +92,3 @@ def fetch_commit(repo_dir, commit):
     run(["git", "fetch", "--no-tags", "origin", commit], cwd=repo_dir)
 
 
-def finder_clone(project):
-    """A history-carrying clone for the finder: the existing full clone if there is one, otherwise
-    a blobless one. Serialized per-repo so concurrent finder threads clone the repo once.
-    Returns the clone path, or None if the clone failed."""
-    if is_git_repo(get_repo_dir(project, LOCAL_REPOS_DIR)):
-        return get_repo_dir(project, LOCAL_REPOS_DIR)
-    with RepoLocks.locked(project):
-        try:
-            return blobless_clone(project)
-        except subprocess.SubprocessError:
-            return None

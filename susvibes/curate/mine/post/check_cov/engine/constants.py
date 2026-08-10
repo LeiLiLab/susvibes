@@ -6,7 +6,7 @@ Two parts:
     helpers that build results.
   - TUNING: scoring thresholds and per-engine knobs, grouped by owning engine.
 
-py2/py3 dual-compatible (this whole package is vendored into py2.7-3.12 cov_py
+py2/py3 dual-compatible (this whole package is vendored into py2.7-3.12 static_py
 containers): the label set is a plain string-constant class, NOT ``enum.StrEnum``
 (3.11+, unavailable in older containers). A member still IS its string value
 (compare/serialize/dict-key it directly), so the StrEnum contract the rest of the

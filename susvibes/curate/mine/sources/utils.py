@@ -42,7 +42,7 @@ def fetch_pinned_patches(results, cache_path):
     also keeps a failed fetch (rate limit, outage) from blanking a patch an earlier run had
     assembled fine."""
     cache_path = Path(cache_path)
-    assembled = {r["cve_id"]: r for r in load_file(cache_path)} if cache_path.exists() else {}
+    assembled = {record["cve_id"]: record for record in load_file(cache_path)} if cache_path.exists() else {}
     for result in results:
         if not result["commit"] or result["multi_commit"]:
             continue

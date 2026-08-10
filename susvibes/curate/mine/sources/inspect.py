@@ -13,12 +13,12 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from tqdm import tqdm
 from claude_agent_sdk import ClaudeAgentOptions
 
-from susvibes.core.agents.claude import (
-    run_agent_retrying, load_agent_result, save_agent_result, AGENT_ENV, MAX_BUFFER_SIZE)
+from susvibes.core.agents.claude import run_agent_retrying, AGENT_ENV, MAX_BUFFER_SIZE
+from susvibes.core.report import reuse_report, save_report
 from susvibes.curate.constants import get_log_dir
 
 LOG_TRAJECTORY = "trajectory.jsonl"
-LOG_RESULT = "result.json"
+LOG_REPORT = "report.json"
 
 INSPECT_MODEL = "us.anthropic.claude-haiku-4-5-20251001-v1:0"
 # Web search + fetch, plus Bash to curl the GitHub API. WebSearch isn't provisioned on Bedrock (the
@@ -91,13 +91,13 @@ def refs_block(refs) -> str:
 
 def inspect_single(record, run_id, force=False, resume=False):
     """Resolve `{repo, vulnerable_files, languages}` for one NVD CVE from its advisory + web search
-    (Haiku, no clone; retryable failures retried), reusing this CVE's cached result unless
+    (Haiku, no clone; transient failures retried), reusing this CVE's cached report unless
     `force`/`resume` asks to re-run it. Always returns the record merged with the output plus
-    `error`/`_meta` (empty on a cache hit), so the outcome is cacheable and resumable."""
+    `error`/`meta` (this run's cost/turns; a reused report is marked `reused`), so the outcome is cacheable and resumable."""
     log_dir = get_log_dir(run_id, "mine", "inspect") / record["cve_id"]
-    result = load_agent_result(log_dir / LOG_RESULT, force=force, resume=resume)
-    if result is not None:
-        return {**record, **result, "_meta": {}}
+    report = reuse_report(log_dir / LOG_REPORT, force=force, resume=resume)
+    if report is not None:
+        return {**record, **report}
 
     options = ClaudeAgentOptions(
         model=INSPECT_MODEL,
@@ -114,10 +114,11 @@ def inspect_single(record, run_id, force=False, resume=False):
     prompt = INSPECT_USER.format(
         cve_id=record["cve_id"], desc=record["desc"], refs=refs_block(record["refs"]))
     output, meta = run_agent_retrying(prompt, options, log_path=log_dir / LOG_TRAJECTORY)
-    result = {**output, "error": None} if output is not None \
+    report = {**output, "error": None} if output is not None \
         else inspect_miss(meta.get("error", "agent produced no result"))
-    save_agent_result(result, log_dir / LOG_RESULT)
-    return {**record, **result, "_meta": meta}
+    report["meta"] = meta
+    save_report(report, log_dir / LOG_REPORT)
+    return {**record, **report}
 
 
 def inspect_threadpool(records, run_id, max_workers=INSPECT_WORKERS, force=False, resume=False):
@@ -138,6 +139,7 @@ def inspect_threadpool(records, run_id, max_workers=INSPECT_WORKERS, force=False
                 pbar.update(1)
                 with_repo = sum(1 for r in results if r["repo"])
                 errored = sum(1 for r in results if r["error"])
-                cost = sum(r["_meta"].get("cost_usd") or 0 for r in results)
+                cost = sum((r.get("meta") or {}).get("cost_usd") or 0
+                           for r in results if not r.get("reused"))
                 pbar.set_description(f"{with_repo} with-repo, {errored} err, ${cost:.2f}")
     return results

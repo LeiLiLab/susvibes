@@ -18,15 +18,18 @@ import docker
 import docker.errors
 
 from susvibes.core.constants import *
-from susvibes.curate.constants import get_log_dir, LOGS_PARSER_MODEL
+from susvibes.curate.constants import KeepStage, get_log_dir, LOGS_PARSER_MODEL
 from susvibes.core.env import Deployment, Env
 from susvibes.core.logs import LogsHandler, get_llm_cost, reset_llm_cost
-from susvibes.curate.validate.constants import LOG_INSTANCE, LOG_TEST_OUTPUT, LOG_TIMEOUT, LOG_SUMMARY
-from susvibes.curate.validate.utils import build_clean_eval_deployment
-from susvibes.curate.utils import get_summary, print_summary
-from susvibes.core.utils import load_file, save_file, get_image_name, setup_instance_logger, parse_instance_id, get_env_specs, save_env_specs, Route
+from susvibes.curate.validate.constants import (
+    LOG_INSTANCE, LOG_TEST_OUTPUT, LOG_REPORT, LOG_SUMMARY, ValidateStatus, ValidationRejected,
+    KEEP_STAGE)
+from susvibes.curate.validate.utils import (
+    build_clean_eval_deployment, validate_report, validate_miss, apply_validate_report)
+from susvibes.curate.utils import should_keep
+from susvibes.core.report import reuse_report, save_report, get_report_summary, print_summary
+from susvibes.core.utils import load_file, save_file, get_image_name, setup_instance_logger, parse_instance_id, get_env_specs, save_env_specs, Route, PatchError, is_patch_error
 
-docker_client = docker.from_env()
 
 TEST_RUNS = ["base", "rollback", "base_no_test", "rollback_with_test", "task"]
 
@@ -63,46 +66,41 @@ def run_test_suite_multi(
             [(test, {"reverse": True})], [(sec, {"reverse": True})],
             [(data_record["task_patch"], {})]
         ]
-    timeout_path = log_dir / LOG_TIMEOUT
-    timed_out_dict = load_file(timeout_path) if timeout_path.exists() else {}
-
     test_logs_list, timed_out_list = [], []
     for run_patches, run_name in zip(runs_list, TEST_RUNS):
+        try:
+            deployment: Deployment = env.build_instance_deployment(
+                base_commit=data_record["base_commit"],
+                patches=run_patches,
+                logger=logger,
+            )
+        except docker.errors.BuildError as e:
+            msg = f"Failed to build instance deployment: {e}"
+            logger.error(msg)
+            # Decide here, where the build log is: `git apply` refusing the test_patch is a verdict
+            # on the instance, anything else is the harness breaking.
+            raise PatchError(msg) if is_patch_error(str(e)) else RuntimeError(msg)
+        try:
+            deployment.create_container(command=Route.route_test_cmd(flags, run_name),
+                mem_limit=ContainerLimits.MEM_LIMIT, cpu_limit=ContainerLimits.CPU_LIMIT)
+        except docker.errors.APIError as e:
+            msg = f"Failed to create container: {e}"
+            logger.error(msg)
+            raise RuntimeError(msg)
+        try:
+            test_logs, timed_out = deployment.run_with_timeout()
+        except docker.errors.APIError as e:
+            msg = f"Failed to start container: {e}"
+            logger.error(msg)
+            raise RuntimeError(msg)
+        # The logs are evidence beside the report, not a cache: an instance with a cached report
+        # never reaches here, and one without needs a fresh verdict anyway.
         test_output_path = log_dir / LOG_TEST_OUTPUT.format(run_name)
-        if not force and test_output_path.exists():
-            logger.info("Container logs found; reusing.")
-            test_logs = load_file(test_output_path)
-            timed_out = timed_out_dict.get(run_name, False)
-        else:
-            try:
-                deployment: Deployment = env.build_instance_deployment(
-                    base_commit=data_record["base_commit"],
-                    patches=run_patches,
-                    logger=logger,
-                )
-            except docker.errors.BuildError as e:
-                msg = f"Failed to build instance deployment: {e}"
-                logger.error(msg)
-                raise RuntimeError(msg)
-            try:
-                deployment.create_container(command=Route.route_test_cmd(flags, run_name),
-                    mem_limit=ContainerLimits.MEM_LIMIT, cpu_limit=ContainerLimits.CPU_LIMIT)
-            except docker.errors.APIError as e:
-                msg = f"Failed to create container: {e}"
-                logger.error(msg)
-                raise RuntimeError(msg)
-            try:
-                test_logs, timed_out = deployment.run_with_timeout()
-            except docker.errors.APIError as e:
-                msg = f"Failed to start container: {e}"
-                logger.error(msg)
-                raise RuntimeError(msg)
-            test_output_path.parent.mkdir(parents=True, exist_ok=True)
-            save_file(test_logs, test_output_path)
+        test_output_path.parent.mkdir(parents=True, exist_ok=True)
+        save_file(test_logs, test_output_path)
         test_logs_list.append(test_logs)
         timed_out_list.append(timed_out)
 
-    save_file(dict(zip(TEST_RUNS, timed_out_list)), timeout_path)
     return test_logs_list, timed_out_list
 
 def validate_test_breaks(
@@ -114,7 +112,7 @@ def validate_test_breaks(
 ) -> tuple:
     """
     Verify the task on security and functional test breaks.
-    Raises RuntimeError on failure; returns (expected_pf, stats) on success.
+    Raises RuntimeError on failure; returns (expected_pf, test_stats) on success.
     """
     test_pf_list = [env.handle_test_logs(test_logs, timed_out, logger,
         kind=Route.route_logs_kind(flags, run_name))
@@ -125,59 +123,58 @@ def validate_test_breaks(
     test_symb_res_errs_list = [LogsHandler.count_symb_res_errors(test_logs) for test_logs in test_logs_list]
     _, rollback_sre, _, rollback_with_test_sre, _ = test_symb_res_errs_list
     if rollback_with_test_pf.completed() and rollback_with_test_sre > rollback_sre:
-        msg = "Failed to verify task on symbol resolution errors: rollback-{}, rollback_with_test-{}".format(
+        msg = "Failed to validate symbol resolution errors: rollback-{}, rollback_with_test-{}".format(
             rollback_sre, rollback_with_test_sre)
         logger.error(msg)
-        raise RuntimeError(msg)
-    stats = {}
+        raise ValidationRejected(msg)
+    test_stats = {}
     is_broken = rollback_with_test_pf.breaks_more_than(rollback_pf)
     is_repaired = base_pf.excess_breaks_over(base_no_test_pf) \
         < rollback_with_test_pf.excess_breaks_over(rollback_pf)
     if not (is_broken and is_repaired) or base_no_test_pf.breaks_more_than(rollback_pf):
-        msg = "Failed to verify task on sec test breaks: rollback-{}, base_no_test-{}, rollback_with_test-{}, base-{}".format(
+        msg = "Failed to validate sec test breaks: rollback-{}, base_no_test-{}, rollback_with_test-{}, base-{}".format(
             rollback_pf, base_no_test_pf, rollback_with_test_pf, base_pf)
         logger.error(msg)
-        raise RuntimeError(msg)
-    stats["num_sec_tests"] = rollback_with_test_pf.count_excess_breaks_over(rollback_pf) \
+        raise ValidationRejected(msg)
+    test_stats["num_sec_tests"] = rollback_with_test_pf.count_excess_breaks_over(rollback_pf) \
         - base_pf.count_excess_breaks_over(base_no_test_pf)
 
     if not task_pf.breaks_more_than(rollback_pf):
-        msg = "Failed to verify task on functional test breaks: rollback-{}, task-{}".format(
+        msg = "Failed to validate functional test breaks: rollback-{}, task-{}".format(
             rollback_pf, task_pf)
         logger.error(msg)
-        raise RuntimeError(msg)
+        raise ValidationRejected(msg)
 
     expected_pf = {
         "func": rollback_pf.get_raw(),
         "sec": base_pf.excess_breaks_over(base_no_test_pf, to_raw=True)
     }
-    stats["num_func_tests"] = task_pf.count_excess_breaks_over(rollback_pf)
-    return (expected_pf, stats)
+    test_stats["num_func_tests"] = task_pf.count_excess_breaks_over(rollback_pf)
+    return (expected_pf, test_stats)
 
 
 def validate_single(
     data_record: dict,
-    instance_stats: dict,
     env_spec: dict,
     validate_log_dir: Path,
     force: bool = False,
+    resume: bool = False,
     from_base_no_test_image: bool = False,
-) -> tuple[dict | None, str | None]:
-    """Validate a single instance via test execution.
-    Returns (env_spec, None) on success, (None, failure_reason) on failure.
-    On success, data_record is updated in-place with expected_pf and image_name."""
+) -> dict:
+    """Validate a single instance via test execution, reusing this instance's cached report unless
+    `force`/`resume` asks to re-run it. Always returns a report: `validate_status` says how it
+    concluded, `error` is set only when the harness itself failed. The caller projects a validated
+    report onto the record, env_specs and stats — the report is their cache, not their home."""
     instance_id = data_record["instance_id"]
     project, _ = parse_instance_id(instance_id)
 
     log_dir = validate_log_dir / instance_id
-    log_file = log_dir / LOG_INSTANCE
-    logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
-    logger.info(f"Validating environment for {instance_id}...")
+    report = reuse_report(log_dir / LOG_REPORT, force=force, resume=resume)
+    if report is not None:
+        return report
 
-    # Drop any prior-run verdict so a failed re-validation leaves nothing behind
-    # (wrap_up keeps an instance solely on expected_pf being present).
-    for key in ("expected_pf", "flags", "image_name"):
-        data_record.pop(key, None)
+    logger = setup_instance_logger(log_dir / LOG_INSTANCE, __spec__.name, instance_id, handle_tqdm=True)
+    logger.info(f"Validating environment for {instance_id}...")
 
     image_kind = "base_no_test_image" if from_base_no_test_image else "env_image"
     image_name = data_record.get(f"{image_kind}_name")
@@ -208,44 +205,54 @@ def validate_single(
             allow_timeout=lambda id: id >= 3, allow_startup_error=lambda id: id == 4,
             force=force)
         expected_pf, test_stats = validate_test_breaks(env, test_logs_list, timed_out_list, flags, logger=logger)
+        logger.info("Task validated, expected_pf-{}, num_sec_tests-{}, num_func_tests-{}".format(
+            expected_pf, test_stats["num_sec_tests"], test_stats["num_func_tests"]))
+
+        logger.info(f"Building task deployment for {instance_id}...")
+        if from_base_no_test_image:
+            eval_patches = [(data_record["security_patch"], {"reverse": True}), (data_record["mask_patch"], {})]
+        else:
+            eval_patches = [(data_record["task_patch"], {})]
+        try:
+            task_deployment = env.build_instance_deployment(
+                base_commit=data_record["base_commit"],
+                patches=eval_patches,
+                logger=logger
+            )
+        except docker.errors.BuildError as e:
+            msg = f"Failed to build task instance deployment: {e}"
+            logger.error(msg)
+            raise PatchError(msg) if is_patch_error(str(e)) else RuntimeError(msg)
+        task_image_name = get_image_name(f"task_{instance_id}")
+        assert task_deployment.image.tag(task_image_name)
+
+        logger.info(f"Building evaluation deployment for {instance_id}...")
+        eval_image_name = get_image_name(f"eval_{instance_id}")
+        try:
+            build_clean_eval_deployment(task_image_name, eval_image_name, logger)
+        except docker.errors.BuildError as e:
+            msg = f"Failed to build eval deployment: {e}"
+            logger.error(msg)
+            raise RuntimeError(msg)
+    except ValidationRejected as e:
+        report = validate_report(ValidateStatus.INVALID, reason=str(e))
+    except PatchError as e:
+        report = validate_report(ValidateStatus.TEST_PATCH_ERROR, reason=str(e))
     except RuntimeError as e:
-        return None, str(e)
-    logger.info("Task verified, expected_pf-{}, num_sec_tests-{}, num_func_tests-{}".format(
-        expected_pf, test_stats["num_sec_tests"], test_stats["num_func_tests"]))
-
-    logger.info(f"Building task deployment for {instance_id}...")
-    if from_base_no_test_image:
-        eval_patches = [(data_record["security_patch"], {"reverse": True}), (data_record["mask_patch"], {})]
+        report = validate_miss(str(e))
     else:
-        eval_patches = [(data_record["task_patch"], {})]
-    try:
-        task_deployment = env.build_instance_deployment(
-            base_commit=data_record["base_commit"],
-            patches=eval_patches,
-            logger=logger
+        report = validate_report(
+            ValidateStatus.VALIDATED,
+            run=dict(zip(TEST_RUNS, ({"timed_out": t} for t in timed_out_list))),
+            expected_pf=expected_pf,
+            flags=flags,
+            image_name=eval_image_name,
+            logs_handler=env.logs_handler,
+            stats=test_stats,
         )
-    except docker.errors.BuildError as e:
-        msg = f"Failed to build task instance deployment: {e}"
-        logger.error(msg)
-        return None, msg
-    task_image_name = get_image_name(f"task_{instance_id}")
-    assert task_deployment.image.tag(task_image_name)
 
-    logger.info(f"Building evaluation deployment for {instance_id}...")
-    eval_image_name = get_image_name(f"eval_{instance_id}")
-    try:
-        build_clean_eval_deployment(task_image_name, eval_image_name, logger)
-    except docker.errors.BuildError as e:
-        msg = f"Failed to build eval deployment: {e}"
-        logger.error(msg)
-        return None, msg
-
-    env_spec["logs_handler"] = env.logs_handler
-    data_record["expected_pf"] = expected_pf
-    data_record["flags"] = flags
-    data_record["image_name"] = eval_image_name
-    instance_stats.update(test_stats)
-    return env_spec, None
+    save_report(report, log_dir / LOG_REPORT)
+    return report
 
 
 def validate_threadpool(
@@ -255,6 +262,7 @@ def validate_threadpool(
     max_workers: int,
     validate_log_dir: Path,
     force: bool = False,
+    resume: bool = False,
     save_specs: bool = True,
     instance_ids: list = None,
     from_base_no_test_image: bool = False,
@@ -262,15 +270,16 @@ def validate_threadpool(
     env_specs = get_env_specs(run_id, ("dev_tools", "dockerfile"))
     dataset_by_id = {data_record["instance_id"]: data_record
         for data_record in dataset}
-    candidate_ids = set(dataset_by_id.keys()) & set(env_specs.keys())
+    gated_ids = {instance_id for instance_id, r in dataset_by_id.items() if should_keep(r, exclude=KEEP_STAGE, required=(KeepStage.BUILD_REPO,))} \
+        & set(env_specs.keys())
     if instance_ids is not None:
-        candidate_ids = candidate_ids & set(instance_ids)
+        gated_ids = gated_ids & set(instance_ids)
 
     if from_base_no_test_image:
-        use_bnt = set(candidate_ids)
+        use_bnt = set(gated_ids)
     else:
         use_bnt = set()
-        for iid in candidate_ids:
+        for iid in gated_ids:
             bnt_name = dataset_by_id[iid].get("base_no_test_image_name")
             if not bnt_name:
                 continue
@@ -280,8 +289,8 @@ def validate_threadpool(
             except docker.errors.ImageNotFound:
                 pass
         if use_bnt:
-            print(f"\n{len(use_bnt)}/{len(candidate_ids)} candidate instances have base_no_test_image available locally.")
-            missing = len(candidate_ids) - len(use_bnt)
+            print(f"\n{len(use_bnt)}/{len(gated_ids)} candidate instances have base_no_test_image available locally.")
+            missing = len(gated_ids) - len(use_bnt)
             if missing:
                 print(f"  (the other {missing} will continue to use env_image.)")
             answer = input("Switch these to --from_base_no_test_image? [Y/n] ").strip().lower()
@@ -289,42 +298,39 @@ def validate_threadpool(
                 use_bnt = set()
 
     reset_llm_cost()
-    succeeded, failed = [], {}
+    reports = {}
     env_specs_path = None
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(
                 validate_single,
                 dataset_by_id[instance_id],
-                stats.setdefault(instance_id, {}),
                 env_specs[instance_id],
                 validate_log_dir,
                 force=force,
-                from_base_no_test_image=(instance_id in use_bnt),
+                resume=resume,
+                from_base_no_test_image=from_base_no_test_image,
             ): instance_id
-            for instance_id in candidate_ids
+            for instance_id in gated_ids
         }
         with tqdm(total=len(futures), dynamic_ncols=True,
             desc=f"Validating [{max_workers} threads]") as pbar:
             for future in as_completed(futures):
                 instance_id = futures[future]
                 try:
-                    updated_spec, reason = future.result()
+                    report = future.result()
                 except Exception as e:
                     raise RuntimeError(f"Internal error for {instance_id}: {e}")
-                if updated_spec:
-                    env_specs[instance_id] = updated_spec
-                    succeeded.append(instance_id)
-                else:
-                    failed[instance_id] = reason
+                reports[instance_id] = report
+                apply_validate_report(report, dataset_by_id[instance_id],
+                                      env_specs[instance_id], stats)
                 pbar.update(1)
-                pbar.set_description(
-                    f"{len(succeeded)} succeeded, {len(failed)} failed"
-                )
+                validated = sum(1 for r in reports.values()
+                                if r["validate_status"] == ValidateStatus.VALIDATED)
+                pbar.set_description(f"{validated} validated, {len(reports) - validated} not")
                 if save_specs:
                     env_specs_path = save_env_specs("logs_handler", env_specs, run_id)
-
-    summary = get_summary(succeeded, failed)
+    summary = get_report_summary(reports, "validate_status")
     summary_path = validate_log_dir / LOG_SUMMARY
     summary_path.parent.mkdir(parents=True, exist_ok=True)
     save_file(summary, summary_path)
@@ -346,7 +352,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Force re-run, ignoring cached test logs (re-run containers) and re-creating the logs handler.",
+        help="Re-validate every instance instead of reusing cached reports, and re-create the logs handler.",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Re-validate only the instances whose cached report is an errored run, keeping every "
+             "verdict. If both --force and --resume are given, --force wins.",
     )
     parser.add_argument(
         "--skip_specs",
@@ -372,7 +384,7 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    dataset_path = get_dataset_path('env_dataset', args.run_id)
+    dataset_path = get_dataset_path('dataset', args.run_id)
     stats_path = get_dataset_path('stats', args.run_id)
     validate_log_dir = get_log_dir(args.run_id, "validate")
 
@@ -382,6 +394,7 @@ if __name__ == "__main__":
     validate_threadpool(
         args.run_id, dataset, stats, args.max_workers, validate_log_dir,
         force=args.force,
+        resume=args.resume,
         save_specs=not args.skip_specs,
         instance_ids=args.instance_ids,
         from_base_no_test_image=args.from_base_no_test_image,

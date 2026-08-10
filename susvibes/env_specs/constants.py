@@ -9,26 +9,26 @@ TEST_SYMBOL_RESOLUTION_ERROR_PATTERNS = [
 ]
 
 # Per dev tool: a config dict containing
-#   - `versions`: version -> {upstream_image_name, cov_deps} — the full upstream
-#     image reference to FROM when building base_<tool>, plus the cov_py jedi/parso
+#   - `versions`: version -> {upstream_image_name, static_deps} — the full upstream
+#     image reference to FROM when building base_<tool>, plus the static_py jedi/parso
 #     pin (per-version detail inline below; tag rationale in env_specs/dockerfiles.py)
 #   - `minimal_compatible_version`: floor below which a discovered version is
 #     dropped instead of rounded up to the nearest available.
 DEV_TOOL_VERSIONS = {
     "python": {
         "minimal_compatible_version": "2.5",
-        # Per version: full upstream image reference + the jedi/parso pin for cov_py.
+        # Per version: full upstream image reference + the jedi/parso pin for static_py.
         # jedi 0.19 needs py3.6+, so 2.7/3.5 pin the last py2-capable line (0.17.2 + parso 0.7.x).
         "versions": {
-            "2.7":  {"upstream_image_name": "python:2.7-buster",    "cov_deps": "jedi==0.17.2 parso==0.7.1 pathlib2"},
-            "3.5":  {"upstream_image_name": "python:3.5-buster",    "cov_deps": "jedi==0.17.2 parso==0.7.1"},
-            "3.6":  {"upstream_image_name": "python:3.6-bullseye",  "cov_deps": "jedi==0.19.2 parso==0.8.4"},
-            "3.7":  {"upstream_image_name": "python:3.7-bookworm",  "cov_deps": "jedi==0.19.2 parso==0.8.4"},
-            "3.8":  {"upstream_image_name": "python:3.8-bookworm",  "cov_deps": "jedi==0.19.2 parso==0.8.4"},
-            "3.9":  {"upstream_image_name": "python:3.9-bookworm",  "cov_deps": "jedi==0.19.2 parso==0.8.4"},
-            "3.10": {"upstream_image_name": "python:3.10-bookworm", "cov_deps": "jedi==0.19.2 parso==0.8.4"},
-            "3.11": {"upstream_image_name": "python:3.11-bookworm", "cov_deps": "jedi==0.19.2 parso==0.8.4"},
-            "3.12": {"upstream_image_name": "python:3.12-bookworm", "cov_deps": "jedi==0.19.2 parso==0.8.4"},
+            "2.7":  {"upstream_image_name": "python:2.7-buster",    "static_deps": "jedi==0.17.2 parso==0.7.1 pathlib2"},
+            "3.5":  {"upstream_image_name": "python:3.5-buster",    "static_deps": "jedi==0.17.2 parso==0.7.1"},
+            "3.6":  {"upstream_image_name": "python:3.6-bullseye",  "static_deps": "jedi==0.19.2 parso==0.8.4"},
+            "3.7":  {"upstream_image_name": "python:3.7-bookworm",  "static_deps": "jedi==0.19.2 parso==0.8.4"},
+            "3.8":  {"upstream_image_name": "python:3.8-bookworm",  "static_deps": "jedi==0.19.2 parso==0.8.4"},
+            "3.9":  {"upstream_image_name": "python:3.9-bookworm",  "static_deps": "jedi==0.19.2 parso==0.8.4"},
+            "3.10": {"upstream_image_name": "python:3.10-bookworm", "static_deps": "jedi==0.19.2 parso==0.8.4"},
+            "3.11": {"upstream_image_name": "python:3.11-bookworm", "static_deps": "jedi==0.19.2 parso==0.8.4"},
+            "3.12": {"upstream_image_name": "python:3.12-bookworm", "static_deps": "jedi==0.19.2 parso==0.8.4"},
         },
     },
 }

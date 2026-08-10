@@ -13,6 +13,7 @@ from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir
 from susvibes.core.utils import load_file, save_file, setup_logger, get_instance_id
 from susvibes.curate.utils import (
     get_repo_dir,
+    RepoLocks,
     reset_to_commit,
     apply_patch,
     commit_changes,
@@ -23,9 +24,7 @@ from susvibes.curate.utils import (
 
 from susvibes.curate.mine.utils import (
     get_repo_size,
-    mask_test_funcs,
     merge_file_patches,
-    split_to_file_patches,
     is_test_file,
     path_has_keyword,
 )
@@ -60,7 +59,7 @@ class CVEFixRecord(TypedDict):
     cve_fix_date: str
     language: str
     info_page: str
-    test_patch: NotRequired[str]        # present iff the fix ships a test
+    raw_test_patch: NotRequired[str]    # the fix commit's own test diff, present iff it ships one
     test_files: NotRequired[list[str]]
 
 
@@ -118,12 +117,12 @@ def code_test_split(data_record, target_lang, test_lang, require_test=None) -> C
         info_page=info_page
     )
     if with_test:
-        result_data_record['test_patch'] = test_patch
+        result_data_record['raw_test_patch'] = test_patch
         result_data_record['test_files'] = test_files
     return result_data_record
 
 
-def build_fix_dataset(sources, target_lang, test_lang, require_test=None, shuffle=False, max_records = None) -> list[CVEFixRecord]:
+def build_dataset(sources, target_lang, test_lang, require_test=None, shuffle=False, max_records = None) -> list[CVEFixRecord]:
     def map_filter(iterable, func):
         for item in iterable:
             try:
@@ -135,25 +134,25 @@ def build_fix_dataset(sources, target_lang, test_lang, require_test=None, shuffl
     accepted = []
     collapsed = 0
     for source in sources:
-        raw_cve_dataset = list(source.records(known))
-        logger.info("[%s] %d raw cves collected successfully.", source.name, len(raw_cve_dataset))
-        fix_dataset = list(map_filter(raw_cve_dataset,
-            lambda r: code_test_split(r, target_lang, test_lang, require_test)))
+        records = list(source.records(known))
+        logger.info("[%s] %d raw cves collected successfully.", source.name, len(records))
+        dataset = list(map_filter(records,
+            lambda record: code_test_split(record, target_lang, test_lang, require_test)))
         net_new_start = len(accepted)
-        for data_record in fix_dataset:
+        for data_record in dataset:
             if known.has(data_record["cve_id"], data_record["base_commit"]):
                 collapsed += 1
                 continue
             known.add(data_record)
             accepted.append(data_record)
         logger.info("[%s] +%d net-new instances (running total %d).", source.name, len(accepted) - net_new_start, len(accepted))
-    fix_dataset = accepted
-    logger.info("%d records processed successfully from datasets (%d duplicates collapsed — same commit or same CVE).", len(fix_dataset), collapsed)
+    dataset = accepted
+    logger.info("%d records processed successfully from datasets (%d duplicates collapsed — same commit or same CVE).", len(dataset), collapsed)
     if shuffle:
-        random.shuffle(fix_dataset)
+        random.shuffle(dataset)
     if max_records is not None:
-        fix_dataset = fix_dataset[:max_records]
-    return fix_dataset
+        dataset = dataset[:max_records]
+    return dataset
 
 def clone_repo_single(project, root_dir) -> str | None:
     """Clone one project's repo, unless it is too large to be worth curating. Returns None once the
@@ -164,7 +163,9 @@ def clone_repo_single(project, root_dir) -> str | None:
         logger.warning("Skipping %s: repo size %.1f GB exceeds limit", project, repo_size / 1024 / 1024)
         return "repo too large"
     try:
-        full_clone(project, root_dir)
+        # The clone dir is shared: hold it across the clone.
+        with RepoLocks.locked(project):
+            full_clone(project, root_dir)
     except Exception as e:
         logger.error("Error cloning repository %s: %s", project, e)
         return "clone failed"
@@ -200,89 +201,50 @@ def clone_repo_threadpool(projects, root_dir, max_workers=CLONE_WORKERS) -> set:
     return skipped_projects
 
 
-def validate_patches(fix_dataset, root_dir, skipped_projects):
+def validate_patches(dataset, root_dir, skipped_projects):
     """Keep the records whose patches really apply against their `base_commit`: roll the clone to
     that commit and reverse- then forward-apply each patch. Records under `skipped_projects` (what
     `clone_repo_threadpool` could not put on disk) have no tree to validate against and are dropped."""
     patch_validated = []
-    for data_record in tqdm(fix_dataset, desc="Validating patches"):
+    for data_record in tqdm(dataset, desc="Validating patches"):
         instance_id = data_record['instance_id']
         base_commit = data_record['base_commit']
         if data_record['project'] in skipped_projects:
             logger.warning("%s skipped: project not cloned or too large", instance_id)
             continue
         repo_dir = get_repo_dir(data_record['project'], root_dir)
-        try:
-            reset_to_commit(repo_dir, base_commit, new_branch=False)
-        except Exception:
-            # A fix commit no ref reaches is missing from the clone however current it is;
-            # fetching it by sha recovers it (see fetch_commit).
+        # The clone is shared: hold it across every touch of the tree.
+        with RepoLocks.locked(data_record['project']):
             try:
-                fetch_commit(repo_dir, base_commit)
                 reset_to_commit(repo_dir, base_commit, new_branch=False)
-            except Exception as e:
-                logger.error("%s reset_to_commit failed: %s", instance_id, e)
-                continue
-        if not data_record.get('cve_fix_date'):
-            data_record['cve_fix_date'] = get_commit_date(repo_dir, base_commit)
-        is_valid = True
-        patches_to_verify = [("security_patch", data_record['security_patch'])]
-        if 'test_patch' in data_record:
-            patches_to_verify.append(("test_patch", data_record['test_patch']))
-        for patch_name, patch in patches_to_verify:
-            try:
-                apply_patch(repo_dir, patch, reverse=True)
-                apply_patch(repo_dir, patch)
-            except Exception as e:
-                logger.error("%s apply_patch (%s) failed: %s", instance_id, patch_name, e)
-                is_valid = False
-                break
+            except Exception:
+                # A fix commit no ref reaches is missing from the clone however current it is;
+                # fetching it by sha recovers it (see fetch_commit).
+                try:
+                    fetch_commit(repo_dir, base_commit)
+                    reset_to_commit(repo_dir, base_commit, new_branch=False)
+                except Exception as e:
+                    logger.error("%s reset_to_commit failed: %s", instance_id, e)
+                    continue
+            if not data_record.get('cve_fix_date'):
+                data_record['cve_fix_date'] = get_commit_date(repo_dir, base_commit)
+            is_valid = True
+            patches_to_verify = [("security_patch", data_record['security_patch'])]
+            if 'raw_test_patch' in data_record:
+                patches_to_verify.append(("raw_test_patch", data_record['raw_test_patch']))
+            for patch_name, patch in patches_to_verify:
+                try:
+                    apply_patch(repo_dir, patch, reverse=True)
+                    apply_patch(repo_dir, patch)
+                except Exception as e:
+                    logger.error("%s apply_patch (%s) failed: %s", instance_id, patch_name, e)
+                    is_valid = False
+                    break
         if is_valid:
             patch_validated.append(data_record)
 
     logger.info("%d patches validated successfully.", len(patch_validated))
     return patch_validated
-
-def expand_tests(fix_dataset, test_lang):
-    """Rewrite every with-test record's `test_patch` into a test *mask*: the diff that puts back the
-    test functions the fix commit touched, so the task can ship a tree with them removed. A record
-    carrying no `test_patch` has no security test to hide and passes through untouched — which is
-    what makes this safe to run over a combined (`--require_test` omitted) dataset."""
-    kept, expanded = [], 0
-    for data_record in tqdm(fix_dataset, desc="Making test masks"):
-        if "test_patch" not in data_record:
-            kept.append(data_record)
-            continue
-        is_syntax_error = False
-        base_commit = data_record["base_commit"]
-        repo_dir = get_repo_dir(data_record['project'], LOCAL_REPOS_DIR)
-        reset_to_commit(repo_dir, base_commit, new_branch=False)
-        test_patch = split_to_file_patches(data_record["test_patch"])
-        for file_path, file_patch in test_patch.items():
-            file_path = Path(file_path)
-            if is_test_file(file_path, LANG_EXTENSIONS.get(test_lang, [])):
-                code_after = load_file(repo_dir / file_path)
-                apply_patch(repo_dir, merge_file_patches({file_path: file_patch}), reverse=True)
-                code_before = load_file(repo_dir / file_path)
-                try:
-                    test_mask_patch = mask_test_funcs(file_patch, code_before, code_after)
-                except ValueError as e:
-                    is_syntax_error = True
-                    break
-                if test_mask_patch.strip():
-                    apply_patch(repo_dir, merge_file_patches({file_path: test_mask_patch}))
-            else:
-                apply_patch(repo_dir, merge_file_patches({file_path: file_patch}), reverse=True)
-
-        if not is_syntax_error:
-            test_mask_commit = commit_changes(repo_dir, f'Test mask at {base_commit}')
-            data_record["test_patch"] = get_diff_patch(repo_dir, test_mask_commit, base_commit)
-            kept.append(data_record)
-            expanded += 1
-
-    logger.info("%d test masks expanded successfully.", expanded)
-    return kept
-
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
@@ -317,7 +279,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--skip_verify",
         action="store_true",
-        help="Stop after the text-level funnel: save the unverified records and skip repo clone, patch apply-verify, and test-mask expansion."
+        help="Stop after the text-level funnel: save the unverified records and skip repo clone and patch apply-verify."
     )
     parser.add_argument(
         "--force",
@@ -347,7 +309,7 @@ if __name__ == "__main__":
     core_log_dir = get_log_dir(args.run_id, "mine", "core")
     init_loggers(core_log_dir)
 
-    fix_dataset_path = get_dataset_path('fix_dataset', args.run_id)
+    dataset_path = get_dataset_path('dataset', args.run_id)
 
     if args.use_handlers:
         dataset_sources = [SOURCE_BY_NAME[name] for name in args.use_handlers if name in SOURCE_BY_NAME]
@@ -368,7 +330,7 @@ if __name__ == "__main__":
         if hasattr(source, "run_id"):
             source.run_id = args.run_id
 
-    fix_dataset = build_fix_dataset(
+    dataset = build_dataset(
         sources=dataset_sources,
         target_lang=TARGET_LANG,
         test_lang=TARGET_LANG,
@@ -377,13 +339,12 @@ if __name__ == "__main__":
         max_records=args.max_records
     )
     if args.skip_verify:
-        logger.info("--skip_verify: saving %d text-level (unverified) records; skipping clone, apply-verify, and test-mask expansion.", len(fix_dataset))
+        logger.info("--skip_verify: saving %d text-level (unverified) records; skipping clone and apply-verify.", len(dataset))
     else:
-        projects = set(data_record["project"] for data_record in fix_dataset)
+        projects = set(data_record["project"] for data_record in dataset)
         skipped_projects = clone_repo_threadpool(projects, LOCAL_REPOS_DIR)
-        fix_dataset = validate_patches(fix_dataset, LOCAL_REPOS_DIR, skipped_projects)
-        fix_dataset = expand_tests(fix_dataset, TARGET_LANG)
-    fix_dataset_path.parent.mkdir(parents=True, exist_ok=True)
-    save_file(fix_dataset, fix_dataset_path)
-    print(f"Fix dataset saved to {fix_dataset_path}.")
+        dataset = validate_patches(dataset, LOCAL_REPOS_DIR, skipped_projects)
+    dataset_path.parent.mkdir(parents=True, exist_ok=True)
+    save_file(dataset, dataset_path)
+    print(f"Fix dataset saved to {dataset_path}.")
     print(f"Logs saved to {core_log_dir}.")

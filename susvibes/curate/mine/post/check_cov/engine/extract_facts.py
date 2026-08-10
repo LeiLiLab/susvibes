@@ -3,7 +3,7 @@
 -> regex ladder, test-file detection, and relative-import resolution.
 
 ZERO susvibes dependencies and written in the py2/py3 common subset, so the whole
-``engine/`` package can be COPYied into a per-version ``cov_py`` container and run
+``engine/`` package can be COPYied into a per-version ``static_py`` container and run
 under that interpreter's NATIVE ast/jedi/parso. The parse functions are vendored
 from ``mine/utils.py`` (which now re-exports them from here); the language
 constants mirror ``mine/constants.py`` (keep the values in sync).

@@ -5,7 +5,7 @@ with --push_images, also pushes each instance's eval image to the Docker Hub (so
 dataset's image_name is pullable); with --push_to_hub, also uploads the dataset to the
 HuggingFace dataset repo.
 
-python -m susvibes.curate.validate.wrap_up \
+python -m susvibes.curate.wrap_up \
     --run_id playground
 """
 
@@ -18,15 +18,24 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from susvibes.core.constants import HF_DATASET_REPO, HF_DATASET_FILE_NAME, get_dataset_path
 from susvibes.core.env import Deployment
-from susvibes.curate.constants import LOCAL_REPOS_DIR
+from susvibes.curate.constants import KeepStage, LOCAL_REPOS_DIR
 from susvibes.core.utils import load_file, save_file, push_dataset_to_hub
+
+from susvibes.core.report import get_two_state_summary, print_summary
 from susvibes.curate.utils import (
     get_repo_dir,
+    should_keep,
     reset_to_commit,
     apply_patch,
     commit_changes,
     get_diff_patch,
+    RepoLocks,
 )
+
+# Every stage a released record cannot be missing. `required` is what makes this fail-closed: one
+# dataset now carries the whole run, so a record that simply never reached a stage would otherwise
+# sail through on that stage's silence.
+REQUIRED_STAGES = (KeepStage.TEST_MASK, KeepStage.BUILD_REPO, KeepStage.ADAPTIVE_GEN, KeepStage.VALIDATE)
 
 class SusVibesRecord(TypedDict):
     instance_id: str
@@ -48,12 +57,15 @@ class SusVibesRecord(TypedDict):
 
 def make_susvibes_record(data_record: dict) -> SusVibesRecord:
     repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
-    reset_to_commit(repo_dir, data_record["base_commit"])
-    apply_patch(repo_dir, data_record["security_patch"], reverse=True)
-    apply_patch(repo_dir, data_record["mask_patch"])
-    code_mask_commit = commit_changes(repo_dir, f'Code mask at {data_record["base_commit"]}')
-    golden_patch = get_diff_patch(repo_dir, code_mask_commit, data_record["base_commit"])
-    record = {key: data_record[key] for key in SusVibesRecord.__annotations__ if key != "golden_patch"}
+    # The clone is shared: hold it across every touch of the tree.
+    with RepoLocks.locked(data_record["project"]):
+        reset_to_commit(repo_dir, data_record["base_commit"])
+        apply_patch(repo_dir, data_record["security_patch"], reverse=True)
+        apply_patch(repo_dir, data_record["mask_patch"])
+        code_mask_commit = commit_changes(repo_dir, f'Code mask at {data_record["base_commit"]}')
+        golden_patch = get_diff_patch(repo_dir, code_mask_commit, data_record["base_commit"])
+    record = {key: data_record[key] for key in SusVibesRecord.__annotations__
+              if key != "golden_patch"}
     record["golden_patch"] = golden_patch
     return record
 
@@ -69,10 +81,10 @@ def push_images_threadpool(image_names: list, max_workers: int) -> None:
             Deployment.push_image(image_name)
             return image_name, None
         except Exception as e:
-            return image_name, str(e)
+            return image_name, f"Failed to push image: {e}"
 
     print(f"\nPushing {len(image_names)} eval images...")
-    succeeded, failed = [], {}
+    succeeded, errored = [], {}
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futs = [ex.submit(_push, image_name) for image_name in image_names]
         with tqdm(total=len(futs), dynamic_ncols=True,
@@ -82,17 +94,10 @@ def push_images_threadpool(image_names: list, max_workers: int) -> None:
                 if err is None:
                     succeeded.append(image_name)
                 else:
-                    failed[image_name] = err
+                    errored[image_name] = err
                 pbar.update(1)
-                pbar.set_description(f"{len(succeeded)} pushed, {len(failed)} failed")
-    if succeeded:
-        print(f"Pushed ({len(succeeded)}):")
-        for image_name in succeeded:
-            print(f"  {image_name}")
-    if failed:
-        print(f"Failed ({len(failed)}):")
-        for image_name, err in failed.items():
-            print(f"  {image_name}: {err}")
+                pbar.set_description(f"{len(succeeded)} pushed, {len(errored)} failed")
+    print_summary(get_two_state_summary(succeeded, errored))
 
 
 if __name__ == "__main__":
@@ -127,23 +132,24 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    env_dataset_path = get_dataset_path('env_dataset', args.run_id)
-    env_dataset = load_file(env_dataset_path)
-
-    env_dataset = [r for r in env_dataset if "expected_pf" in r]
-    if args.instance_ids is not None:
-        env_dataset = [r for r in env_dataset if r["instance_id"] in set(args.instance_ids)]
-    dataset = [make_susvibes_record(data_record)
-        for data_record in tqdm(env_dataset, desc="Wrapping up")]
-
     dataset_path = get_dataset_path('dataset', args.run_id)
-    save_file(dataset, dataset_path)
-    print(f"Dataset saved to {dataset_path}.")
+    dataset = load_file(dataset_path)
+
+    dataset = [data_record for data_record in dataset
+                   if should_keep(data_record, required=REQUIRED_STAGES)]
+    if args.instance_ids is not None:
+        dataset = [data_record for data_record in dataset if data_record["instance_id"] in set(args.instance_ids)]
+    susvibes_dataset = [make_susvibes_record(data_record)
+        for data_record in tqdm(dataset, desc="Wrapping up")]
+
+    susvibes_dataset_path = get_dataset_path('susvibes_dataset', args.run_id)
+    save_file(susvibes_dataset, susvibes_dataset_path)
+    print(f"Dataset saved to {susvibes_dataset_path}.")
 
     if args.push_images:
-        push_images_threadpool([record["image_name"] for record in dataset], args.max_workers)
+        push_images_threadpool([record["image_name"] for record in susvibes_dataset], args.max_workers)
 
     if args.push_to_hub:
-        push_dataset_to_hub(dataset, HF_DATASET_REPO, HF_DATASET_FILE_NAME,
-            commit_message=f"wrap_up: {len(dataset)} instances (run_id={args.run_id})")
-        print(f"Pushed {len(dataset)} records to https://huggingface.co/datasets/{HF_DATASET_REPO}")
+        push_dataset_to_hub(susvibes_dataset, HF_DATASET_REPO, HF_DATASET_FILE_NAME,
+            commit_message=f"wrap_up: {len(susvibes_dataset)} instances (run_id={args.run_id})")
+        print(f"Pushed {len(susvibes_dataset)} records to https://huggingface.co/datasets/{HF_DATASET_REPO}")

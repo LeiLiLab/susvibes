@@ -56,14 +56,15 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 """
 
-# cov_py = base_py + the version-matched static-analysis stack for check_cov.
-# Built `FROM {base_image}` (the base_py Hub tag) so each cov image inherits the exact Python version
+# static_py = base_py + the version-matched static-analysis stack. It is where a stage's vendored
+# `engine/` runs whenever the analysis must read the instance's own Python syntax — test_mask parses
+# function spans, check_cov traces symbols; neither executes the repo.
+# Built `FROM {base_image}` (the base_py Hub tag) so each image inherits the exact Python version
 # (its native `ast` then parses that version's syntax, and jedi introspects its
-# native stdlib). `jedi` + `parso` are REQUIRED (symbol trace) — if the pinned
-# versions cannot install on this version the build FAILS by design, since check_cov
-# cannot run without them. `tree-sitter` is best-effort (repo_index falls back to
-# regex), so its install is allowed to fail.
-DOCKERFILE_COV_PY = r"""
+# native stdlib). `jedi` + `parso` are REQUIRED — if the pinned versions cannot install on this
+# version the build FAILS by design, since the engines cannot parse without them.
+# `tree-sitter` is best-effort (repo_index falls back to regex), so its install is allowed to fail.
+DOCKERFILE_STATIC_PY = r"""
 FROM {base_image}
 
 RUN pip install --no-cache-dir {jedi_parso}

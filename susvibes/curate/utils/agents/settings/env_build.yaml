@@ -1,10 +1,10 @@
 sweagent_dir: ../Env-agent
 run_name: env-agent_default
 model:
-  name: claude-sonnet-4-5-20250929
+  name: bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0
   per_instance_cost_limit: 0.0
   per_instance_call_limit: 200
 conda_env: envagent1.1.0
 config_name: susvibes_env_setup
-num_workers: 5
+num_workers: 12
 mount_docker_socket: true   # docker-in-docker for building env images

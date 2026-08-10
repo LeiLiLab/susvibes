@@ -4,7 +4,7 @@ version and touches the named component), not by reasoning about whether a diff 
 fix. Shared by M2 (OSVResidualSource) and M3-Stage2 (nvd.py): both hand it a record with a repo
 but no commit, and it fills in `commit` (or "" when no fact pins one in that repo).
 
-Read-only investigation on a `clone.finder_clone` clone (full or blobless-bare) via the Claude
+Read-only investigation on a `clone.blobless_clone` clone (full or blobless-bare) via the Claude
 Agent SDK (`core/agents/claude.run_agent`, Sonnet 5 on Bedrock, READONLY_TOOLS). The agent never
 writes to the clone (no fetch/checkout/reset) — clone.py owns every git write. `finder_single`
 always returns a result dict (encoding "not found" as `commit=""`) so the source can cache the
@@ -17,14 +17,14 @@ from tqdm import tqdm
 from claude_agent_sdk import ClaudeAgentOptions
 
 from susvibes.core.agents.claude import (
-    run_agent_retrying, load_agent_result, save_agent_result,
-    READONLY_TOOLS, AGENT_ENV, MAX_BUFFER_SIZE)
+    run_agent_retrying, READONLY_TOOLS, AGENT_ENV, MAX_BUFFER_SIZE)
+from susvibes.core.report import reuse_report, save_report
 from susvibes.curate.constants import get_log_dir
-from susvibes.curate.mine.clone import finder_clone
+from susvibes.curate.mine.clone import blobless_clone
 from susvibes.curate.mine.sources.constants import COMMIT_SHA
 
 LOG_TRAJECTORY = "trajectory.jsonl"
-LOG_RESULT = "result.json"
+LOG_REPORT = "report.json"
 
 FINDER_MODEL = "us.anthropic.claude-sonnet-5"
 FINDER_WORKERS = 16
@@ -132,7 +132,7 @@ def finder_miss(error) -> dict:
             "evidence": "", "source": "", "error": error}
 
 
-def finder_result(output) -> dict:
+def finder_report(output) -> dict:
     """The finder's structured output as a cacheable result: the model sometimes emits a malformed
     "no commit" (e.g. '""'), and only a well-formed sha counts as an additional fix commit."""
     commit = output["commit"].strip()
@@ -144,20 +144,21 @@ def finder_result(output) -> dict:
 
 
 def finder_single(record, run_id, force=False, resume=False):
-    """Pin the fix commit for one CVE (retryable failures retried under the hood), reusing this
-    CVE's cached result unless `force`/`resume` asks to re-run it. Returns the record merged with
+    """Pin the fix commit for one CVE (transient failures retried under the hood), reusing this
+    CVE's cached report unless `force`/`resume` asks to re-run it. Returns the record merged with
     the finder's output (`commit`/`multi_commit`/`fact_tier`/`evidence`/`source`) plus `error` and
-    `_meta` (cost/turns, empty on a cache hit). `commit=""` with `error=None` is a real miss
+    `meta` (this run's cost/turns; a reused report carries the producing run's and is marked
+    `reused`). `commit=""` with `error=None` is a real miss
     (final); `commit=""` with `error` set is an aborted run that `resume` re-runs."""
     log_dir = get_log_dir(run_id, "mine", "find_commit") / record["cve_id"]
-    result = load_agent_result(log_dir / LOG_RESULT, force=force, resume=resume)
-    if result is not None:
-        return {**record, **result, "_meta": {}}
+    report = reuse_report(log_dir / LOG_REPORT, force=force, resume=resume)
+    if report is not None:
+        return {**record, **report}
 
     project = f"{record['owner']}/{record['repo']}".lower()
-    repo_dir = finder_clone(project)
+    repo_dir = blobless_clone(project)
     if repo_dir is None:
-        result, meta = finder_miss(f"clone failed: {project}"), {}
+        report, meta = finder_miss(f"clone failed: {project}"), {}
     else:
         options = ClaudeAgentOptions(
             model=FINDER_MODEL,
@@ -177,10 +178,11 @@ def finder_single(record, run_id, force=False, resume=False):
             repo=project, hints=finder_hints(record),
         )
         output, meta = run_agent_retrying(prompt, options, log_path=log_dir / LOG_TRAJECTORY)
-        result = finder_result(output) if output is not None \
+        report = finder_report(output) if output is not None \
             else finder_miss(meta.get("error", "agent produced no result"))
-    save_agent_result(result, log_dir / LOG_RESULT)
-    return {**record, **result, "_meta": meta}
+    report["meta"] = meta
+    save_report(report, log_dir / LOG_REPORT)
+    return {**record, **report}
 
 
 def finder_threadpool(records, run_id, max_workers=FINDER_WORKERS, force=False, resume=False):
@@ -204,6 +206,7 @@ def finder_threadpool(records, run_id, max_workers=FINDER_WORKERS, force=False, 
                 pbar.update(1)
                 pinned = sum(bool(r["commit"]) for r in results)
                 errored = sum(bool(r["error"]) for r in results)
-                cost = sum(r["_meta"].get("cost_usd") or 0 for r in results)
+                cost = sum((r.get("meta") or {}).get("cost_usd") or 0
+                           for r in results if not r.get("reused"))
                 pbar.set_description(f"{pinned} pinned, {errored} err, ${cost:.2f}")
     return results

@@ -57,12 +57,19 @@ class SWEAgentPort:
         repo_name: str = None,
         image: str = None,
         base_commit: str = None,
+        lock_path: Path = None,
         extra_fields: dict = None,
     ) -> None:
         assert repo_type in ["local", "preexisting"]
         repo_config = {"type": repo_type, "base_commit": base_commit or "HEAD"}
         if repo_type == "local":
             repo_config["path"] = str(repo_dir.resolve())
+            # The clone is shared: whoever produced it may still be mid-write when the agent copies
+            # it, and may have left it dirty. `lock_path` closes the first window; `reset_dirty`
+            # the second, safe because the agent resets to `base_commit` after the copy anyway.
+            repo_config["reset_dirty"] = True
+            if lock_path is not None:
+                repo_config["lock_path"] = str(lock_path)
         elif repo_type == "preexisting":
             repo_config["repo_name"] = repo_name
         docker_args = [

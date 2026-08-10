@@ -4,15 +4,16 @@ import json
 from pathlib import Path
 
 from susvibes.core.constants import get_dataset_path
-from susvibes.curate.constants import get_log_dir
+from susvibes.curate.constants import KeepStage, get_log_dir
 from susvibes.curate.adaptive_gen import mask, problem_gen, verifier
 from susvibes.core.utils import (
     load_file,
     save_file,
-    confirm_overwrite_logs,
     setup_logger,
 )
-from susvibes.curate.utils import len_patch, dump_task
+from susvibes.curate.utils import len_patch, dump_task, should_keep
+
+KEEP_STAGE = KeepStage.ADAPTIVE_GEN   # this stage's verdict under record["keep"]
 
 LENGTH_RATIO_FUNC = [1, 2, 5, 15, 30, 50]
 TASK_MAX_LENGTH = 2000
@@ -22,14 +23,13 @@ logger = None
 
 def init_loggers(adaptive_gen_log_dir):
     global logger
-    logger = setup_logger(adaptive_gen_log_dir, "core.log", __name__)
+    logger = setup_logger(adaptive_gen_log_dir, "core.log", __name__, mode="w")
     mask.init_logger(adaptive_gen_log_dir)
     problem_gen.init_logger(adaptive_gen_log_dir)
     verifier.init_logger(adaptive_gen_log_dir)
 
 def adaptive_task_gen(
-    fix_dataset_path: Path,
-    task_dataset_path: Path,
+    dataset_path: Path,
     adaptive_gen_log_dir: Path,
     instance_ids: list = None,
     max_iters: int = None,
@@ -37,24 +37,20 @@ def adaptive_task_gen(
     require_test: bool = True,
     debug: bool = False,
 ):
-    fix_dataset = load_file(fix_dataset_path)
-    # Only keep instances that cleared every post-stage gate (`all(post)`) and were coverage-analyzed
-    # (`func_coverage` present) — the post-stage booleans are written by check_cov / secprop.
-    covered_ids = {r["instance_id"] for r in fix_dataset
-        if "func_coverage" in r and all(r.get("post", {}).values())}
-    fix_dataset = [data_record for data_record in fix_dataset
-        if data_record["instance_id"] in covered_ids]
+    dataset = load_file(dataset_path)
+    # Only instances every stage kept and that were coverage-analyzed (`func_coverage` present) —
+    # the per-stage keep verdicts are written by check_cov / sec_prop.
+    gated_ids = {data_record["instance_id"] for data_record in dataset
+        if should_keep(data_record, exclude=KEEP_STAGE)}
+    dataset = [data_record for data_record in dataset
+        if data_record["instance_id"] in gated_ids]
     if instance_ids is not None:
-        fix_dataset = [data_record for data_record in fix_dataset
+        dataset = [data_record for data_record in dataset
             if data_record["instance_id"] in set(instance_ids)]
-    instance_ids = [data_record["instance_id"] for data_record in fix_dataset]
+    instance_ids = [data_record["instance_id"] for data_record in dataset]
     total_instances = len(instance_ids)
     total_verified = 0
     total_cost = 0
-
-    if not confirm_overwrite_logs(adaptive_gen_log_dir):
-        logger.info("Aborted by user.")
-        return
 
     if debug:
         if max_iters is not None and max_iters != 1:
@@ -67,15 +63,15 @@ def adaptive_task_gen(
     logger.info("Adaptive task generation started with %d instances.%s",
                 total_instances, " (debug mode)" if debug else "")
 
-    fix_dataset_by_id = {r["instance_id"]: r for r in fix_dataset}
+    dataset_by_id = {data_record["instance_id"]: data_record for data_record in dataset}
 
-    def _avg_mask_stats(ids, task_dataset_by_id):
+    def _avg_mask_stats(ids, dataset_by_id):
         ratios, mask_lines_list, diff_lines_list = [], [], []
         for iid in ids:
-            if iid not in task_dataset_by_id or "mask_patch" not in task_dataset_by_id[iid]:
+            if iid not in dataset_by_id or "mask_patch" not in dataset_by_id[iid]:
                 continue
-            _, mask_lines = len_patch(task_dataset_by_id[iid]["mask_patch"])
-            _, diff_lines = len_patch(fix_dataset_by_id[iid]["security_patch"])
+            _, mask_lines = len_patch(dataset_by_id[iid]["mask_patch"])
+            _, diff_lines = len_patch(dataset_by_id[iid]["security_patch"])
             mask_lines_list.append(mask_lines)
             diff_lines_list.append(diff_lines)
             if diff_lines > 0:
@@ -96,8 +92,7 @@ def adaptive_task_gen(
 
         # ---- Stage 1: Mask generation ----
         successful_instance_ids, mask_cost = mask.pipeline(
-            fix_dataset_path=fix_dataset_path,
-            task_dataset_path=task_dataset_path,
+            dataset_path=dataset_path,
             output_dir=adaptive_gen_log_dir / "mask" / f"iter{iter_id + 1}",
             length_ratio=LENGTH_RATIO_FUNC[iter_id],
             max_length=TASK_MAX_LENGTH,
@@ -121,7 +116,7 @@ def adaptive_task_gen(
         # ---- Stage 2: Problem statement generation ----
         stage2_input = len(pending_instance_ids)
         successful_instance_ids, gen_cost = problem_gen.pipeline(
-            task_dataset_path=task_dataset_path,
+            dataset_path=dataset_path,
             output_dir=adaptive_gen_log_dir / "problem_gen" / f"iter{iter_id + 1}",
             instance_ids=pending_instance_ids,
             require_test=require_test,
@@ -142,7 +137,7 @@ def adaptive_task_gen(
         # ---- Stage 3: Verification ----
         stage3_input = len(pending_instance_ids)
         successful_instance_ids, verified_instance_ids, verify_cost = verifier.pipeline(
-            task_dataset_path=task_dataset_path,
+            dataset_path=dataset_path,
             output_dir=adaptive_gen_log_dir / "verifier" / f"iter{iter_id + 1}",
             instance_ids=pending_instance_ids,
             require_test=require_test,
@@ -163,10 +158,10 @@ def adaptive_task_gen(
         total_failed = len(failed_instances)
 
         # Compute avg mask stats for verified vs non-verified
-        task_dataset_by_id = {r["instance_id"]: r for r in load_file(task_dataset_path)}
-        v_ratio, v_mask, v_diff = _avg_mask_stats(verified_instance_ids, task_dataset_by_id)
+        dataset_by_id = {data_record["instance_id"]: data_record for data_record in load_file(dataset_path)}
+        v_ratio, v_mask, v_diff = _avg_mask_stats(verified_instance_ids, dataset_by_id)
         non_verified_ids = remaining_instance_ids + failed_instances
-        nv_ratio, nv_mask, nv_diff = _avg_mask_stats(non_verified_ids, task_dataset_by_id)
+        nv_ratio, nv_mask, nv_diff = _avg_mask_stats(non_verified_ids, dataset_by_id)
         logger.info("  Mask stats (verified):     avg ratio=%.1fx, mask_lines=%.1f, diff_lines=%.1f",
                      v_ratio, v_mask, v_diff)
         logger.info("  Mask stats (non-verified): avg ratio=%.1fx, mask_lines=%.1f, diff_lines=%.1f",
@@ -187,21 +182,28 @@ def adaptive_task_gen(
         logger.info("  Retrying %d instances (%d unverified + %d failed).",
                      len(pending_instance_ids), len(remaining_instance_ids), total_failed)
 
-    task_dataset = load_file(task_dataset_path)
-    task_dataset = [data_record for data_record in task_dataset if "task_patch" in data_record]
-    save_file(task_dataset, task_dataset_path)
+    # Record the verdict rather than dropping the record, as every other stage does: an instance
+    # no iteration produced a task for stays in the dataset, gated out by `keep`.
+    dataset = load_file(dataset_path)
+    num_tasks = 0
+    for data_record in dataset:
+        if should_keep(data_record, exclude=KEEP_STAGE):
+            data_record.setdefault("keep", {})[KEEP_STAGE] = "task_patch" in data_record
+            num_tasks += "task_patch" in data_record
+    save_file(dataset, dataset_path)
     logger.info("=== Final: %d / %d tasks successfully created  |  total cost=$%.2f ===",
-                len(task_dataset), total_instances, total_cost)
+                num_tasks, total_instances, total_cost)
 
-def get_task_stats(task_dataset_path: Path, stats_path: Path):
-    task_dataset = load_file(task_dataset_path)
+def get_task_stats(dataset_path: Path, stats_path: Path):
+    dataset = [data_record for data_record in load_file(dataset_path)
+                   if "mask_patch" in data_record]
     stats = load_file(stats_path) if stats_path.exists() else {}
-    for data_record in task_dataset:
+    for data_record in dataset:
         num_files, num_lines = len_patch(data_record["mask_patch"])
-        stats[data_record["instance_id"]] = {
+        stats.setdefault(data_record["instance_id"], {}).update({
             "num_files_edited": num_files,
             "num_lines_edited": num_lines,
-        }
+        })
     save_file(stats, stats_path)
 
 
@@ -253,14 +255,12 @@ if __name__ == "__main__":
     adaptive_gen_log_dir = get_log_dir(args.run_id, "adaptive_gen")
     init_loggers(adaptive_gen_log_dir)
 
-    fix_dataset_path = get_dataset_path('fix_dataset', args.run_id)
-    task_dataset_path = get_dataset_path('task_dataset', args.run_id)
+    dataset_path = get_dataset_path('dataset', args.run_id)
     stats_path = get_dataset_path('stats', args.run_id)
     examples_path = get_dataset_path('examples', args.run_id)
 
     adaptive_task_gen(
-        fix_dataset_path=fix_dataset_path,
-        task_dataset_path=task_dataset_path,
+        dataset_path=dataset_path,
         adaptive_gen_log_dir=adaptive_gen_log_dir,
         instance_ids=args.instance_ids,
         max_iters=args.max_iters,
@@ -269,15 +269,14 @@ if __name__ == "__main__":
         debug=args.debug,
     )
     get_task_stats(
-        task_dataset_path=task_dataset_path,
         stats_path=stats_path
     )
-    print(f"Task dataset saved to {task_dataset_path}.")
+    print(f"dataset annotated in place with the tasks: {dataset_path}.")
     print(f"Stats saved to {stats_path}.")
     print(f"Logs saved to {adaptive_gen_log_dir}.")
 
     if args.preview > 0:
-        task_dataset = load_file(task_dataset_path)
-        samples = random.sample(task_dataset, min(args.preview, len(task_dataset)))
+        dataset = load_file(dataset_path)
+        samples = random.sample(dataset, min(args.preview, len(dataset)))
         for data_record in samples:
             dump_task(data_record, examples_path)

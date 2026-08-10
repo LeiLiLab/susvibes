@@ -1,4 +1,4 @@
-"""secprop — an optional per-instance security-property + fix-verify stage over mine's fix_dataset.
+"""sec_prop — an optional per-instance security-property + fix-verify stage over mine's dataset.
 
 Given a mined record ({project, cve_id, base_commit, cwe_ids, ...}, post-apply-verify), an agent
 (1) researches the CVE and states its **security property** — the invariant the vulnerable code
@@ -7,14 +7,15 @@ deliberately avoids, that `base_commit` actually implements that fix in this rep
 obvious mismatch `rejected` (kept in the dataset, filtered downstream — never physically dropped, so
 re-runs stay consistent).
 
-Run as a standalone, optional stage (like `mine.post.check_cov`) — it annotates `fix_dataset.jsonl`
+Run as a standalone, optional stage (like `mine.post.check_cov`), after `test_mask` so its
+rejections never withhold records from that mandatory stage — it annotates `dataset.jsonl`
 in place:
-    python -m susvibes.curate.mine.post.secprop --run_id <id> [--resume] [--force] [--max_workers N]
+    python -m susvibes.curate.mine.post.sec_prop --run_id <id> [--resume] [--force] [--max_workers N]
 
 The agent half mirrors `find_commit.py` (read-only Claude Agent SDK, `dontAsk` + pre-approved
-read-only tools + WebSearch, on a `finder_clone`), on the direct Anthropic API rather than the
-other stages' Bedrock — WebSearch is why, see `SECPROP_ENV`; the `main()` half mirrors
-`mine/core.py`. Each instance's result — concluded or errored — is cached under the log dir, so a
+read-only tools + WebSearch, on an `blobless_clone`), on the direct Anthropic API rather than the
+other stages' Bedrock — WebSearch is why, see `SEC_PROP_ENV`; the `main()` half mirrors
+`mine/core.py`. Each instance's report — concluded or errored — is cached under the log dir, so a
 re-run re-annotates from cache for free; `--resume` re-runs the errored ones, `--force` everything.
 """
 
@@ -28,33 +29,38 @@ from claude_agent_sdk import ClaudeAgentOptions
 from susvibes.core.constants import get_dataset_path
 from susvibes.core.utils import load_file, save_file
 from susvibes.core.agents.claude import (
-    run_agent_retrying, load_agent_result, save_agent_result,
-    READONLY_TOOLS, AGENT_ENV, MAX_BUFFER_SIZE)
-from susvibes.curate.constants import get_log_dir
-from susvibes.curate.mine.clone import finder_clone
+    run_agent_retrying, READONLY_TOOLS, AGENT_ENV, MAX_BUFFER_SIZE)
+from susvibes.core.report import (
+    reuse_report, save_report, strip_bookkeeping, get_report_summary, print_summary)
+from susvibes.curate.constants import KeepStage, get_log_dir
+from susvibes.curate.utils import should_keep
+from susvibes.curate.mine.clone import blobless_clone
 
 LOG_TRAJECTORY = "trajectory.jsonl"
-LOG_RESULT = "result.json"
+LOG_REPORT = "report.json"
+LOG_SUMMARY = "summary.json"
 
-SECPROP_MODEL = "claude-sonnet-5"                        # direct Anthropic API — see SECPROP_ENV
-SECPROP_WORKERS = 16
-SECPROP_MAX_TURNS = 50
-# secprop must reach the web — grounding the property in the CVE's primary sources IS the job — and
+KEEP_STAGE = KeepStage.SEC_PROP   # this stage's verdict under record["keep"]
+
+SEC_PROP_MODEL = "claude-sonnet-5"                        # direct Anthropic API — see SEC_PROP_ENV
+SEC_PROP_WORKERS = 16
+SEC_PROP_MAX_TURNS = 50
+# sec_prop must reach the web — grounding the property in the CVE's primary sources IS the job — and
 # WebSearch is a tool Anthropic runs server-side, which Amazon Bedrock does not expose. It does not
 # fail loudly: the CLI hands the model an empty tool list and the model answers from memory, which
 # reads exactly like a researched property. The provider is chosen by environment alone (no model id
-# or ClaudeAgentOptions field selects it), so unset Bedrock for secprop's subprocess.
-SECPROP_ENV = {**AGENT_ENV, "CLAUDE_CODE_USE_BEDROCK": ""}
+# or ClaudeAgentOptions field selects it), so unset Bedrock for sec_prop's subprocess.
+SEC_PROP_ENV = {**AGENT_ENV, "CLAUDE_CODE_USE_BEDROCK": ""}
 
 
-class SecpropVerdict(StrEnum):
+class SecPropVerdict(StrEnum):
     CONFIRMED = "confirmed"
     REJECTED = "rejected"
 
 
-PASS_VERDICTS = {SecpropVerdict.CONFIRMED}               # verdicts that clear the secprop gate
+PASS_VERDICTS = {SecPropVerdict.CONFIRMED}               # verdicts that clear the sec_prop gate
 
-SECPROP_SCHEMA = {
+SEC_PROP_SCHEMA = {
     "type": "object",
     "properties": {
         "vuln_class": {
@@ -97,7 +103,7 @@ SECPROP_SCHEMA = {
                            "(the honest gaps — never invented); [] if none",
         },
         "commit_verdict": {
-            "type": "string", "enum": [SecpropVerdict.CONFIRMED, SecpropVerdict.REJECTED],
+            "type": "string", "enum": [SecPropVerdict.CONFIRMED, SecPropVerdict.REJECTED],
             "description": "confirmed = the fix commit makes `secure_if` hold in this repository "
                            "(neutralizes every `vulnerable_if`); rejected = it does not",
         },
@@ -122,7 +128,7 @@ SECPROP_SCHEMA = {
     "additionalProperties": False,
 }
 
-SECPROP_SYSTEM = """\
+SEC_PROP_SYSTEM = """\
 You are a security analyst. Given a CVE and the commit claimed to fix it in ONE git repository, \
 produce a security property that lets a reviewer judge whether ANY implementation is vulnerable — by \
 whether a condition holds, not by whether the code matches this commit — and verify that the commit \
@@ -150,7 +156,7 @@ Investigate read-only (`git show` / `git log` on the clone plus the web); do NOT
 git write commands. Cite the facts in `evidence`.
 """
 
-SECPROP_USER = """\
+SEC_PROP_USER = """\
 CVE: {cve_id}
 CWE (from source data): {cwe_ids}
 Advisory / info page: {info_page}
@@ -158,125 +164,129 @@ Repository: {project} (cloned at your current working directory)
 Fix commit to verify: {commit}
 """
 
-def secprop_miss(error) -> dict:
-    """A secprop result that concluded nothing — an aborted run (clone/agent failure). Recorded
+def sec_prop_miss(error) -> dict:
+    """A sec_prop result that concluded nothing — an aborted run (clone/agent failure). Recorded
     (empty property fields + a set `error`) rather than left un-annotated, so downstream tells
-    "secprop errored" from "secprop never ran". Mirrors finder_miss."""
+    "sec_prop errored" from "sec_prop never ran". Mirrors finder_miss."""
     return {"vuln_class": "", "risk_narrative": "", "invariant": "", "vulnerable_if": [],
             "secure_if": "", "security_irrelevant_differences": [], "unresolved": [],
             "commit_verdict": "", "reject_reason": "", "confidence": "", "evidence": "",
             "error": error}
 
 
-def secprop_single(record, run_id, force=False, resume=False):
-    """Research the security property + verify `base_commit` for one record, reusing this instance's
-    cached result unless `force`/`resume` asks to re-run it. Mirrors finder_single: always returns
-    the record annotated with `secprop` — the property + verdict (`error=None`) on success, an
-    `error`-marked miss on an aborted run — plus `_meta` (cost/turns, empty on a cache hit)."""
-    log_dir = get_log_dir(run_id, "mine", "secprop") / record["instance_id"]
-    secprop = load_agent_result(log_dir / LOG_RESULT, force=force, resume=resume)
-    if secprop is not None:
-        return {**record, "secprop": secprop, "_meta": {}}
+def sec_prop_single(data_record, run_id, force=False, resume=False) -> dict:
+    """Research the security property + verify `base_commit` for one data_record, reusing this instance's
+    cached report unless `force`/`resume` asks to re-run it. Always returns the report — the
+    property + verdict (`error=None`), or an `error`-marked miss on an aborted run — plus `meta`
+    (this run's cost/turns). The caller projects it onto the data_record, as check_cov does."""
+    log_dir = get_log_dir(run_id, "mine", "sec_prop") / data_record["instance_id"]
+    report = reuse_report(log_dir / LOG_REPORT, force=force, resume=resume)
+    if report is not None:
+        return report
 
-    project = record["project"].lower()
-    repo_dir = finder_clone(project)
+    project = data_record["project"].lower()
+    repo_dir = blobless_clone(project)
     if repo_dir is None:
-        secprop, meta = secprop_miss(f"clone failed: {project}"), {}
+        report, meta = sec_prop_miss(f"clone failed: {project}"), {}
     else:
         options = ClaudeAgentOptions(
-            model=SECPROP_MODEL,
-            system_prompt=SECPROP_SYSTEM,
+            model=SEC_PROP_MODEL,
+            system_prompt=SEC_PROP_SYSTEM,
             tools=READONLY_TOOLS,                   # availability gate: only read-only investigation tools exist
             allowed_tools=READONLY_TOOLS,           # pre-approve the whole set; fail-closed on anything else
             setting_sources=[],
             permission_mode="dontAsk",              # fail-closed: pre-approved tools auto-run headless, else denied
             cwd=str(repo_dir),
-            max_turns=SECPROP_MAX_TURNS,
+            max_turns=SEC_PROP_MAX_TURNS,
             max_buffer_size=MAX_BUFFER_SIZE,
-            env=SECPROP_ENV,
-            output_format={"type": "json_schema", "schema": SECPROP_SCHEMA},
+            env=SEC_PROP_ENV,
+            output_format={"type": "json_schema", "schema": SEC_PROP_SCHEMA},
         )
-        prompt = SECPROP_USER.format(
-            cve_id=record["cve_id"], cwe_ids=", ".join(record.get("cwe_ids") or []) or "(none)",
-            info_page=record.get("info_page", ""), project=project, commit=record["base_commit"])
+        prompt = SEC_PROP_USER.format(
+            cve_id=data_record["cve_id"], cwe_ids=", ".join(data_record.get("cwe_ids") or []) or "(none)",
+            info_page=data_record.get("info_page", ""), project=project, commit=data_record["base_commit"])
         output, meta = run_agent_retrying(prompt, options, log_path=log_dir / LOG_TRAJECTORY)
-        secprop = {**output, "error": None} if output is not None \
-            else secprop_miss(meta.get("error", "agent produced no result"))
-    save_agent_result(secprop, log_dir / LOG_RESULT)
-    return {**record, "secprop": secprop, "_meta": meta}
+        report = {**output, "error": None} if output is not None \
+            else sec_prop_miss(meta.get("error", "agent produced no result"))
+    report["meta"] = meta
+    save_report(report, log_dir / LOG_REPORT)
+    return report
 
 
-def secprop_threadpool(records, run_id, max_workers=SECPROP_WORKERS, force=False, resume=False):
-    """Run secprop over records concurrently (web + read-only reads, no shared writes). Returns one
-    record per input, each annotated with `secprop` — a concluded verdict or an `error`-marked miss;
-    nothing is ever dropped from the dataset."""
-    results = []
+def sec_prop_threadpool(dataset, run_id, max_workers=SEC_PROP_WORKERS, force=False, resume=False) -> dict:
+    """Run sec_prop over dataset concurrently (web + read-only reads, no shared writes), annotating
+    each record in place with `sec_prop` + its `keep` verdict. Returns the reports; nothing is ever
+    dropped from the dataset."""
+    reports = {}
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(secprop_single, record, run_id, force, resume): record
-                   for record in records}
+        futures = {executor.submit(sec_prop_single, record, run_id, force, resume): record
+                   for record in dataset}
         with tqdm(total=len(futures), dynamic_ncols=True,
             desc=f"Security property [{max_workers} threads]") as pbar:
             for future in as_completed(futures):
                 record = futures[future]
                 try:
-                    result = future.result()
+                    report = future.result()
                 except Exception as e:
                     raise RuntimeError(f"Internal error for {record['instance_id']}: {e}")
-                results.append(result)
+                reports[record["instance_id"]] = report
+                # The dataset are the caller's own dataset entries, so annotating here is what puts
+                # the verdict in the dataset — the report is only its cache.
+                record[KEEP_STAGE] = strip_bookkeeping(report)
+                record.setdefault("keep", {})[KEEP_STAGE] = \
+                    report["commit_verdict"] in PASS_VERDICTS
                 pbar.update(1)
-                confirmed = sum(1 for r in results if r["secprop"]["commit_verdict"] == "confirmed")
-                rejected = sum(1 for r in results if r["secprop"]["commit_verdict"] == "rejected")
-                errored = sum(1 for r in results if r["secprop"]["error"])
-                cost = sum(r["_meta"].get("cost_usd") or 0 for r in results)
+                confirmed = sum(1 for r in reports.values() if r["commit_verdict"] == "confirmed")
+                rejected = sum(1 for r in reports.values() if r["commit_verdict"] == "rejected")
+                errored = sum(1 for r in reports.values() if r["error"])
+                cost = sum((r.get("meta") or {}).get("cost_usd") or 0
+                           for r in reports.values() if not r.get("reused"))
                 pbar.set_description(f"{confirmed} confirmed, {rejected} rejected, {errored} err, ${cost:.2f}")
-    return results
+    return reports
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Annotate a mine fix_dataset in place with each record's security property and "
+        description="Annotate a mine dataset in place with each record's security property and "
                     "a fix-commit verdict (rejected marked, not dropped).")
     parser.add_argument(
         "--run_id",
         required=True,
-        help="Run ID whose datasets/<run_id>/fix_dataset.jsonl to annotate in place.",
+        help="Run ID whose datasets/<run_id>/dataset.jsonl to annotate in place.",
     )
     parser.add_argument(
         "--max_workers",
         type=int,
-        default=SECPROP_WORKERS,
+        default=SEC_PROP_WORKERS,
         help="Thread pool size.",
     )
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Re-run the agent for every instance instead of reusing cached results.",
+        help="Re-run the agent for every instance instead of reusing cached reports.",
     )
     parser.add_argument(
         "--resume",
         action="store_true",
-        help="Re-run only the instances whose cached result is an errored run, keeping every "
+        help="Re-run only the instances whose cached report is an errored run, keeping every "
              "concluded verdict. If both --force and --resume are given, --force wins.",
     )
     args = parser.parse_args()
 
-    fix_dataset_path = get_dataset_path("fix_dataset", args.run_id)
-    secprop_log_dir = get_log_dir(args.run_id, "mine", "secprop")
-    fix_dataset = load_file(fix_dataset_path)
-    annotated = secprop_threadpool(fix_dataset, args.run_id, args.max_workers,
-                                   args.force, args.resume)
-    for record in annotated:
-        record.pop("_meta", None)
-        record.setdefault("post", {})["secprop"] = record["secprop"]["commit_verdict"] in PASS_VERDICTS
-    save_file(annotated, fix_dataset_path)
+    dataset_path = get_dataset_path("dataset", args.run_id)
+    sec_prop_log_dir = get_log_dir(args.run_id, "mine", "sec_prop")
+    dataset = load_file(dataset_path)
+    gated = [data_record for data_record in dataset
+             if should_keep(data_record, exclude=KEEP_STAGE)]
+    reports = sec_prop_threadpool(gated, args.run_id, args.max_workers, args.force, args.resume)
+    save_file(dataset, dataset_path)
 
-    confirmed = sum(1 for r in annotated if r["secprop"]["commit_verdict"] == "confirmed")
-    rejected = sum(1 for r in annotated if r["secprop"]["commit_verdict"] == "rejected")
-    errored = len(annotated) - confirmed - rejected
-    print(f"secprop: {confirmed} confirmed, {rejected} rejected (marked, kept), {errored} errored "
-          f"(recorded, re-runnable) of {len(annotated)}.")
-    print(f"fix_dataset annotated in place with secprop: {fix_dataset_path}.")
-    print(f"Logs saved to {secprop_log_dir}.")
+    summary = get_report_summary(reports, "commit_verdict")
+    summary_path = sec_prop_log_dir / LOG_SUMMARY
+    save_report(summary, summary_path)
+    print_summary(summary)
+    print(f"dataset annotated in place with sec_prop: {dataset_path}.")
+    print(f"Logs saved to {sec_prop_log_dir}.")
 
 
 if __name__ == "__main__":

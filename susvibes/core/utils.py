@@ -8,7 +8,7 @@ import tempfile
 from tqdm import tqdm
 from pathlib import Path
 
-from susvibes.core.constants import ARCH, DOCKERHUB_USERNAME, ENV_SPECS_DIR, ENV_SPEC_FILE_NAMES
+from susvibes.core.constants import ARCH, DOCKERHUB_USERNAME, ENV_SPECS_DIR, ENV_SPEC_FILE_NAMES, PATCH_ERROR_PATTERNS
 from susvibes.env_specs import GEN_SEC_TEST_CMD
 
 
@@ -42,8 +42,8 @@ def save_file(data, file_path: Path | str):
     else:
         file_path.write_text(data)
 
-def push_dataset_to_hub(records, repo_id, filename, private=False, commit_message=None):
-    """Upload records as a JSONL file to a HuggingFace dataset repo without writing
+def push_dataset_to_hub(dataset, repo_id, filename, private=False, commit_message=None):
+    """Upload dataset as a JSONL file to a HuggingFace dataset repo without writing
     into the local datasets/ tree."""
     from huggingface_hub import HfApi
     token = os.environ.get("HF_TOKEN")
@@ -53,7 +53,7 @@ def push_dataset_to_hub(records, repo_id, filename, private=False, commit_messag
     api.create_repo(repo_id=repo_id, repo_type="dataset", private=private, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir) / filename
-        save_file(records, tmp)
+        save_file(dataset, tmp)
         api.upload_file(
             path_or_fileobj=str(tmp),
             path_in_repo=filename,
@@ -95,24 +95,6 @@ class TqdmStreamHandler(logging.StreamHandler):
         except Exception:
             self.handleError(record)
         
-def confirm_overwrite_logs(log_dir: Path):
-    log_dir = Path(log_dir)
-    if not log_dir.exists():
-        return True
-    log_files = list(log_dir.glob("*.log"))
-    non_empty = [f for f in log_files if f.stat().st_size > 0]
-    if not non_empty:
-        return True
-    print(f"Found {len(non_empty)} non-empty log file(s) in {log_dir}:")
-    for f in non_empty:
-        print(f"  {f.name}")
-    answer = input("Overwrite? [Y/n] ").strip().lower()
-    if answer not in ('', 'y'):
-        return False
-    for f in non_empty:
-        f.write_text("")
-    return True
-
 def setup_logger(
     log_dir: Path,
     log_file_name: str,
@@ -190,6 +172,19 @@ def touched_files(patch, side="post"):
                 path = path[2:]
             file_paths.add(path)
     return file_paths
+
+class PatchError(RuntimeError):
+    """A patch would not apply. Raised where the failure surfaces (a docker build's `git apply`
+    output), so the caller sorts a verdict about the patch from the harness breaking by exception
+    type rather than by re-reading messages after the fact."""
+
+
+def is_patch_error(message: str) -> bool:
+    """Whether a failure message is `git apply` refusing the patch — a conclusion ABOUT THE PATCH
+    (the submission's in eval, the instance's test_patch in validate), not the harness breaking, so
+    it must never be reported as an error or a `--resume` would re-run it forever."""
+    return any(pattern in message for pattern in PATCH_ERROR_PATTERNS)
+
 
 def filter_target_files(patch, targets, exclude=False):
     diff_re = re.compile(r'^diff --git a/(.*?) b/(.*?)$')

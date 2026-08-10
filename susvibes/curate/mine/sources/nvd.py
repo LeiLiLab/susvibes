@@ -230,7 +230,7 @@ class NVDSource:
         _, survivors = prefilter(force=cls.force)
         inspected = inspect_threadpool(survivors, cls.run_id, force=cls.force, resume=cls.resume)
         save_file(inspected, NVD_INSPECT_CACHE_PATH)
-        stage2 = [finder_record(r) for r in inspected if route(r) == "stage2"]
+        stage2 = [finder_record(record) for record in inspected if route(record) == "stage2"]
         results = finder_threadpool(stage2, cls.run_id, force=cls.force, resume=cls.resume)
         return fetch_pinned_patches(results, cls.cache_path)
 
