@@ -238,9 +238,12 @@ def parse_instance_id(instance_id):
 
 class Route:
     """Map an instance's flags and a run name to how that run executes — its container command and
-    its logs-handler kind. A synthesized-sec instance (flags["gen_test"]) runs .sv.run_gen_test.sh and reads
-    the gen_sec results on its generated-test run — eval's "sec" run or validate's "*_gen_test" runs;
-    every other run uses the image's default command and count parsing."""
+    its logs-handler kind. A synthesized-sec instance (flags["gen_test"]) runs .sv.run_gen_test.sh on its
+    generated-test run — eval's "sec" run or validate's "*_gen_test" runs — which emits the repo runner's
+    native output (the same format REPO_TEST_CMD produces). Both run families use a synthesized count parser,
+    but each has its OWN (the sec run's output can differ from the functional run's — different framework,
+    flags, or summary decoration), so the gen-sec run reads the `count_gen_sec` handler and every other run
+    the `count` handler; non-gen-test runs also use the image's default command."""
 
     @staticmethod
     def _gen_test(flags: dict, run_name: str) -> bool:
@@ -252,4 +255,4 @@ class Route:
 
     @staticmethod
     def route_logs_kind(flags: dict, run_name: str) -> str:
-        return "gen_sec" if Route._gen_test(flags, run_name) else "count"
+        return "count_gen_sec" if Route._gen_test(flags, run_name) else "count"

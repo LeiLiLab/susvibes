@@ -52,6 +52,7 @@ GIT_AUTHOR_CONFIGS = [
     "git config --global user.name SusVibes"
 ]
 BANNED_REINSTALL_FOR_INSTANCE = {}
-# Container command for synthesized security tests: run the injected .sv.run_gen_test.sh, which prints
-# its single-line JSON pass-map to stdout for the gen_sec logs handler to parse.
+# Container command for synthesized security tests: run the injected .sv.run_gen_test.sh, which runs only
+# the agent's new tests via the repo's own runner and emits its native output (same format REPO_TEST_CMD
+# produces) for the count logs handler to parse.
 GEN_SEC_TEST_CMD = ["bash", "-c", "bash .sv.run_gen_test.sh"]

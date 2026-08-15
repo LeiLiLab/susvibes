@@ -127,53 +127,7 @@ def validate_repo_test_breaks(
     return (expected_pf, test_stats)
 
 
-def run_gen_sec_test(
-    env: Env,
-    data_record: dict,
-    flags: dict,
-    run_name: str,
-    patches: list[tuple[str, dict]],
-    log_dir: Path,
-    logger: logging.Logger,
-    force: bool = False,
-) -> tuple[str, bool]:
-    """Run one generated-sec-test configuration, returning (test_logs, timed_out) and saving the
-    logs as evidence. Classification is done by the caller."""
-    try:
-        deployment: Deployment = env.build_instance_deployment(
-            base_commit=data_record["base_commit"],
-            patches=patches,
-            logger=logger,
-        )
-    except docker.errors.BuildError as e:
-        msg = f"Failed to build gen sec test instance deployment: {e}"
-        logger.error(msg)
-        raise RuntimeError(msg)
-
-    try:
-        deployment.create_container(
-            command=Route.route_test_cmd(flags, run_name),
-            mem_limit=ContainerLimits.MEM_LIMIT,
-            cpu_limit=ContainerLimits.CPU_LIMIT,
-        )
-    except docker.errors.APIError as e:
-        msg = f"Failed to create gen sec test container: {e}"
-        logger.error(msg)
-        raise RuntimeError(msg)
-    try:
-        test_logs, timed_out = deployment.run_with_timeout()
-    except docker.errors.APIError as e:
-        msg = f"Failed to start gen sec test container: {e}"
-        logger.error(msg)
-        raise RuntimeError(msg)
-
-    test_output_path = log_dir / LOG_TEST_OUTPUT.format(run_name)      # evidence, not a cache
-    test_output_path.parent.mkdir(parents=True, exist_ok=True)
-    save_file(test_logs, test_output_path)
-    return test_logs, timed_out
-
-
-def validate_gen_sec_test_breaks(
+def run_gen_sec_test_suite_multi(
     env: Env,
     data_record: dict,
     test_patch: str,
@@ -181,24 +135,78 @@ def validate_gen_sec_test_breaks(
     log_dir: Path,
     logger: logging.Logger,
     force: bool = False,
-) -> tuple:
-    """
-    Run the generated sec tests (rollback_with_gen_test, base_with_gen_test), then verify the
-    vulnerable run breaks at least one case the secure run passes.
-    Raises RuntimeError on failure; returns (expected_pf, test_stats) on success — expected_pf carries
-    the "sec" key (the per-case pass map of the secure run, what an eval submission must pass).
-    """
-    runs_patches = [
+) -> tuple[list, list]:
+    """Run 2 generated-sec-test variants: rollback_with_gen_test (vulnerable + agent test) and
+    base_with_gen_test (secure + agent test). Collect and cache each run's logs and timeout flag;
+    returns (test_logs_list, timed_out_list). Classification (status / discrimination) is done by the
+    caller. Mirrors run_repo_test_suite_multi."""
+    logger.info(f"Running generated sec tests in environment deployment {env.deployment.image.tags[0]}...")
+    runs_list = [
         [(data_record["security_patch"], {"reverse": True}), (test_patch, {})],  # rollback_with_gen_test: vulnerable + agent test
         [(test_patch, {})],                                                       # base_with_gen_test: secure + agent test
     ]
-    test_pf_list = []
-    for run_name, patches in zip(GEN_SEC_TEST_RUNS, runs_patches):
-        test_logs, timed_out = run_gen_sec_test(env, data_record, flags, run_name, patches,
-            log_dir, logger, force=force)
-        test_pf_list.append(env.handle_test_logs(test_logs, timed_out, logger,
-            kind=Route.route_logs_kind(flags, run_name)))
+    test_logs_list, timed_out_list = [], []
+    for run_patches, run_name in zip(runs_list, GEN_SEC_TEST_RUNS):
+        try:
+            deployment: Deployment = env.build_instance_deployment(
+                base_commit=data_record["base_commit"],
+                patches=run_patches,
+                logger=logger,
+            )
+        except docker.errors.BuildError as e:
+            msg = f"Failed to build gen sec test instance deployment: {e}"
+            logger.error(msg)
+            raise PatchError(msg) if is_patch_error(str(e)) else RuntimeError(msg)
+        try:
+            deployment.create_container(command=Route.route_test_cmd(flags, run_name),
+                mem_limit=ContainerLimits.MEM_LIMIT, cpu_limit=ContainerLimits.CPU_LIMIT)
+        except docker.errors.APIError as e:
+            msg = f"Failed to create gen sec test container: {e}"
+            logger.error(msg)
+            raise RuntimeError(msg)
+        try:
+            test_logs, timed_out = deployment.run_with_timeout()
+        except docker.errors.APIError as e:
+            msg = f"Failed to start gen sec test container: {e}"
+            logger.error(msg)
+            raise RuntimeError(msg)
+        test_output_path = log_dir / LOG_TEST_OUTPUT.format(run_name)   # evidence, not a cache
+        test_output_path.parent.mkdir(parents=True, exist_ok=True)
+        save_file(test_logs, test_output_path)
+        test_logs_list.append(test_logs)
+        timed_out_list.append(timed_out)
+    return test_logs_list, timed_out_list
+
+
+def validate_gen_sec_test_breaks(
+    env: Env,
+    test_logs_list: list,
+    timed_out_list: list,
+    flags: dict,
+    logger: logging.Logger,
+) -> tuple:
+    """
+    Verify the generated sec tests discriminate: the vulnerable run must break at least one case the
+    secure run passes, and each state must conclude pass or fail (never error). Raises ValidationRejected
+    on failure; returns (expected_pf, test_stats) on success — expected_pf carries the "sec" key (the
+    distinguishing amount an eval submission must not break). Mirrors validate_repo_test_breaks.
+    """
+    test_pf_list = [env.handle_test_logs(test_logs, timed_out, logger,
+        kind=Route.route_logs_kind(flags, run_name))
+        for run_name, test_logs, timed_out in zip(GEN_SEC_TEST_RUNS, test_logs_list, timed_out_list)]
+
     vuln_pf, gold_pf = test_pf_list
+
+    # Error contract: a security test must conclude pass or fail in BOTH states. A run that does not
+    # complete - a collection/import error, a missing driver, a setup failure, or a timeout - means the
+    # tests are broken, not a security signal; reject rather than reading a non-completed run (which
+    # compares as infinitely broken) as detection.
+    for run_name, test_pf in zip(GEN_SEC_TEST_RUNS, test_pf_list):
+        if not test_pf.completed():
+            msg = f"Failed to validate gen sec tests: {run_name} did not conclude ({test_pf.status}) - a " \
+                "security test must pass or fail, never error."
+            logger.error(msg)
+            raise ValidationRejected(msg)
 
     if not vuln_pf.breaks_more_than(gold_pf):
         msg = "Failed to validate gen sec test breaks: no distinguishing tests (vuln fail + gold pass). " \
@@ -209,7 +217,7 @@ def validate_gen_sec_test_breaks(
     expected_pf = {"sec": vuln_pf.excess_breaks_over(gold_pf, to_raw=True)}
     test_stats = {}
     test_stats["num_sec_tests"] = vuln_pf.count_excess_breaks_over(gold_pf)
-    logger.info(f"Sec tests verified: {test_stats['num_sec_tests']} distinguishing.")
+    logger.info(f"Gen sec tests verified: {test_stats['num_sec_tests']} distinguishing.")
     return (expected_pf, test_stats)
 
 
@@ -262,6 +270,7 @@ def validate_single(
 
     flags = {"gen_test": True}
     try:
+        # Functional: the repo's own tests across base/rollback/task, with a count parser synthesized from them.
         test_logs_list, timed_out_list = run_repo_test_suite_multi(
             env, data_record, flags, log_dir, logger, force)
         env.logs_handler = LogsHandler.get_by_kind("count", env.logs_handler,
@@ -269,11 +278,25 @@ def validate_single(
             model=LOGS_PARSER_MODEL, log_dir=log_dir, logger=logger, ordering_checks=[(2, 1)],
             allow_timeout=lambda id: id == 2, allow_startup_error=lambda id: id == 2,
             require_failures=False, force=force)
-        env.logs_handler = LogsHandler.get_by_kind("gen_sec", env.logs_handler, log_dir=log_dir)
         expected_pf, test_stats = validate_repo_test_breaks(
             env, test_logs_list, timed_out_list, flags, logger)
-        gen_sec_expected_pf, gen_sec_test_stats = validate_gen_sec_test_breaks(
+
+        # Generated security tests across the two states, with their OWN count parser synthesized from their
+        # own output (its format can differ from the functional run's). require_failures=True: if neither
+        # state yields a countable failure the suite discriminates nothing — an INVALID verdict, not a miss;
+        # allow_timeout/startup are permissive so a non-completed run is judged (INVALID) by the breaks step.
+        gen_sec_test_logs_list, gen_sec_timed_out_list = run_gen_sec_test_suite_multi(
             env, data_record, test_patch, flags, log_dir, logger, force)
+        try:
+            env.logs_handler = LogsHandler.get_by_kind("count_gen_sec", env.logs_handler,
+                test_logs_list=gen_sec_test_logs_list, timed_out_list=gen_sec_timed_out_list,
+                model=LOGS_PARSER_MODEL, log_dir=log_dir, logger=logger, ordering_checks=[(0, 1)],
+                allow_timeout=lambda id: True, allow_startup_error=lambda id: True,
+                require_failures=True, force=force)
+        except RuntimeError as e:
+            raise ValidationRejected(f"Gen sec tests are non-discriminating or unparseable: {e}")
+        gen_sec_expected_pf, gen_sec_test_stats = validate_gen_sec_test_breaks(
+            env, gen_sec_test_logs_list, gen_sec_timed_out_list, flags, logger)
 
         expected_pf.update(gen_sec_expected_pf)
         test_stats.update(gen_sec_test_stats)

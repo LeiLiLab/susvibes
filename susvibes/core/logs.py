@@ -213,7 +213,7 @@ class LogsHandler(ABC):
     """Base for the per-kind logs handlers: each turns a run's container logs into a PassFailure.
     A handler instance carries its data; `handle_by_kind` rebuilds the right one from a stored dict
     and applies it, so callers route by kind alone. The per-instance synthesis cache (log_dir's
-    logs_handler.json) is shared and keyed by kind, e.g. {"count": {...}, "gen_sec": {}}."""
+    logs_handler.json) is shared and keyed by kind, e.g. {"count": {...}, "count_gen_sec": {...}}."""
 
     CACHE_FILE_NAME = "logs_handler.json"
     KIND: str
@@ -589,38 +589,7 @@ class LogsCount(LogsHandler):
         return cls(logs_parser=logs_parser, logs_checker=logs_checker)
 
 
-class LogsGenSec(LogsHandler):
-    """The generated-sec-test handler: the container prints a per-case pass map as a JSON object;
-    `handle` extracts it. No synthesis (the format is fixed by the sec-test harness), so its stored
-    data is empty — `gen` just records that trivially in the per-instance cache."""
-
-    KIND = "gen_sec"
-
-    def to_dict(self) -> dict:
-        return {}
-
-    @classmethod
-    def get(cls, log_dir: Path, existing_data: dict = None) -> "LogsGenSec":
-        handler = cls()
-        cls._save_cache(log_dir, handler.to_dict())
-        return handler
-
-    def handle(self, test_logs: str, timed_out: bool, logger: logging.Logger,
-        allow_timeout: bool = False) -> PassFailureCases:
-        """Parse the generated sec test's container logs (its last JSON object) into a per-case
-        PassFailureCases ({test_case: passes}). Raises RuntimeError on timeout (unless allow_timeout)
-        or unparseable logs."""
-        if timed_out and not allow_timeout:
-            msg = "Failed to run tests because of gen sec test timeout."
-            logger.error(msg)
-            raise RuntimeError(msg)
-        cases = extract_json_object(test_logs)
-        if cases is None:
-            msg = "Failed to parse gen sec test logs."
-            logger.error(msg)
-            raise RuntimeError(msg)
-        status = TestStatus.TIMEOUT if timed_out else TestStatus.COMPLETED
-        return PassFailureCases(status, cases)
-
-
-LOGS_KINDS = {LogsCount.KIND: LogsCount, LogsGenSec.KIND: LogsGenSec}
+# Two count-parser kinds: `count` for the repo's functional runs and `count_gen_sec` for the synthesized
+# security-test runs — the same LogsCount machinery, each synthesized from its own run family's output (the
+# sec run's format can differ from the functional run's), stored side by side in logs_handler.json.
+LOGS_KINDS = {LogsCount.KIND: LogsCount, "count_gen_sec": LogsCount}
