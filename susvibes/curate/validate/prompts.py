@@ -57,8 +57,8 @@ LOGS_CHECKER_PROMPT_TEMPLATE = {
         and, via re.search, must match the logs of every aborted run and none of the completed runs. If every run completed, use an empty string for the regex and leave aborted_runs empty.
 
         RULES:
-        - A run is completed if it reported a summary of the tests it ran (counts of how many passed / failed / etc.), and aborted if no such summary appeared because the suite stopped before reporting results; decide on the presence of that summary, not on whether tests began or whether errors appeared.
-        - A run that reported a summary completed even if **many tests failed**, or it also printed **tracebacks or a non-zero exit code**; these appear in completed runs too, so they are not abort signals—do not match such a run.
+        - A run is completed if it reported a test-result summary — the line(s) a runner prints after executing tests, e.g. pytest's `N passed, N failed, ... in Ts` or unittest's `Ran N tests in Ts` followed by `OK` or `FAILED (failures=N, errors=N)` (note the latter form carries no per-status pass/fail counts). It aborted if no such summary appeared because the suite stopped before reporting results. Decide on the presence of that summary, not on whether tests began or whether errors appeared, and not on where in the log it sits (teardown or other output may follow it).
+        - A run that reported a summary completed even if **many tests failed**, it **stopped early after reaching a failure limit** (e.g. pytest `-x` / `--maxfail`: `stopping after N failures`), or it also printed **tracebacks or a non-zero exit code**; these appear in completed runs too, so they are not abort signals—do not match such a run.
         - A run that produced only **collection / import / setup errors**, with no test ever running, aborted—even if it printed a count of those errors; a run that started and then crashed partway with no summary also aborted. Match these.
         - Anchor on the abort signature shared by the aborted runs and absent from the completed ones; consider all runs together so the regex generalizes instead of overfitting one run.
 

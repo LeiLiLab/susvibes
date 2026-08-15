@@ -63,6 +63,15 @@ def clip_tokens(text: str, model: str, limit: int) -> str:
     return enc.decode(tokens)
 
 
+_ANSI_RE = re.compile(r"\x1b\[[0-9;]*m")
+
+
+def strip_ansi(text: str) -> str:
+    """Drop terminal colour/SGR escape codes so parsing and parser-synthesis see plain text — some
+    runners (e.g. pytest under a pseudo-tty) wrap the count in codes like `\\x1b[1m7 failed\\x1b[0m`."""
+    return _ANSI_RE.sub("", text)
+
+
 def extract_json_object(text: str) -> dict | None:
     """The last top-level JSON object embedded in `text`, or None if there is none. Scans past
     any prose, code fences, or stray scalars a model may wrap around the object."""
@@ -294,7 +303,7 @@ class LogsCount(LogsHandler):
         """Test status from the test logs, using the logs_checker regex."""
         if timed_out:
             return TestStatus.TIMEOUT
-        if logs_checker and re.search(logs_checker, test_logs, re.MULTILINE):
+        if logs_checker and re.search(logs_checker, strip_ansi(test_logs), re.MULTILINE):
             return TestStatus.STARTUP_ERROR
         return TestStatus.COMPLETED
 
@@ -302,6 +311,7 @@ class LogsCount(LogsHandler):
     def _parse(logs_parser: dict, test_logs: str, logger: logging.Logger) -> dict[str, int]:
         """Count test outcomes in the test logs using the per-status logs_parser regexes."""
         logger.info("Parsing test logs...")
+        test_logs = strip_ansi(test_logs)
         test_result = {}
         for item_status, pattern in logs_parser.items():
             if pattern:
@@ -365,7 +375,7 @@ class LogsCount(LogsHandler):
         require_failures: bool = True,
     ) -> dict:
         """Synthesize and return a logs parser from the test logs. Raises RuntimeError on failure."""
-        test_logs_list = [clip_tokens(test_logs, model, limit=(get_max_tokens(model) // 8))
+        test_logs_list = [clip_tokens(strip_ansi(test_logs), model, limit=(get_max_tokens(model) // 8))
             for test_logs in test_logs_list]
 
         messages = []
@@ -488,7 +498,7 @@ class LogsCount(LogsHandler):
     ) -> str | None:
         """Synthesize and return a per-instance startup-error checker (one regex) from the test logs
         (None when no run failed to start). Raises RuntimeError on failure."""
-        logs_for_prompt = [clip_tokens(test_logs, model, limit=(get_max_tokens(model) // 8))
+        logs_for_prompt = [clip_tokens(strip_ansi(test_logs), model, limit=(get_max_tokens(model) // 8))
             for test_logs in test_logs_list]
 
         messages = []
