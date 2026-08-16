@@ -154,7 +154,9 @@ def run_gen_sec_test_suite_multi(
                 logger=logger,
             )
         except docker.errors.BuildError as e:
-            msg = f"Failed to build gen sec test instance deployment: {e}"
+            # `run_name` goes AFTER the first colon: the prefix is what groups errors, and each of
+            # this loop's builds applies a different set of patches, so the verdict must name which.
+            msg = f"Failed to build gen sec test instance deployment: {run_name}: {e}"
             logger.error(msg)
             raise PatchError(msg) if is_patch_error(str(e)) else RuntimeError(msg)
         try:
@@ -247,7 +249,7 @@ def validate_single(
 
     if not test_patch.strip():
         logger.error("Empty test_patch.")
-        report = validate_report(ValidateStatus.EMPTY_TEST_PATCH)
+        report = validate_report(ValidateStatus.EMPTY_PATCH)
         save_report(report, log_dir / LOG_REPORT)
         return report
 
@@ -276,7 +278,7 @@ def validate_single(
         env.logs_handler = LogsHandler.get_by_kind("count", env.logs_handler,
             test_logs_list=test_logs_list, timed_out_list=timed_out_list,
             model=LOGS_PARSER_MODEL, log_dir=log_dir, logger=logger, ordering_checks=[(2, 1)],
-            allow_timeout=lambda id: id == 2, allow_startup_error=lambda id: id == 2,
+            allow_timeout=lambda id: id == 2, allow_aborted=lambda id: id == 2,
             require_failures=False, force=force)
         expected_pf, test_stats = validate_repo_test_breaks(
             env, test_logs_list, timed_out_list, flags, logger)
@@ -284,17 +286,20 @@ def validate_single(
         # Generated security tests across the two states, with their OWN count parser synthesized from their
         # own output (its format can differ from the functional run's). require_failures=True: if neither
         # state yields a countable failure the suite discriminates nothing — an INVALID verdict, not a miss;
-        # allow_timeout/startup are permissive so a non-completed run is judged (INVALID) by the breaks step.
+        # allow_timeout/aborted are permissive so a non-completed run is judged (INVALID) by the breaks step.
         gen_sec_test_logs_list, gen_sec_timed_out_list = run_gen_sec_test_suite_multi(
             env, data_record, test_patch, flags, log_dir, logger, force)
         try:
             env.logs_handler = LogsHandler.get_by_kind("count_gen_sec", env.logs_handler,
                 test_logs_list=gen_sec_test_logs_list, timed_out_list=gen_sec_timed_out_list,
                 model=LOGS_PARSER_MODEL, log_dir=log_dir, logger=logger, ordering_checks=[(0, 1)],
-                allow_timeout=lambda id: True, allow_startup_error=lambda id: True,
+                allow_timeout=lambda id: True, allow_aborted=lambda id: True,
                 require_failures=True, force=force)
         except RuntimeError as e:
-            raise ValidationRejected(f"Gen sec tests are non-discriminating or unparseable: {e}")
+            # Pass the cause through rather than naming one: this catches a checker that would not
+            # synthesize, a run the abort rules rejected, and a parser that found nothing to count —
+            # a fixed label here reads as a diagnosis, and sends whoever trusts it the wrong way.
+            raise ValidationRejected(f"Gen sec tests rejected: {e}")
         gen_sec_expected_pf, gen_sec_test_stats = validate_gen_sec_test_breaks(
             env, gen_sec_test_logs_list, gen_sec_timed_out_list, flags, logger)
 
@@ -328,7 +333,7 @@ def validate_single(
     except ValidationRejected as e:
         report = validate_report(ValidateStatus.INVALID, reason=str(e))
     except PatchError as e:
-        report = validate_report(ValidateStatus.TEST_PATCH_ERROR, reason=str(e))
+        report = validate_report(ValidateStatus.PATCH_ERROR, reason=str(e))
     except RuntimeError as e:
         report = validate_miss(str(e))
     else:

@@ -75,10 +75,12 @@ def run_test_suite_multi(
                 logger=logger,
             )
         except docker.errors.BuildError as e:
-            msg = f"Failed to build instance deployment: {e}"
+            # `run_name` goes AFTER the first colon: the prefix is what groups errors, and each of
+            # this loop's builds applies a different set of patches, so the verdict must name which.
+            msg = f"Failed to build instance deployment: {run_name}: {e}"
             logger.error(msg)
-            # Decide here, where the build log is: `git apply` refusing the test_patch is a verdict
-            # on the instance, anything else is the harness breaking.
+            # Decide here, where the build log is: `git apply` refusing a patch is a verdict on the
+            # instance, anything else is the harness breaking.
             raise PatchError(msg) if is_patch_error(str(e)) else RuntimeError(msg)
         try:
             deployment.create_container(command=Route.route_test_cmd(flags, run_name),
@@ -202,7 +204,7 @@ def validate_single(
         env.logs_handler = LogsHandler.get_by_kind("count", env.logs_handler,
             test_logs_list=test_logs_list, timed_out_list=timed_out_list,
             model=LOGS_PARSER_MODEL, log_dir=log_dir, logger=logger, ordering_checks=[(3, 0), (4, 1)],
-            allow_timeout=lambda id: id >= 3, allow_startup_error=lambda id: id == 4,
+            allow_timeout=lambda id: id >= 3, allow_aborted=lambda id: id == 4,
             force=force)
         expected_pf, test_stats = validate_test_breaks(env, test_logs_list, timed_out_list, flags, logger=logger)
         logger.info("Task validated, expected_pf-{}, num_sec_tests-{}, num_func_tests-{}".format(
@@ -237,7 +239,7 @@ def validate_single(
     except ValidationRejected as e:
         report = validate_report(ValidateStatus.INVALID, reason=str(e))
     except PatchError as e:
-        report = validate_report(ValidateStatus.TEST_PATCH_ERROR, reason=str(e))
+        report = validate_report(ValidateStatus.PATCH_ERROR, reason=str(e))
     except RuntimeError as e:
         report = validate_miss(str(e))
     else:

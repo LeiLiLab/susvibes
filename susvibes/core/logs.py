@@ -304,7 +304,7 @@ class LogsCount(LogsHandler):
         if timed_out:
             return TestStatus.TIMEOUT
         if logs_checker and re.search(logs_checker, strip_ansi(test_logs), re.MULTILINE):
-            return TestStatus.STARTUP_ERROR
+            return TestStatus.ABORTED
         return TestStatus.COMPLETED
 
     @staticmethod
@@ -390,21 +390,29 @@ class LogsCount(LogsHandler):
         logger.info("Synthesizing logs parser...")
         is_success = False
         conserv_retry = 1
+        # Why the last attempt was rejected. Every retry overwrites it, so what survives is what
+        # stopped the final one — carried into the exception because "failed to synthesize" alone
+        # cannot tell a suite that yields no failure (a verdict about the tests) from output no
+        # regex can read (a verdict about the format), and the two call for opposite responses.
+        last_reason = "no attempt was made"
         for retry in range(max_retries):
             if retry:
                 logger.info(f"Retrying... {retry + 1}/{max_retries}")
             try:
                 response = completion(model=model, messages=messages)
             except Exception as e:
+                last_reason = f"the model did not respond ({e})"
                 logger.warning(f"Failed to get model response: {e}")
                 continue
             record_llm_cost(response)
             message = response.choices[0].message
             logs_parser = extract_json_object(message.content)
             if logs_parser is None:
+                last_reason = "the model's response held no JSON object"
                 logger.warning("Failed to parse model response as JSON.")
                 continue
             if not cls._validate_parser(logs_parser, logger, require_failures):
+                last_reason = "the proposed parser has no usable pattern"
                 continue
             test_result_list, test_failures_list = [], []
             for test_logs, test_status in zip(test_logs_list, test_statuses):
@@ -415,16 +423,19 @@ class LogsCount(LogsHandler):
                     test_result = cls._parse(logs_parser, test_logs, logger)
                     test_result_list.append(test_result)
                 except Exception as e:
+                    last_reason = f"the proposed parser raised on the logs ({e})"
                     logger.warning(f"Failed to parse test logs: {e}. logs_parser-{logs_parser}")
                     break
                 test_failures_list.append(cls._count_failures(test_result))
             if len(test_result_list) < len(test_logs_list):
                 continue
             if any(tf < 0 for tf in test_failures_list):
+                last_reason = "the proposed parser counted a negative number of failures"
                 logger.warning(f"Invalid (negative) test failures detected. logs_parser-{logs_parser}")
                 continue
             if not sum(test_failures_list):
                 if require_failures:
+                    last_reason = "no run yields a countable failure, so the suite distinguishes nothing"
                     logger.warning(f"Invalid test failures detected. logs_parser-{logs_parser}")
                     continue
                 if any(ts != TestStatus.COMPLETED for ts in test_statuses):
@@ -435,6 +446,7 @@ class LogsCount(LogsHandler):
                     break
                 # All runs completed yet no countable failures: either the change is not
                 # covered by the suite, or the model missed real failures. Retry.
+                last_reason = "every run completed yet none yields a countable failure"
                 logger.warning(f"Invalid test failures detected. logs_parser-{logs_parser}")
                 continue
             test_completed_list = [ts == TestStatus.COMPLETED for ts in test_statuses]
@@ -453,7 +465,7 @@ class LogsCount(LogsHandler):
             break
 
         if not is_success:
-            msg = "Failed to synthesize logs parser."
+            msg = f"Failed to synthesize logs parser: {last_reason}"
             logger.error(msg)
             raise RuntimeError(msg)
         logger.info("Logs parser created successfully.")
@@ -551,7 +563,7 @@ class LogsCount(LogsHandler):
         logger: logging.Logger,
         ordering_checks: list[tuple[int, int]],
         allow_timeout,
-        allow_startup_error,
+        allow_aborted,
         existing_data: dict = None,
         require_failures: bool = True,
         force: bool = False,
@@ -559,7 +571,7 @@ class LogsCount(LogsHandler):
         """Get the count handler end to end, reusing in priority order existing (stored env_spec) →
         cache (log_dir) → freshly generated; `force` skips both reuse tiers. The checker is built
         first, used to classify each run for the critical-abort rules (allow_timeout /
-        allow_startup_error), then the parser. Raises on critical abort or synthesis failure."""
+        allow_aborted), then the parser. Raises on critical abort or synthesis failure."""
         existing_data = existing_data or {}
         cache = cls._load_cache(log_dir)
 
@@ -580,8 +592,8 @@ class LogsCount(LogsHandler):
                 msg = "Failed to run tests because of critical timeout."
                 logger.error(msg)
                 raise RuntimeError(msg)
-            if test_status == TestStatus.STARTUP_ERROR and not allow_startup_error(id):
-                msg = "Failed to run tests because of critical startup error."
+            if test_status == TestStatus.ABORTED and not allow_aborted(id):
+                msg = "Failed to run tests because of a critical aborted run."
                 logger.error(msg)
                 raise RuntimeError(msg)
 

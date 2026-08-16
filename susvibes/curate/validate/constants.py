@@ -14,8 +14,8 @@ class ValidateStatus(StrEnum):
     thing `--resume` re-runs."""
     VALIDATED = "validated"                 # meets every requirement — expected_pf recorded
     INVALID = "invalid"                     # a validation check rejected it — `reason` says which
-    TEST_PATCH_ERROR = "test_patch_error"   # the test_patch does not apply
-    EMPTY_TEST_PATCH = "empty_test_patch"   # nothing to validate
+    PATCH_ERROR = "patch_error"             # a patch does not apply — `reason` names which build
+    EMPTY_PATCH = "empty_patch"             # nothing to validate
 
 KEEP_STAGE = KeepStage.VALIDATE   # this stage's verdict under record["keep"]
 

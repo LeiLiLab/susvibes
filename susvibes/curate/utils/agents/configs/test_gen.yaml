@@ -72,7 +72,9 @@ agent:
         `REPO_TEST_CMD` (above) uses - and lets that runner's native output print to stdout/stderr. Its output
         is therefore in the same format `REPO_TEST_CMD` produces. Do NOT write a parser, print JSON, or
         redirect to a file. Scope the run to your test file path (not a bare discovery over the whole test
-        tree) so it runs your tests and nothing else.
+        tree) so it runs your tests and nothing else. Run every one of your tests - do NOT stop at the first
+        failure (no `-x` / `--maxfail` / `--exitfirst`) - so the summary reports the full pass/fail tally,
+        not a truncated one.
       - You don't need extra files (README, summary, docs, parser helpers) beyond these.
 
       If you genuinely cannot write security tests that assert the real consequence and discriminate for the

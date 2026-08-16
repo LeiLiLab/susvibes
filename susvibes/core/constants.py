@@ -81,7 +81,7 @@ PATCH_ERROR_PATTERNS = ["patch does not apply", "patch failed:",
     "No such file or directory", "No valid patches in input"]
 
 class TestStatus(StrEnum):
-    STARTUP_ERROR = "startup_error"
+    ABORTED = "aborted"        # no complete result: crashed, collection/setup error, or stopped early (maxfail)
     TIMEOUT = "timeout"
     COMPLETED = "completed"
 
