@@ -16,6 +16,7 @@ python -m susvibes.curate.env_setup.build_repo \
 import argparse
 import json
 from tqdm import tqdm
+from enum import StrEnum
 from pathlib import Path
 from jinja2 import Template
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -30,8 +31,8 @@ from susvibes.core.env import Deployment
 from susvibes.env_specs import dockerfiles, DOCKERFILE_PATTERN, GIT_AUTHOR_CONFIGS, WORKSPACE_DIR_NAME
 from susvibes.curate.env_setup.prompts import INSTALL_TEST_PROMPT_TEMPLATE
 from susvibes.core.agents.sweagent import SWEAgentPort
-from susvibes.core.report import get_two_state_summary, print_summary
-from susvibes.core.utils import load_file, save_file, filter_target_files, get_image_name, setup_instance_logger, parse_instance_id, touched_files, get_env_specs, save_env_specs
+from susvibes.core.report import reuse_report, save_report, get_report_summary, print_summary
+from susvibes.core.utils import load_file, save_file, filter_target_files, get_image_name, setup_instance_logger, parse_instance_id, touched_files, get_env_specs, save_env_specs, is_patch_error, PatchError
 from susvibes.curate.utils import (
     RepoLocks,
     reset_to_commit,
@@ -41,14 +42,67 @@ from susvibes.curate.utils import (
 )
 
 LOG_INSTANCE = "build_repo.log"
+LOG_REPORT = "report.json"
+LOG_SUMMARY = "summary.json"
 
 
 KEEP_STAGE = KeepStage.BUILD_REPO   # this stage's verdict under record["keep"]
 IMAGE_FIELD = "env_image_name"      # the image it built
 
+# The daemon running the Dockerfile and failing is a verdict ON THE DOCKERFILE; an unreachable
+# registry, a full disk or a dead daemon is the harness breaking. Naming the verdicts and leaving
+# everything else an error is the safe default — a wasted rebuild costs minutes, while a harness
+# failure mistaken for a verdict drops the instance and no `--resume` ever revisits it. Mirrors
+# PATCH_ERROR_PATTERNS.
+UNBUILDABLE_PATTERNS = ["returned a non-zero code:", "dockerfile parse error",
+    "unknown instruction", "COPY failed", "ADD failed"]
+
+
+class BuildRepoStatus(StrEnum):
+    """How one instance's environment build concluded. Every member is a NORMAL outcome; the daemon
+    or the registry failing is the report's `error`, which is what `--resume` re-runs."""
+    BUILT = "built"                 # the image exists — see the report's env_image_name
+    EMPTY_PATCH = "empty_patch"     # the agent submitted nothing
+    PATCH_ERROR = "patch_error"     # the agent's patch does not apply to the base tree
+    INVALID = "invalid"             # the Dockerfile fails this stage's checks — `reason` says which
+    UNBUILDABLE = "unbuildable"     # the daemon ran the Dockerfile and it failed
+
+PASS_STATUSES = {BuildRepoStatus.BUILT}   # only a built image clears the gate
+
+
+class UnbuildableError(RuntimeError):
+    """The daemon ran the Dockerfile and it failed. Raised where the build log is, so the caller
+    sorts a verdict about the Dockerfile from the harness breaking by exception type. Mirrors
+    PatchError."""
+
+
+class InvalidDockerfileError(RuntimeError):
+    """The agent's Dockerfile does not meet this stage's structural requirements — a verdict on
+    what the agent wrote, reached without the daemon ever running it."""
+
+
+def is_unbuildable(message: str) -> bool:
+    """Whether a build failure is the daemon executing the Dockerfile and failing — a conclusion
+    ABOUT THE DOCKERFILE, not the harness breaking. Anything unrecognised stays an error so a
+    `--resume` re-runs it. Mirrors `is_patch_error`."""
+    return any(pattern in message for pattern in UNBUILDABLE_PATTERNS)
+
+
+def build_repo_report(status: BuildRepoStatus, **payload) -> dict:
+    """A report for an instance that concluded: the status plus what names the outcome — the image
+    and the Dockerfile it was built from, or the reason the Dockerfile was rejected."""
+    return {"build_repo_status": status, **payload, "error": None}
+
+
+def build_repo_miss(error: str) -> dict:
+    """A report for a run that concluded nothing — the daemon, the registry or the clone failed."""
+    return {"build_repo_status": None, "error": error}
+
 
 def extract_dockerfile(prediction, logger):
-    """Extract the Dockerfile from the model prediction patch."""
+    """Extract the Dockerfile from the model prediction patch. Raises PatchError /
+    InvalidDockerfileError on a verdict about what the agent submitted, RuntimeError when the
+    harness broke."""
     project, base_commit = parse_instance_id(prediction["instance_id"])
     repo_dir = get_repo_dir(project, root_dir=LOCAL_REPOS_DIR)
     reset_to_commit(repo_dir, base_commit, new_branch=False)
@@ -58,6 +112,10 @@ def extract_dockerfile(prediction, logger):
     except Exception as e:
         msg = f"Error applying model_patch: {e}"
         logger.error(msg)
+        # `git apply` refusing the patch is a verdict on the submission; anything else here is git
+        # or the clone breaking.
+        if is_patch_error(str(e)):
+            raise PatchError(msg)
         raise RuntimeError(msg)
 
     try:
@@ -65,8 +123,9 @@ def extract_dockerfile(prediction, logger):
     except FileNotFoundError:
         msg = "Dockerfile corresponding to the environment not found."
         logger.error(msg)
-        return RuntimeError(msg)
+        raise InvalidDockerfileError(msg)
     return dockerfile
+
 
 def validate_and_compose_env_dockerfile(dockerfile, logger):
     """Validate dockerfile structure and append a commit step before CMD."""
@@ -75,31 +134,31 @@ def validate_and_compose_env_dockerfile(dockerfile, logger):
     if not m:
         msg = "Dockerfile does not match expected pattern (FROM/COPY/CMD)."
         logger.error(msg)
-        raise RuntimeError(msg)
+        raise InvalidDockerfileError(msg)
     from_stm, _, cpy_stm, _, cmd_stm = m.groups()
 
     # Validate FROM uses base_py
     if not re.search(r'base_py:', from_stm):
         msg = f"Dockerfile FROM does not use base_py image: {from_stm.strip()}"
         logger.error(msg)
-        raise RuntimeError(msg)
+        raise InvalidDockerfileError(msg)
 
     # Validate WORKDIR /<WORKSPACE_DIR_NAME> is set somewhere in the dockerfile
     workdir_stm = f"WORKDIR /{WORKSPACE_DIR_NAME}"
     if workdir_stm not in dockerfile:
         msg = f"Dockerfile must contain '{workdir_stm}'."
         logger.error(msg)
-        raise RuntimeError(msg)
+        raise InvalidDockerfileError(msg)
 
     # Validate COPY and CMD exist
     if not cpy_stm.strip():
         msg = "Dockerfile missing COPY statement."
         logger.error(msg)
-        raise RuntimeError(msg)
+        raise InvalidDockerfileError(msg)
     if not cmd_stm.strip():
         msg = "Dockerfile missing CMD statement."
         logger.error(msg)
-        raise RuntimeError(msg)
+        raise InvalidDockerfileError(msg)
 
     # Insert git config + commit step before CMD
     run_stm = "RUN {}\n"
@@ -118,8 +177,10 @@ def strip_tag(image: Image, image_name: str) -> None:
     image.tag(local_name, tag=version)
 
 
-def build_env_deployment(instance_id, dockerfile, logger) -> Deployment | None:
-    """Build a environment Docker image."""
+def build_env_deployment(instance_id, dockerfile, logger, nocache: bool = False) -> Deployment:
+    """Build an environment Docker image. Raises InvalidDockerfileError / UnbuildableError on a
+    verdict about the Dockerfile and RuntimeError when the harness broke; `nocache` bypasses
+    docker's layer cache, which is otherwise what makes re-deriving a built image cheap."""
     project, base_commit = parse_instance_id(instance_id)
     repo_dir = get_repo_dir(project, root_dir=LOCAL_REPOS_DIR)
     env_image_name = get_image_name(f"env_{instance_id}")
@@ -135,14 +196,17 @@ def build_env_deployment(instance_id, dockerfile, logger) -> Deployment | None:
             context_path=repo_dir,
             dockerfile=dockerfile,
             image_name=env_image_name,
+            nocache=nocache,
         )
     except docker.errors.BuildError as e:
         msg = f"Failed to build environment deployment: {e}"
         logger.error(msg)
-        return None, msg
-    except RuntimeError as e:
-        return None, str(e)      # validate_* already logged
-    return env_deployment, None
+        # Decide here, where the build log is: the daemon running the Dockerfile and failing is a
+        # verdict on the Dockerfile, anything else is the harness breaking.
+        if is_unbuildable(f"{e}\n{e.build_log}"):
+            raise UnbuildableError(msg)
+        raise RuntimeError(f"{msg}\n{e.build_log}")
+    return env_deployment
 
 
 def prologue(
@@ -220,6 +284,8 @@ def epilogue(
     output_dir: Path = None,
     save_specs: bool = True,
     instance_ids: list = None,
+    force: bool = False,
+    resume: bool = False,
 ):
     predictions, _ = SWEAgentPort.after_completion(output_dir) if output_dir else (None, None)
     dataset = load_file(dataset_path)
@@ -228,6 +294,8 @@ def epilogue(
         predictions=predictions,
         save_specs=save_specs,
         instance_ids=instance_ids,
+        force=force,
+        resume=resume,
     )
     save_file(dataset, dataset_path)
     print(f"Dataset saved to {dataset_path}.")
@@ -238,47 +306,62 @@ def build_repo_single(
     env_setup_log_dir: Path,
     prediction: dict = None,
     env_spec: dict = None,
-) -> tuple[tuple[dict, str] | None, str | None]:
-    """Build environment Docker image for a single instance.
-    Returns ((env_spec, image_name), None) on success, (None, reason) on failure — the reason is
-    what the run summary groups the failures by."""
+    force: bool = False,
+    resume: bool = False,
+) -> dict:
+    """Build one instance's environment image, and return a report either way: BUILT carrying the
+    image and the Dockerfile it came from, a verdict on what the agent submitted, or an
+    `error`-marked miss when the daemon or the registry failed.
+
+    Unlike the other staged caches this one does not reuse a concluded report on a plain run: the
+    conclusion depends on the Dockerfile, which the report is not keyed on, so a fresh agent round
+    would otherwise keep shipping the old image. Docker's own layer cache already makes re-deriving
+    cheap and, unlike a report, it invalidates itself when the Dockerfile changes. `--resume` keeps
+    what concluded and re-runs only what errored; `--force` also bypasses that layer cache."""
     instance_id = data_record["instance_id"]
     project, _ = parse_instance_id(instance_id)
     env_image_name = get_image_name(f"env_{instance_id}")
 
     log_dir = env_setup_log_dir / instance_id
-    log_file = log_dir / LOG_INSTANCE
-    logger = setup_instance_logger(log_file, __spec__.name, instance_id, handle_tqdm=True)
+    # Only under `resume` — a plain run re-derives. The report is not keyed on the Dockerfile it
+    # concluded about, so reusing BUILT would keep the old image after a fresh agent round; docker's
+    # layer cache re-derives cheaply and, unlike a report, invalidates itself when it changes.
+    if resume:
+        report = reuse_report(log_dir / LOG_REPORT, resume=True)
+        if report is not None:
+            return report
+
+    logger = setup_instance_logger(log_dir / LOG_INSTANCE, __spec__.name, instance_id, handle_tqdm=True)
     logger.info(f"Building environment for {instance_id}...")
 
-    try:
-        if prediction:
-            if not prediction.get("model_patch", "").strip():
-                msg = "Empty model_patch."
-                logger.error(msg)
-                raise RuntimeError(msg)
+    if prediction and not prediction.get("model_patch", "").strip():
+        logger.error("Empty model_patch.")
+        report = build_repo_report(BuildRepoStatus.EMPTY_PATCH)
+    else:
+        try:
+            if prediction:
+                with RepoLocks.locked(project):
+                    dockerfile = extract_dockerfile(prediction, logger)
+            else:
+                dockerfile = env_spec["dockerfile"]
             with RepoLocks.locked(project):
-                dockerfile = extract_dockerfile(prediction, logger)
-        elif env_spec:
-            dockerfile = env_spec["dockerfile"]
+                build_env_deployment(instance_id, dockerfile, logger, nocache=force)
+        # PatchError and the two Dockerfile verdicts all subclass RuntimeError, so they are caught
+        # ahead of it — the bare RuntimeError below is what is left over, the harness breaking.
+        except PatchError:
+            report = build_repo_report(BuildRepoStatus.PATCH_ERROR)
+        except InvalidDockerfileError as e:
+            report = build_repo_report(BuildRepoStatus.INVALID, reason=str(e))
+        except UnbuildableError:
+            report = build_repo_report(BuildRepoStatus.UNBUILDABLE)
+        except Exception as e:
+            report = build_repo_miss(str(e))
         else:
-            msg = "No environment prediction or specification provided."
-            logger.error(msg)
-            raise RuntimeError(msg)
-    except RuntimeError as e:
-        return None, str(e)
-
-    if env_spec is None:
-        env_spec = {}
-
-    with RepoLocks.locked(project):
-        env_deployment, reason = build_env_deployment(instance_id, dockerfile, logger)
-    if env_deployment is None:
-        return None, reason
-
-    env_spec["dockerfile"] = dockerfile
-    logger.info(f"Environment built successfully: {env_image_name}")
-    return (env_spec, env_image_name), None
+            logger.info(f"Environment built successfully: {env_image_name}")
+            report = build_repo_report(BuildRepoStatus.BUILT,
+                                       **{IMAGE_FIELD: env_image_name}, dockerfile=dockerfile)
+    save_report(report, log_dir / LOG_REPORT)
+    return report
 
 
 def build_repo_threadpool(
@@ -289,6 +372,8 @@ def build_repo_threadpool(
     predictions: list = None,
     save_specs: bool = True,
     instance_ids: list = None,
+    force: bool = False,
+    resume: bool = False,
 ):
     pred_by_id = {pred["instance_id"]: pred for pred in predictions} if predictions else {}
     dataset_by_id = {data_record["instance_id"]: data_record
@@ -303,7 +388,7 @@ def build_repo_threadpool(
     if instance_ids is not None:
         gated_ids = gated_ids & set(instance_ids)
 
-    succeeded, errored = [], {}
+    reports = {}
     env_specs_path = None
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
@@ -313,6 +398,8 @@ def build_repo_threadpool(
                 env_setup_log_dir,
                 prediction=pred_by_id.get(instance_id),
                 env_spec=env_specs.get(instance_id),
+                force=force,
+                resume=resume,
             ): instance_id
             for instance_id in gated_ids
         }
@@ -321,25 +408,30 @@ def build_repo_threadpool(
             for future in as_completed(futures):
                 instance_id = futures[future]
                 try:
-                    result, reason = future.result()
+                    report = future.result()
                 except Exception as e:
                     raise RuntimeError(f"Internal error for {instance_id}: {e}")
+                reports[instance_id] = report
                 data_record = dataset_by_id[instance_id]
-                if result:
-                    new_env_spec, image_name = result
-                    env_specs[instance_id] = new_env_spec
-                    data_record[IMAGE_FIELD] = image_name
-                    succeeded.append(instance_id)
-                else:
-                    errored[instance_id] = reason
-                data_record.setdefault("keep", {})[KEEP_STAGE] = bool(result)
+                if report["build_repo_status"] == BuildRepoStatus.BUILT:
+                    env_specs.setdefault(instance_id, {})["dockerfile"] = report["dockerfile"]
+                    data_record[IMAGE_FIELD] = report[IMAGE_FIELD]
+                # An errored run is judged too: leaving it unjudged is fail-open, and the record
+                # would reach wrap_up on this stage's silence. `exclude` is what lets a re-run
+                # revisit it.
+                data_record.setdefault("keep", {})[KEEP_STAGE] = \
+                    report["build_repo_status"] in PASS_STATUSES
                 pbar.update(1)
-                pbar.set_description(
-                    f"{len(succeeded)} built, {len(errored)} failed"
-                )
+                built = sum(1 for r in reports.values()
+                            if r["build_repo_status"] == BuildRepoStatus.BUILT)
+                pbar.set_description(f"{built} built, {len(reports) - built} not")
                 if save_specs:
                     env_specs_path = save_env_specs("dockerfile", env_specs, run_id)
-    print_summary(get_two_state_summary(succeeded, errored))
+    summary = get_report_summary(reports, "build_repo_status")
+    print_summary(summary)
+    summary_path = Path(env_setup_log_dir) / LOG_SUMMARY
+    save_report(summary, summary_path)
+    print(f"Summary saved to {summary_path}.")
     if env_specs_path:
         print(f"Environments saved to {env_specs_path}.")
 
@@ -371,6 +463,18 @@ if __name__ == "__main__":
         "--skip_specs",
         action="store_true",
         help="Skip saving environment specs to file.",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Rebuild every instance with docker's layer cache bypassed.",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Rebuild only the instances whose cached report is an errored run, keeping every "
+             "concluded one. A plain run rebuilds all of them — docker's layer cache makes that "
+             "cheap, and unlike a report it notices when the Dockerfile changed.",
     )
     parser.add_argument(
         "--instance_ids",
@@ -408,6 +512,8 @@ if __name__ == "__main__":
             args.max_workers, output_dir,
             save_specs=not args.skip_specs,
             instance_ids=args.instance_ids,
+            force=args.force,
+            resume=args.resume,
         )
     else:
         print("Please specify either --prologue or --epilogue.")

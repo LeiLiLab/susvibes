@@ -121,7 +121,10 @@ class SWEAgentPort:
         names = [self.config_name] if isinstance(self.config_name, str) else self.config_name
         return " ".join(f"--config=config/{name}.yaml" for name in names)
 
-    def run_batch(self) -> Path:
+    def run_batch(self, force: bool = False) -> Path:
+        """Run the batch. `force` is the only way to make the agent re-answer an instance: SWE-agent
+        otherwise skips any whose trajectory already carries an exit status, so a stage's `--force`
+        has to reach here or it forces nothing. It maps to SWE-agent's own `--redo_existing`."""
         print(f"Running {self.run_name} with {len(self.task_instances)} tasks...")
         cmd = (
             f"conda run -n {self.conda_env} --live-stream "
@@ -133,6 +136,7 @@ class SWEAgentPort:
             "--instances.type=expert_file "
             f"--instances.path={self.get_instances_path().resolve()} "
             f"--num_workers={self.num_workers} "
+            f"{'--redo_existing=True ' if force else ''}"
             f"--output_dir={self.output_dir}"
         )
         proc = subprocess.Popen(

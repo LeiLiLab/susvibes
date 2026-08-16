@@ -76,6 +76,7 @@ class CheckCovStatus(StrEnum):
     NO_TARGET_FILE = "no_target_file"       # security_patch only adds files — nothing to cover
 
 PASS_LABELS = {CoverageLabel.LIKELY, CoverageLabel.MAYBE}   # labels that clear the coverage gate
+PASS_STATUSES = {CheckCovStatus.NO_TARGET_FILE}   # nothing to cover clears it without a label
 
 # Files laid into each per-instance build context (context_path) and where each lands in
 # the image (by prepare_engine_context + compose_cov_dockerfile):
@@ -227,14 +228,15 @@ def run_cov_engine(data_record: dict, targets: list, version: str, max_depth: in
 def check_cov_miss(error: str) -> dict:
     """A report for a run that concluded nothing — the container failed to build, run, or print a
     parseable result. `error` set is what `--resume` re-runs. Mirrors `sec_prop_miss`."""
-    return {"check_cov_status": None, "error": error}
+    return {"check_cov_status": None, "label": None, "error": error}
 
 
 def check_cov_report(status: CheckCovStatus, result: dict = None) -> dict:
     """A report for a run that concluded: the coverage result when the engine produced one, or the
     bare status when the instance was never analysable (no version, nothing to cover)."""
     payload = {k: v for k, v in (result or {}).items() if k != "instance_id"}
-    return {"check_cov_status": status, **payload, "error": None}
+    # `label` is declared even when the engine never ran, so every report has one shape to read.
+    return {"check_cov_status": status, "label": None, **payload, "error": None}
 
 
 def check_cov_single(data_record: dict, check_cov_log_dir: Path, dev_tools: dict,
@@ -332,14 +334,17 @@ def check_cov_threadpool(dataset: list, max_workers: int,
                 except Exception as e:
                     raise RuntimeError(f"Internal error for {instance_id}: {e}")
                 reports[instance_id] = report
-                if report["check_cov_status"] == CheckCovStatus.ANALYZED:
-                    # The records are the caller's own dataset entries, so annotating here is what
-                    # puts the result in the dataset — the report is only its cache.
-                    record[KEEP_STAGE] = strip_bookkeeping(report, drop=("check_cov_status", "error"))
-                    record.setdefault("keep", {})[KEEP_STAGE] = report["label"] in PASS_LABELS
+                # The records are the caller's own dataset entries, so annotating here is what puts
+                # the result in the dataset — the report is only its cache. An errored run is
+                # annotated too: its `error` on the record is what tells it from never-analyzed,
+                # and its null label fails the gate rather than passing on this stage's silence.
+                record[KEEP_STAGE] = strip_bookkeeping(report, drop=("check_cov_status",))
+                record.setdefault("keep", {})[KEEP_STAGE] = (
+                    report["check_cov_status"] in PASS_STATUSES
+                    or report["label"] in PASS_LABELS)
                 pbar.update(1)
                 labelled = sum(1 for r in reports.values()
-                               if data_record["check_cov_status"] == CheckCovStatus.ANALYZED)
+                               if r["check_cov_status"] == CheckCovStatus.ANALYZED)
                 pbar.set_description(f"{labelled} labelled, {len(reports) - labelled} not")
 
     summary = get_report_summary(reports, "check_cov_status")

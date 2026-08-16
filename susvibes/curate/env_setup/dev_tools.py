@@ -52,6 +52,7 @@ def prologue(dataset_path: Path, run_id: str = "default", instance_ids: list = N
         port.add_task(
             repo_type="local",
             repo_dir=repo_dir,
+            lock_path=RepoLocks.get_lock_path(repo_dir),
             base_commit=data_record["base_commit"],
             problem_statement=Template(DEV_TOOLS_PROMPT_TEMPLATE).render(
                 security_files=security_files,

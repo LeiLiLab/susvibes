@@ -254,7 +254,7 @@ def test_mask_threadpool(dataset: list, max_workers: int, test_mask_log_dir: Pat
 
     # The cov images are a hard dependency for instances that will actually run.
     versions = {v for data_record in gated
-                if RAW_TEST_FIELD in r
+                if RAW_TEST_FIELD in data_record
                 and reuse_report(Path(test_mask_log_dir) / data_record["instance_id"] / LOG_REPORT,
                                  force=force, resume=resume) is None
                 and (v := (dev_tools.get(data_record["instance_id"]) or {}).get("version"))}
@@ -267,7 +267,7 @@ def test_mask_threadpool(dataset: list, max_workers: int, test_mask_log_dir: Pat
 
     reports = {}
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        futures = {executor.submit(test_mask_single, data_record, test_mask_log_dir, dev_tools, force, resume): r
+        futures = {executor.submit(test_mask_single, data_record, test_mask_log_dir, dev_tools, force, resume): data_record
                    for data_record in gated}
         with tqdm(total=len(futures), dynamic_ncols=True,
                   desc=f"Deriving test masks [{max_workers} threads]") as pbar:
@@ -280,12 +280,14 @@ def test_mask_threadpool(dataset: list, max_workers: int, test_mask_log_dir: Pat
                 reports[record["instance_id"]] = report
                 if report["test_mask_status"] == TestMaskStatus.MASKED:
                     record[TEST_FIELD] = report[TEST_FIELD]
-                if report["test_mask_status"] is not None:
-                    record.setdefault("keep", {})[KEEP_STAGE] = \
-                        report["test_mask_status"] in PASS_STATUSES
+                # An errored run is judged too (its status is None, so it fails the gate): leaving
+                # it unjudged is fail-open, and the record would reach wrap_up on this stage's
+                # silence. `exclude` is what lets a re-run revisit it.
+                record.setdefault("keep", {})[KEEP_STAGE] = \
+                    report["test_mask_status"] in PASS_STATUSES
                 pbar.update(1)
                 masked = sum(1 for r in reports.values()
-                               if data_record["test_mask_status"] == TestMaskStatus.MASKED)
+                               if r["test_mask_status"] == TestMaskStatus.MASKED)
                 pbar.set_description(f"{masked} masked, {len(reports) - masked} not")
 
     summary = get_report_summary(reports, "test_mask_status")

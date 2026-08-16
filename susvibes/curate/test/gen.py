@@ -12,6 +12,8 @@ python -m susvibes.curate.test.gen \
 import argparse
 import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from enum import StrEnum
+from pathlib import Path
 
 import docker.errors
 from tqdm import tqdm
@@ -31,18 +33,56 @@ from susvibes.curate.utils import (
 from susvibes.core.agents.sweagent import SWEAgentPort
 from susvibes.core.env import Env, Deployment
 from susvibes.env_specs import WORKSPACE_DIR_NAME
-from susvibes.core.report import get_two_state_summary, print_summary
-from susvibes.core.utils import load_file, save_file, filter_binary_files, get_image_name, parse_instance_id, setup_instance_logger, get_env_specs
+from susvibes.core.report import save_report, get_report_summary, print_summary
+from susvibes.core.utils import load_file, save_file, filter_binary_files, get_image_name, parse_instance_id, setup_instance_logger, get_env_specs, is_patch_error, PatchError
 
 LOG_BUILD = "build_rollback_image.log"
+LOG_REPORT = "report.json"
+LOG_SUMMARY = "summary.json"
 SECURITY_PATCH_FILE_NAME = ".sv.security_patch.diff"  # kept in repo root for state toggling
 
 
-def build_rollback_deployment(data_record, env_spec, target_image_name, log_dir) -> tuple:
-    """Build a rollback variant of the env image with security_patch reversed
-    (so /project sits in the vulnerable state) and the patch persisted at
-    .sv.security_patch.diff, tagged target_image_name. Returns the
-    Deployment (or None on failure)."""
+class GenTestStatus(StrEnum):
+    """How one instance's test synthesis concluded. Every member is a NORMAL outcome; a missing env
+    image or the rollback build breaking is the report's `error`."""
+    GENERATED = "generated"         # the tests apply — see the record's test_patch
+    EMPTY_PATCH = "empty_patch"     # the agent submitted nothing, or only binary files
+    PATCH_ERROR = "patch_error"     # a patch does not apply — `reason` names which build
+
+PASS_STATUSES = {GenTestStatus.GENERATED}   # only usable tests clear the gate
+
+
+def gen_test_report(status: GenTestStatus, **payload) -> dict:
+    """A report for an instance that concluded: the status plus the tests, or the reason there are
+    none to keep."""
+    return {"gen_test_status": status, **payload, "error": None}
+
+
+def gen_test_miss(error: str) -> dict:
+    """A report for a run that concluded nothing — the env image was gone, or the rollback build
+    broke for a reason that says nothing about this instance."""
+    return {"gen_test_status": None, "error": error}
+
+
+def gated_records(dataset: list, env_specs: dict, instance_ids: list = None) -> list:
+    """The instances this stage owns. Both halves ask the same question, so they ask it here.
+    `required` names sec_prop because the prompt indexes `record["sec_prop"]` directly — sec_prop is
+    optional and gated in turn, so fail-open there is a KeyError over the whole batch."""
+    gated = [data_record for data_record in dataset
+             if should_keep(data_record, exclude=KEEP_STAGE,
+                            required=(KeepStage.BUILD_REPO, KeepStage.SEC_PROP))
+             and data_record["instance_id"] in env_specs]
+    if instance_ids is not None:
+        gated = [data_record for data_record in gated
+                 if data_record["instance_id"] in set(instance_ids)]
+    return gated
+
+
+def build_rollback_deployment(data_record, env_spec, target_image_name, log_dir) -> Deployment:
+    """Build a rollback variant of the env image with security_patch reversed (so /project sits in
+    the vulnerable state) and the patch persisted at .sv.security_patch.diff, tagged
+    target_image_name. Raises PatchError on a verdict about the instance, RuntimeError when the
+    harness broke."""
     instance_id = data_record["instance_id"]
     project, _ = parse_instance_id(instance_id)
 
@@ -70,24 +110,42 @@ def build_rollback_deployment(data_record, env_spec, target_image_name, log_dir)
     except docker.errors.BuildError as e:
         msg = f"Failed to build rollback deployment: {instance_id}: {e}"
         logger.error(msg)
-        return None, msg
+        # Decide here, where the build log is: `git apply` refusing the security_patch is a verdict
+        # on the instance, anything else is the harness breaking.
+        raise PatchError(msg) if is_patch_error(str(e)) else RuntimeError(msg)
 
     assert deployment.image.tag(target_image_name)
     logger.info(f"Rollback deployment built: {target_image_name}")
-    return deployment, None
+    return deployment
+
+
+def build_rollback_single(data_record, env_spec, target_image_name, log_dir) -> dict | None:
+    """Build one instance's rollback image, and return the report saying why there is none — or None
+    when it built, which is what puts the instance into the agent batch."""
+    try:
+        build_rollback_deployment(data_record, env_spec, target_image_name, log_dir)
+    except PatchError as e:
+        report = gen_test_report(GenTestStatus.PATCH_ERROR, reason=str(e))
+    except Exception as e:
+        report = gen_test_miss(str(e))
+    else:
+        return None
+    save_report(report, Path(log_dir) / data_record["instance_id"] / LOG_REPORT)
+    return report
 
 
 def build_rollback_threadpool(dataset, env_specs, log_dir, max_workers):
-    """Build rollback images for the given dataset in parallel.
-    Returns (image_by_id, failed) — a dict of successful builds and a list of failures."""
-    image_by_id, errored = {}, {}
+    """Build the rollback images in parallel. Returns (image_by_id, reports) — the images that will
+    carry the agent batch, and a report for every instance that will not reach it. The run summary
+    is the epilogue's: these instances concluded here, but the rest have not concluded yet."""
+    image_by_id, reports = {}, {}
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {}
         for data_record in dataset:
             instance_id = data_record["instance_id"]
             rollback_image_name = get_image_name(f"rollback_{instance_id}")
             futures[executor.submit(
-                build_rollback_deployment,
+                build_rollback_single,
                 data_record,
                 env_specs[instance_id],
                 rollback_image_name,
@@ -98,19 +156,18 @@ def build_rollback_threadpool(dataset, env_specs, log_dir, max_workers):
             for future in as_completed(futures):
                 instance_id, rollback_image_name = futures[future]
                 try:
-                    deployment, reason = future.result()
+                    report = future.result()
                 except Exception as e:
                     raise RuntimeError(f"Internal error for {instance_id}: {e}")
-                if deployment:
+                if report is None:
                     image_by_id[instance_id] = rollback_image_name
                 else:
-                    errored[instance_id] = reason
+                    reports[instance_id] = report
                 pbar.update(1)
                 pbar.set_description(
-                    f"{len(image_by_id)} built, {len(errored)} failed"
+                    f"{len(image_by_id)} built, {len(reports)} not"
                 )
-    print_summary(get_two_state_summary(list(image_by_id), errored))
-    return image_by_id, errored
+    return image_by_id, reports
 
 
 def prologue(run_id, max_workers, instance_ids=None) -> SWEAgentPort:
@@ -124,12 +181,9 @@ def prologue(run_id, max_workers, instance_ids=None) -> SWEAgentPort:
     dataset = load_file(dataset_path)
     env_specs = get_env_specs(run_id, ("dev_tools", "dockerfile"))
 
-    gated = [data_record for data_record in dataset if should_keep(data_record, required=(KeepStage.BUILD_REPO,)) and data_record["instance_id"] in env_specs]
-    if instance_ids is not None:
-        gated = [data_record for data_record in gated if data_record["instance_id"] in set(instance_ids)]
+    gated = gated_records(dataset, env_specs, instance_ids)
 
-    image_by_id, errored = build_rollback_threadpool(
-        gated, env_specs, gen_log_dir, max_workers)
+    image_by_id, _ = build_rollback_threadpool(gated, env_specs, gen_log_dir, max_workers)
 
     added = 0
     for record in gated:
@@ -161,7 +215,7 @@ def prologue(run_id, max_workers, instance_ids=None) -> SWEAgentPort:
         added += 1
 
     port.before_start()
-    print(f"Added {added} tasks. {len(errored)} builds failed.")
+    print(f"Added {added} tasks. {len(gated) - added} rollback builds did not produce an image.")
     return port
 
 
@@ -178,7 +232,8 @@ def epilogue(run_id, instance_ids=None):
     dataset_path = get_dataset_path('dataset', run_id)
     dataset = load_file(dataset_path)
     dataset_by_id = {data_record["instance_id"]: data_record for data_record in dataset}
-    succeeded, errored = [], {}
+    env_specs = get_env_specs(run_id, ("dev_tools", "dockerfile"))
+    reports = {}
 
     for pred in predictions:
         instance_id = pred["instance_id"]
@@ -187,38 +242,59 @@ def epilogue(run_id, instance_ids=None):
         # the WHOLE `git apply` (mirrors dev_tools / build_repo).
         test_patch = filter_binary_files(pred.get("model_patch", ""))
         if not test_patch.strip():
-            errored[instance_id] = "Empty model_patch"
-            data_record.setdefault("keep", {})[KEEP_STAGE] = False
-            continue
-        repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
-        # Applied only to prove it applies, so the tree is handed back either way.
-        with RepoLocks.locked(data_record["project"]):
-            reset_to_commit(repo_dir, data_record["base_commit"], new_branch=False)
-            try:
-                apply_patch(repo_dir, test_patch)
-            except Exception as e:
-                errored[instance_id] = f"Failed to apply test patch: {e}"
-                data_record.setdefault("keep", {})[KEEP_STAGE] = False
-                continue
-            finally:
+            reports[instance_id] = gen_test_report(GenTestStatus.EMPTY_PATCH)
+        else:
+            repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
+            # Applied only to prove it applies, so the tree is handed back either way.
+            with RepoLocks.locked(data_record["project"]):
                 reset_to_commit(repo_dir, data_record["base_commit"], new_branch=False)
-        data_record[TEST_FIELD] = test_patch
-        data_record.setdefault("keep", {})[KEEP_STAGE] = True
-        succeeded.append(instance_id)
+                try:
+                    apply_patch(repo_dir, test_patch)
+                except Exception as e:
+                    reports[instance_id] = gen_test_report(
+                        GenTestStatus.PATCH_ERROR, reason=f"Failed to apply test patch: {e}")
+                else:
+                    reports[instance_id] = gen_test_report(
+                        GenTestStatus.GENERATED, **{TEST_FIELD: test_patch})
+                finally:
+                    reset_to_commit(repo_dir, data_record["base_commit"], new_branch=False)
+        save_report(reports[instance_id], gen_log_dir / instance_id / LOG_REPORT)
 
-    print_summary(get_two_state_summary(succeeded, errored))
+    # The prologue concluded for every instance that never reached the batch, and its reports are
+    # the only record of those — read them back, or the run summary counts the batch, not the stage.
+    for data_record in gated_records(dataset, env_specs, instance_ids):
+        instance_id = data_record["instance_id"]
+        if instance_id not in reports:
+            report_path = gen_log_dir / instance_id / LOG_REPORT
+            if report_path.exists():
+                reports[instance_id] = load_file(report_path)
+
+    for instance_id, report in reports.items():
+        data_record = dataset_by_id[instance_id]
+        if report["gen_test_status"] == GenTestStatus.GENERATED:
+            data_record[TEST_FIELD] = report[TEST_FIELD]
+        # An errored run is judged too: leaving it unjudged is fail-open, and the record would reach
+        # wrap_up on this stage's silence. `exclude` is what lets a re-run revisit it.
+        data_record.setdefault("keep", {})[KEEP_STAGE] = \
+            report["gen_test_status"] in PASS_STATUSES
+
+    summary = get_report_summary(reports, "gen_test_status")
+    print_summary(summary)
     if total_cost is not None:
         print(f"Agent cost: ${total_cost:.2f}")
+    summary_path = gen_log_dir / LOG_SUMMARY
+    save_report(summary, summary_path)
+    print(f"Summary saved to {summary_path}.")
     save_file(dataset, dataset_path)
     print(f"dataset annotated in place with {TEST_FIELD}: {dataset_path}.")
 
 
-def pipeline(run_id, max_workers, instance_ids=None):
+def pipeline(run_id, max_workers, instance_ids=None, force: bool = False):
     """Build rollback images, run the test-synthesis agent over them, then take its tests on."""
     port = prologue(run_id, max_workers, instance_ids)
     if not port.task_instances:
         return
-    port.run_batch()
+    port.run_batch(force=force)
     epilogue(run_id, instance_ids)
 
 
@@ -254,6 +330,12 @@ if __name__ == "__main__":
         action="store_true",
         help="Run the epilogue: take the agent's tests onto the records as test_patch.",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Re-run the agent on every instance. Without it SWE-agent skips any instance whose "
+             "trajectory already carries an exit status, so a re-run only redoes the epilogue.",
+    )
     args = parser.parse_args()
 
     if args.prologue:
@@ -265,4 +347,5 @@ if __name__ == "__main__":
             run_id=args.run_id,
             max_workers=args.max_workers,
             instance_ids=args.instance_ids,
+            force=args.force,
         )

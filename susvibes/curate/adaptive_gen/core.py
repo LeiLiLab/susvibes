@@ -49,7 +49,6 @@ def adaptive_task_gen(
             if data_record["instance_id"] in set(instance_ids)]
     instance_ids = [data_record["instance_id"] for data_record in dataset]
     total_instances = len(instance_ids)
-    total_verified = 0
     total_cost = 0
 
     if debug:
@@ -82,7 +81,10 @@ def adaptive_task_gen(
         avg_diff = sum(diff_lines_list) / n if n else 0
         return avg_ratio, avg_mask, avg_diff
 
-    pending_instance_ids = instance_ids.copy()
+    # Resume: an iteration's pending set is its input minus what it verified, and verifier writes
+    # task_patch only on success — so the records without one are pending, whenever a run died.
+    pending_instance_ids = [iid for iid in instance_ids if "task_patch" not in dataset_by_id[iid]]
+    total_verified = total_instances - len(pending_instance_ids)
     end_iter = start_iter + max_iters if max_iters is not None else len(LENGTH_RATIO_FUNC)
     for iter_id in range(start_iter, end_iter):
         iter_input = len(pending_instance_ids)
@@ -269,7 +271,8 @@ if __name__ == "__main__":
         debug=args.debug,
     )
     get_task_stats(
-        stats_path=stats_path
+        dataset_path=dataset_path,
+        stats_path=stats_path,
     )
     print(f"dataset annotated in place with the tasks: {dataset_path}.")
     print(f"Stats saved to {stats_path}.")
