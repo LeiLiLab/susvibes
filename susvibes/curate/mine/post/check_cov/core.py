@@ -249,8 +249,6 @@ def check_cov_single(data_record: dict, check_cov_log_dir: Path, dev_tools: dict
     `error`-marked miss when the container failed. The container's own logs are saved beside the
     report as evidence — never as the cache, since an empty one cannot be told from a good run."""
     instance_id = data_record["instance_id"]
-    project = data_record["project"]
-    base_commit = data_record["base_commit"]
 
     log_dir = Path(check_cov_log_dir) / instance_id
     report = reuse_report(log_dir / LOG_REPORT, force=force, resume=resume)

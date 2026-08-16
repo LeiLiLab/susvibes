@@ -57,7 +57,7 @@ python -m susvibes.curate.validate.with_test \
   --run_id <run_id> \
   --from_base_no_test_image \
   --max_workers <N> \
-  [--from_existing_specs] \
+  [--resume] \
   [--force]
 ```
 
@@ -104,7 +104,7 @@ split the two halves when the agent batch is run by hand.
 python -m susvibes.curate.validate.gen_test \
   --run_id <run_id> \
   --max_workers <N> \
-  [--from_existing_specs] \
+  [--resume] \
   [--force]
 ```
 

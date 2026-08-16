@@ -1,5 +1,5 @@
 import os
-from enum import Enum, StrEnum
+from enum import StrEnum
 from pathlib import Path
 
 # This module lives in susvibes/core/: the susvibes package dir is two levels up, repo root three.

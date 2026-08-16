@@ -225,7 +225,7 @@ class Deployment():
             if self.container:
                 self.container.remove(force=True)
                 self.logger.info(f"Container {self.container.name} removed.")
-        except docker.errors.NotFound as e:
+        except docker.errors.NotFound:
             self.logger.info(f"Container {self.container.name} not found.")
         except Exception as e:
             self.logger.warning(f"Failed to remove container {self.container.name}: {e}")
@@ -235,7 +235,7 @@ class Deployment():
         try:
             docker_client.images.remove(self.image.id, force=True)
             self.logger.info(f"Image {self.image.id} removed.")
-        except docker.errors.ImageNotFound as e:
+        except docker.errors.ImageNotFound:
             self.logger.info(f"Image {self.image.id} not found.")
         except Exception as e:
             self.logger.warning(f"Failed to remove image {self.image.id}: {e}")

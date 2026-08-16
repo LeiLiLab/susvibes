@@ -34,7 +34,7 @@ from susvibes.core.agents.sweagent import SWEAgentPort
 from susvibes.core.env import Env, Deployment
 from susvibes.env_specs import WORKSPACE_DIR_NAME
 from susvibes.core.report import save_report, get_report_summary, print_summary
-from susvibes.core.utils import load_file, save_file, filter_binary_files, get_image_name, parse_instance_id, setup_instance_logger, get_env_specs, is_patch_error, PatchError
+from susvibes.core.utils import load_file, save_file, filter_binary_files, filter_text_files, filter_target_files, touched_files, get_image_name, parse_instance_id, setup_instance_logger, get_env_specs, is_patch_error, PatchError
 
 LOG_BUILD = "build_rollback_image.log"
 LOG_REPORT = "report.json"
@@ -238,9 +238,15 @@ def epilogue(run_id, instance_ids=None):
     for pred in predictions:
         instance_id = pred["instance_id"]
         data_record = dataset_by_id[instance_id]
-        # The agent's container sweeps a compiled .pyc into the diff, and one binary block fails
-        # the WHOLE `git apply` (mirrors dev_tools / build_repo).
-        test_patch = filter_binary_files(pred.get("model_patch", ""))
+        # Keep only the agent's real test additions. Drop, in this order: binary blobs (a compiled
+        # .pyc swept into the diff fails the WHOLE `git apply`, mirrors dev_tools / build_repo); the
+        # text files it writes unprompted (READMEs/summaries); and every file the task tree differs
+        # from base on. The agent works in the rollback container, so its context lines come from
+        # the vulnerable source while this patch is applied to base — on those files they cannot
+        # match, whatever the edit was worth.
+        model_patch = filter_text_files(filter_binary_files(pred.get("model_patch", "")))
+        target_files = touched_files(data_record["task_patch"])
+        test_patch = filter_target_files(model_patch, target_files, exclude=True)
         if not test_patch.strip():
             reports[instance_id] = gen_test_report(GenTestStatus.EMPTY_PATCH)
         else:

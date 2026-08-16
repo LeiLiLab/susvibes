@@ -91,12 +91,14 @@ def epilogue(output_dir: Path, dataset_path: Path, require_test: bool = True):
                     continue
                 try:
                     task_patch = get_diff_patch(repo_dir, data_record["base_commit"], task_commit)
-                    reset_to_commit(repo_dir, data_record["base_commit"])
+                    reset_to_commit(repo_dir, data_record["base_commit"], new_branch=True)
                     apply_patch(repo_dir, task_patch)
                     if require_test:
                         apply_patch(repo_dir, data_record["test_patch"])
                 except Exception as e:
-                    logger.error("Error re-applying test_patch for %s.", pred["instance_id"])
+                    # Names the whole block, not just the test_patch: deriving the task_patch and
+                    # rebuilding the tree it applies to fail here too, and `e` says which.
+                    logger.error("Error deriving task_patch for %s: %s", pred["instance_id"], e)
                     continue
             finally:
                 reset_to_commit(repo_dir, rollback_commit, new_branch=False)

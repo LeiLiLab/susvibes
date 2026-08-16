@@ -142,6 +142,8 @@ python -m susvibes.curate.env_setup.build_repo \
   --max_workers 5 \
   --run_id playground \
   [--from_existing_dockerfiles]  # Optional: reuse the cached dockerfile in env_specs instead of re-extracting it from agent output
+  [--resume]                     # Optional: rebuild only what errored, keeping every verdict
+  [--force]                      # Optional: rebuild everything with docker's layer cache bypassed
 ```
 
 ## 9. Validating and Publishing
@@ -152,8 +154,8 @@ Validation synthesizes test-suite output parsers and verifies each task instance
 python -m susvibes.curate.validate.with_test \
   --max_workers 5 \
   --run_id playground \
-  [--force]                # Optional: force re-validation
-  [--from_existing_specs]  # Optional: reuse the cached logs_parser in env_specs instead of re-synthesizing it via LLM
+  [--resume]  # Optional: re-run only what errored, keeping every verdict
+  [--force]   # Optional: re-validate everything and re-synthesize the logs handler
 ```
 
 This requires an LLM API for generating test-suite output parsers: configure the model in [`constants.py`](constants.py), set the API key in your `.env`, and set your Docker Hub namespace in [`susvibes/core/constants.py`](../core/constants.py).

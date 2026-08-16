@@ -25,13 +25,20 @@ from susvibes.curate.validate.constants import (
     LOG_INSTANCE, LOG_TEST_OUTPUT, LOG_REPORT, LOG_SUMMARY, ValidateStatus, ValidationRejected,
     KEEP_STAGE)
 from susvibes.curate.validate.utils import (
-    build_clean_eval_deployment, validate_report, validate_miss, apply_validate_report)
+    build_clean_eval_deployment, check_runs_completed, validate_report, validate_miss,
+    apply_validate_report)
 from susvibes.curate.utils import should_keep
 from susvibes.core.report import reuse_report, save_report, get_report_summary, print_summary
 from susvibes.core.utils import load_file, save_file, get_image_name, setup_instance_logger, parse_instance_id, get_env_specs, save_env_specs, Route, PatchError, is_patch_error
 
 
 TEST_RUNS = ["base", "rollback", "base_no_test", "rollback_with_test", "task"]
+
+# Which runs may fail to complete, by index. rollback_with_test is the run that breaks, so it may run
+# long; a masked task that crashes IS the functional break, so it alone may also abort. The first
+# three are the references the others are measured against and must produce a result.
+ALLOW_TIMEOUT = {3, 4}
+ALLOW_ABORTED = {4}
 
 
 def run_test_suite_multi(
@@ -122,6 +129,8 @@ def validate_test_breaks(
 
     base_pf, rollback_pf, base_no_test_pf, rollback_with_test_pf, task_pf = test_pf_list
 
+    check_runs_completed(TEST_RUNS, test_pf_list, ALLOW_TIMEOUT, ALLOW_ABORTED, logger)
+
     test_symb_res_errs_list = [LogsHandler.count_symb_res_errors(test_logs) for test_logs in test_logs_list]
     _, rollback_sre, _, rollback_with_test_sre, _ = test_symb_res_errs_list
     if rollback_with_test_pf.completed() and rollback_with_test_sre > rollback_sre:
@@ -203,9 +212,7 @@ def validate_single(
         )
         env.logs_handler = LogsHandler.get_by_kind("count", env.logs_handler,
             test_logs_list=test_logs_list, timed_out_list=timed_out_list,
-            model=LOGS_PARSER_MODEL, log_dir=log_dir, logger=logger, ordering_checks=[(3, 0), (4, 1)],
-            allow_timeout=lambda id: id >= 3, allow_aborted=lambda id: id == 4,
-            force=force)
+            model=LOGS_PARSER_MODEL, log_dir=log_dir, logger=logger, force=force)
         expected_pf, test_stats = validate_test_breaks(env, test_logs_list, timed_out_list, flags, logger=logger)
         logger.info("Task validated, expected_pf-{}, num_sec_tests-{}, num_func_tests-{}".format(
             expected_pf, test_stats["num_sec_tests"], test_stats["num_func_tests"]))

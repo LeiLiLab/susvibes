@@ -10,9 +10,8 @@ from susvibes.core.agents.sweagent import SWEAgentPort
 from susvibes.core.utils import (
     load_file,
     save_file,
-    touched_files,
-    filter_target_files,
     filter_binary_files,
+    filter_text_files,
     setup_logger,
 )
 from susvibes.curate.utils import (
@@ -129,12 +128,7 @@ def epilogue(
         data_record = dataset_by_id[instance_id]
         repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
         test_patch = data_record["test_patch"] if require_test else None
-        model_patch = filter_binary_files(pred.get("model_patch", ""))
-        txt_exts = (".md", ".txt", ".log")
-        txt_files = {f for f in touched_files(model_patch) if f.endswith(txt_exts)}
-        if txt_files:
-            logger.warning("Filtering out text files from patch for %s: %s", instance_id, txt_files)
-        filtered_patch = filter_target_files(model_patch, txt_files, exclude=True) if txt_files else model_patch
+        filtered_patch = filter_text_files(filter_binary_files(pred.get("model_patch", "")))
         if not filtered_patch.strip():
             logger.warning("Empty model_patch for %s, skipping.", instance_id)
             continue

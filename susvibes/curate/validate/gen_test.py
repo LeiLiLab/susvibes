@@ -24,14 +24,20 @@ from susvibes.curate.validate.constants import (
     LOG_INSTANCE, LOG_TEST_OUTPUT, LOG_REPORT, LOG_SUMMARY, ValidateStatus, ValidationRejected,
     KEEP_STAGE)
 from susvibes.curate.validate.utils import (
-    build_clean_eval_deployment, validate_report, validate_miss, apply_validate_report)
-from susvibes.core.agents.sweagent import SWEAgentPort
+    build_clean_eval_deployment, check_runs_completed, validate_report, validate_miss,
+    apply_validate_report)
 from susvibes.curate.utils import should_keep
 from susvibes.core.report import reuse_report, save_report, get_report_summary, print_summary
-from susvibes.core.utils import load_file, save_file, get_image_name, setup_instance_logger, parse_instance_id, filter_binary_files, get_env_specs, save_env_specs, Route, PatchError, is_patch_error
+from susvibes.core.utils import load_file, save_file, get_image_name, setup_instance_logger, parse_instance_id, get_env_specs, save_env_specs, Route, PatchError, is_patch_error
 
 REPO_TEST_RUNS = ["base", "rollback", "task"]
 GEN_SEC_TEST_RUNS = ["rollback_with_gen_test", "base_with_gen_test"]
+
+# Which runs may fail to complete, by index. A masked task that crashes IS the functional break, so
+# it alone is licensed; the generated security tests get no licence at all — a security test must
+# pass or fail in both states, never error, or a suite that merely broke would read as detection.
+REPO_ALLOW_TIMEOUT = REPO_ALLOW_ABORTED = {2}                   # task
+GEN_SEC_ALLOW_TIMEOUT = GEN_SEC_ALLOW_ABORTED = frozenset()
 
 
 def run_repo_test_suite_multi(
@@ -104,6 +110,9 @@ def validate_repo_test_breaks(
         for run_name, test_logs, timed_out in zip(REPO_TEST_RUNS, test_logs_list, timed_out_list)]
 
     base_pf, rollback_pf, task_pf = test_pf_list
+
+    check_runs_completed(REPO_TEST_RUNS, test_pf_list,
+                         REPO_ALLOW_TIMEOUT, REPO_ALLOW_ABORTED, logger)
 
     if base_pf.breaks_more_than(rollback_pf):
         msg = "Failed to validate functional test baseline: base ({}) breaks more than rollback ({})".format(
@@ -199,16 +208,8 @@ def validate_gen_sec_test_breaks(
 
     vuln_pf, gold_pf = test_pf_list
 
-    # Error contract: a security test must conclude pass or fail in BOTH states. A run that does not
-    # complete - a collection/import error, a missing driver, a setup failure, or a timeout - means the
-    # tests are broken, not a security signal; reject rather than reading a non-completed run (which
-    # compares as infinitely broken) as detection.
-    for run_name, test_pf in zip(GEN_SEC_TEST_RUNS, test_pf_list):
-        if not test_pf.completed():
-            msg = f"Failed to validate gen sec tests: {run_name} did not conclude ({test_pf.status}) - a " \
-                "security test must pass or fail, never error."
-            logger.error(msg)
-            raise ValidationRejected(msg)
+    check_runs_completed(GEN_SEC_TEST_RUNS, test_pf_list,
+                         GEN_SEC_ALLOW_TIMEOUT, GEN_SEC_ALLOW_ABORTED, logger)
 
     if not vuln_pf.breaks_more_than(gold_pf):
         msg = "Failed to validate gen sec test breaks: no distinguishing tests (vuln fail + gold pass). " \
@@ -277,29 +278,17 @@ def validate_single(
             env, data_record, flags, log_dir, logger, force)
         env.logs_handler = LogsHandler.get_by_kind("count", env.logs_handler,
             test_logs_list=test_logs_list, timed_out_list=timed_out_list,
-            model=LOGS_PARSER_MODEL, log_dir=log_dir, logger=logger, ordering_checks=[(2, 1)],
-            allow_timeout=lambda id: id == 2, allow_aborted=lambda id: id == 2,
-            require_failures=False, force=force)
+            model=LOGS_PARSER_MODEL, log_dir=log_dir, logger=logger, force=force)
         expected_pf, test_stats = validate_repo_test_breaks(
             env, test_logs_list, timed_out_list, flags, logger)
 
-        # Generated security tests across the two states, with their OWN count parser synthesized from their
-        # own output (its format can differ from the functional run's). require_failures=True: if neither
-        # state yields a countable failure the suite discriminates nothing — an INVALID verdict, not a miss;
-        # allow_timeout/aborted are permissive so a non-completed run is judged (INVALID) by the breaks step.
+        # Generated security tests across the two states, with their OWN count parser synthesized from
+        # their own output (its format can differ from the functional run's).
         gen_sec_test_logs_list, gen_sec_timed_out_list = run_gen_sec_test_suite_multi(
             env, data_record, test_patch, flags, log_dir, logger, force)
-        try:
-            env.logs_handler = LogsHandler.get_by_kind("count_gen_sec", env.logs_handler,
-                test_logs_list=gen_sec_test_logs_list, timed_out_list=gen_sec_timed_out_list,
-                model=LOGS_PARSER_MODEL, log_dir=log_dir, logger=logger, ordering_checks=[(0, 1)],
-                allow_timeout=lambda id: True, allow_aborted=lambda id: True,
-                require_failures=True, force=force)
-        except RuntimeError as e:
-            # Pass the cause through rather than naming one: this catches a checker that would not
-            # synthesize, a run the abort rules rejected, and a parser that found nothing to count —
-            # a fixed label here reads as a diagnosis, and sends whoever trusts it the wrong way.
-            raise ValidationRejected(f"Gen sec tests rejected: {e}")
+        env.logs_handler = LogsHandler.get_by_kind("count_gen_sec", env.logs_handler,
+            test_logs_list=gen_sec_test_logs_list, timed_out_list=gen_sec_timed_out_list,
+            model=LOGS_PARSER_MODEL, log_dir=log_dir, logger=logger, force=force)
         gen_sec_expected_pf, gen_sec_test_stats = validate_gen_sec_test_breaks(
             env, gen_sec_test_logs_list, gen_sec_timed_out_list, flags, logger)
 

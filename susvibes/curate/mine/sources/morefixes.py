@@ -61,7 +61,7 @@ class MorefixesHandler:
                 continue
             try:
                 file_patches = split_to_file_patches(data_record["patch"])
-            except ValueError as e:
+            except ValueError:
                 continue
             data_record["patch"] = file_patches
             data_record["commit_id"] = commit_sha

@@ -225,6 +225,15 @@ def filter_binary_files(patch):
         out.extend(block)
     return "".join(out)
 
+TEXT_FILE_EXTS = (".md", ".txt", ".log")
+
+def filter_text_files(patch):
+    """Drop diff blocks for text files (`.md`/`.txt`/`.log`) — the READMEs, summaries, and logs an
+    agent writes unprompted beside its real code. Like filter_binary_files, a whole block is kept or
+    dropped by its file path, so real code hunks are never touched."""
+    text_files = {f for f in touched_files(patch) if f.endswith(TEXT_FILE_EXTS)}
+    return filter_target_files(patch, text_files, exclude=True)
+
 def get_instance_id(project, base_commit):
     """Generate a unique instance ID based on the project and base commit."""
     project = project.replace("/", "__")

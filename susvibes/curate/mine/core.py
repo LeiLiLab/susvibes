@@ -10,14 +10,12 @@ from typing import TypedDict, NotRequired
 
 from susvibes.core.constants import get_dataset_path
 from susvibes.curate.constants import LOCAL_REPOS_DIR, get_log_dir
-from susvibes.core.utils import load_file, save_file, setup_logger, get_instance_id
+from susvibes.core.utils import save_file, setup_logger, get_instance_id
 from susvibes.curate.utils import (
     get_repo_dir,
     RepoLocks,
     reset_to_commit,
     apply_patch,
-    commit_changes,
-    get_diff_patch,
     get_commit_date,
     len_patch,
 )
@@ -127,7 +125,7 @@ def build_dataset(sources, target_lang, test_lang, require_test=None, shuffle=Fa
         for item in iterable:
             try:
                 result = func(item)
-            except ValueError as e:
+            except ValueError:
                 continue
             yield result
     known = KnownSet()

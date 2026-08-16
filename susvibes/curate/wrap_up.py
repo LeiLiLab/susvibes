@@ -59,7 +59,7 @@ def make_susvibes_record(data_record: dict) -> SusVibesRecord:
     repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
     # The clone is shared: hold it across every touch of the tree.
     with RepoLocks.locked(data_record["project"]):
-        reset_to_commit(repo_dir, data_record["base_commit"])
+        reset_to_commit(repo_dir, data_record["base_commit"], new_branch=True)
         apply_patch(repo_dir, data_record["security_patch"], reverse=True)
         apply_patch(repo_dir, data_record["mask_patch"])
         code_mask_commit = commit_changes(repo_dir, f'Code mask at {data_record["base_commit"]}')

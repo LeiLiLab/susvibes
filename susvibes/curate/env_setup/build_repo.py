@@ -186,7 +186,7 @@ def build_env_deployment(instance_id, dockerfile, logger, nocache: bool = False)
     env_image_name = get_image_name(f"env_{instance_id}")
     try:
         dockerfile = validate_and_compose_env_dockerfile(dockerfile, logger)
-        reset_to_commit(repo_dir, base_commit)
+        reset_to_commit(repo_dir, base_commit, new_branch=True)
         # Remove repo's .dockerignore to ensure .git is included in build context
         repo_dockerignore = repo_dir / ".dockerignore"
         if repo_dockerignore.exists():
@@ -251,7 +251,7 @@ def prologue(
         repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
         # The clone is shared: hold it across every touch of the tree.
         with RepoLocks.locked(data_record["project"]):
-            reset_to_commit(repo_dir, data_record["base_commit"])
+            reset_to_commit(repo_dir, data_record["base_commit"], new_branch=True)
         dev_tool = env_specs[data_record["instance_id"]]["dev_tools"]
         dind_py_image_name = f'{get_image_name("dind_py")}:{dev_tool["version"]}'
         dockerfile_template = dockerfiles.DOCKERFILE_ENV_PY_TEMPLATE.format_map(

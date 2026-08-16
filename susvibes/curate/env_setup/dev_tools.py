@@ -47,7 +47,7 @@ def prologue(dataset_path: Path, run_id: str = "default", instance_ids: list = N
         repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
         # The clone is shared: hold it across every touch of the tree.
         with RepoLocks.locked(data_record["project"]):
-            reset_to_commit(repo_dir, data_record["base_commit"])
+            reset_to_commit(repo_dir, data_record["base_commit"], new_branch=True)
         security_files = sorted(touched_files(data_record["security_patch"]))
         port.add_task(
             repo_type="local",

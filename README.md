@@ -93,6 +93,7 @@ python -m susvibes.eval.core \
   # use --run_id to name the evaluation run (defaults to "default")
   # use --predictions_path to point to your agent's predictions file
   # use --max_workers to set how many instances run in parallel
+  # use --resume to re-run only the instances whose cached report is an errored run
   # use --force to ignore cached reports and re-evaluate
 ```
 
@@ -101,7 +102,7 @@ The evaluation logs and summary are written to `logs/eval/<run_id>/<strategy>/<m
 > [!TIP]
 > Before launching a full evaluation, it is worth sanity-checking your setup end-to-end.
 >
-> We ship a small set of example predictions at `datasets/examples/sample_predictions.json`; evaluating them exercises the whole pipeline — pulling the Docker image, applying the patch, and running the tests — on just a couple of instances.
+> We ship a small set of example predictions at `datasets/default/examples/sample_predictions.json`; evaluating them exercises the whole pipeline — pulling the Docker image, applying the patch, and running the tests — on just a couple of instances.
 >
 > A run summary should then appear under `logs/eval/`. If it does, your environment is ready for a full run.
 

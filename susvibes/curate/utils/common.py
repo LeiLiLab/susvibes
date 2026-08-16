@@ -95,16 +95,20 @@ def get_commit_date(repo_dir, commit):
     ts = run(["git", "show", "-s", "--format=%ct", commit], cwd=repo_dir).stdout.strip()
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(int(ts)))
 
-def reset_to_commit(repo_dir, commit, new_branch=True):
-    """Hard-reset the repository to a specific commit and clean untracked files."""
+def reset_to_commit(repo_dir, commit, new_branch=False):
+    """Hard-reset the repository to a specific commit and clean untracked files.
+
+    `new_branch` moves onto a fresh throwaway branch afterwards, so a caller that goes on to
+    `commit_changes` lands its commits there instead of on whichever branch the shared clone
+    was left on."""
     repo_dir = Path(repo_dir)
     if not is_git_repo(repo_dir):
         raise FileNotFoundError(f"Project directory {repo_dir} is not a Git repository.")
     extra_args = ["-c", "core.precomposeunicode=false"]
-    run(["git", "reset", "--hard", commit], cwd=repo_dir) 
+    run(["git", "reset", "--hard", commit], cwd=repo_dir)
     run(["git", *extra_args, "clean", "-fdx"], cwd=repo_dir)
     if new_branch:
-        run(["git", "checkout", "-b", f"susvibes-{uuid.uuid4()}"], cwd=repo_dir)
+        run(["git", "checkout", "-b", f"sv-{uuid.uuid4()}"], cwd=repo_dir)
 
 def commit_changes(repo_dir, message):
     """
@@ -121,7 +125,7 @@ def commit_changes(repo_dir, message):
     return commit_sha
 
 def rollback(repo_dir, base_commit, security_patch, test_patch=None):
-    reset_to_commit(repo_dir, base_commit)
+    reset_to_commit(repo_dir, base_commit, new_branch=True)
     apply_patch(repo_dir, security_patch, reverse=True)
     if test_patch:
         apply_patch(repo_dir, test_patch, reverse=True)

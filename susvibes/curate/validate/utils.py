@@ -3,7 +3,7 @@ import tempfile
 from pathlib import Path
 
 from susvibes.core.env import Deployment
-from susvibes.curate.validate.constants import KEEP_STAGE, ValidateStatus
+from susvibes.curate.validate.constants import KEEP_STAGE, ValidateStatus, ValidationRejected
 from susvibes.env_specs import WORKSPACE_DIR_NAME
 
 
@@ -39,6 +39,20 @@ def build_clean_eval_deployment(
             dockerfile=clean_dockerfile,
             image_name=target_image_name,
         )
+
+
+def check_runs_completed(run_names, test_pf_list, allow_timeout, allow_aborted, logger) -> None:
+    """Reject the instance when a run that had to complete did not. Which runs may not is the
+    caller's, since only it knows what each run is for: a masked task that crashes IS the break it
+    was meant to show, while the runs it is measured against must produce a result or the comparison
+    means nothing — a non-completed run compares as infinitely broken, and would read as a break it
+    never earned."""
+    for id, (run_name, test_pf) in enumerate(zip(run_names, test_pf_list)):
+        if (test_pf.timed_out() and id not in allow_timeout) or \
+                (test_pf.aborted() and id not in allow_aborted):
+            msg = f"Failed to validate tests: {run_name} did not complete ({test_pf.status})"
+            logger.error(msg)
+            raise ValidationRejected(msg)
 
 
 def validate_report(status, **payload) -> dict:
