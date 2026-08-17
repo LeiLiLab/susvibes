@@ -8,7 +8,7 @@ import tempfile
 from tqdm import tqdm
 from pathlib import Path
 
-from susvibes.core.constants import ARCH, DOCKERHUB_USERNAME, ENV_SPECS_DIR, ENV_SPEC_FILE_NAMES
+from susvibes.core.constants import ARCH, DOCKERHUB_USERNAME, ENV_SPECS_DIR, ENV_SPEC_FILE_NAMES, PATCH_ERROR_PATTERNS
 from susvibes.env_specs import GEN_SEC_TEST_CMD
 
 
@@ -22,7 +22,7 @@ def load_file(file_path: Path | str):
     if file_path.suffix == ".json":
         return json.loads(file_path.read_text())
     elif file_path.suffix == ".jsonl":
-        return [json.loads(line) for line in file_path.read_text().splitlines() if line.strip()]
+        return [json.loads(line) for line in file_path.read_text().split("\n") if line.strip()]
     elif file_path.suffix == ".yaml":
         return yaml.safe_load(file_path.read_text())
     else:
@@ -42,8 +42,8 @@ def save_file(data, file_path: Path | str):
     else:
         file_path.write_text(data)
 
-def push_dataset_to_hub(records, repo_id, filename, private=False, commit_message=None):
-    """Upload records as a JSONL file to a HuggingFace dataset repo without writing
+def push_dataset_to_hub(dataset, repo_id, filename, private=False, commit_message=None):
+    """Upload dataset as a JSONL file to a HuggingFace dataset repo without writing
     into the local datasets/ tree."""
     from huggingface_hub import HfApi
     token = os.environ.get("HF_TOKEN")
@@ -53,7 +53,7 @@ def push_dataset_to_hub(records, repo_id, filename, private=False, commit_messag
     api.create_repo(repo_id=repo_id, repo_type="dataset", private=private, exist_ok=True)
     with tempfile.TemporaryDirectory() as tmpdir:
         tmp = Path(tmpdir) / filename
-        save_file(records, tmp)
+        save_file(dataset, tmp)
         api.upload_file(
             path_or_fileobj=str(tmp),
             path_in_repo=filename,
@@ -95,24 +95,6 @@ class TqdmStreamHandler(logging.StreamHandler):
         except Exception:
             self.handleError(record)
         
-def confirm_overwrite_logs(log_dir: Path):
-    log_dir = Path(log_dir)
-    if not log_dir.exists():
-        return True
-    log_files = list(log_dir.glob("*.log"))
-    non_empty = [f for f in log_files if f.stat().st_size > 0]
-    if not non_empty:
-        return True
-    print(f"Found {len(non_empty)} non-empty log file(s) in {log_dir}:")
-    for f in non_empty:
-        print(f"  {f.name}")
-    answer = input("Overwrite? [Y/n] ").strip().lower()
-    if answer not in ('', 'y'):
-        return False
-    for f in non_empty:
-        f.write_text("")
-    return True
-
 def setup_logger(
     log_dir: Path,
     log_file_name: str,
@@ -191,6 +173,19 @@ def touched_files(patch, side="post"):
             file_paths.add(path)
     return file_paths
 
+class PatchError(RuntimeError):
+    """A patch would not apply. Raised where the failure surfaces (a docker build's `git apply`
+    output), so the caller sorts a verdict about the patch from the harness breaking by exception
+    type rather than by re-reading messages after the fact."""
+
+
+def is_patch_error(message: str) -> bool:
+    """Whether a failure message is `git apply` refusing the patch — a conclusion ABOUT THE PATCH
+    (the submission's in eval, the instance's test_patch in validate), not the harness breaking, so
+    it must never be reported as an error or a `--resume` would re-run it forever."""
+    return any(pattern in message for pattern in PATCH_ERROR_PATTERNS)
+
+
 def filter_target_files(patch, targets, exclude=False):
     diff_re = re.compile(r'^diff --git a/(.*?) b/(.*?)$')
     out, keep = [], False
@@ -229,6 +224,15 @@ def filter_binary_files(patch):
     if block and not is_binary:
         out.extend(block)
     return "".join(out)
+
+TEXT_FILE_EXTS = (".md", ".txt", ".log")
+
+def filter_text_files(patch):
+    """Drop diff blocks for text files (`.md`/`.txt`/`.log`) — the READMEs, summaries, and logs an
+    agent writes unprompted beside its real code. Like filter_binary_files, a whole block is kept or
+    dropped by its file path, so real code hunks are never touched."""
+    text_files = {f for f in touched_files(patch) if f.endswith(TEXT_FILE_EXTS)}
+    return filter_target_files(patch, text_files, exclude=True)
 
 def get_instance_id(project, base_commit):
     """Generate a unique instance ID based on the project and base commit."""
@@ -294,9 +298,12 @@ def resolve_image_name(image_name: str) -> str:
 
 class Route:
     """Map an instance's flags and a run name to how that run executes — its container command and
-    its logs-handler kind. A synthesized-sec instance (flags["gen_test"]) runs sectests.sh and reads
-    the gen_sec results on its generated-test run — eval's "sec" run or validate's "*_gen_test" runs;
-    every other run uses the image's default command and count parsing."""
+    its logs-handler kind. A synthesized-sec instance (flags["gen_test"]) runs .sv.run_gen_test.sh on its
+    generated-test run — eval's "sec" run or validate's "*_gen_test" runs — which emits the repo runner's
+    native output (the same format REPO_TEST_CMD produces). Both run families use a synthesized count parser,
+    but each has its OWN (the sec run's output can differ from the functional run's — different framework,
+    flags, or summary decoration), so the gen-sec run reads the `count_gen_sec` handler and every other run
+    the `count` handler; non-gen-test runs also use the image's default command."""
 
     @staticmethod
     def _gen_test(flags: dict, run_name: str) -> bool:
@@ -308,4 +315,4 @@ class Route:
 
     @staticmethod
     def route_logs_kind(flags: dict, run_name: str) -> str:
-        return "gen_sec" if Route._gen_test(flags, run_name) else "count"
+        return "count_gen_sec" if Route._gen_test(flags, run_name) else "count"

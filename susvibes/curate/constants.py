@@ -2,15 +2,30 @@ from enum import StrEnum
 from pathlib import Path
 
 root_dir = Path(__file__).parent.parent.parent
-LOCAL_REPOS_DIR = "/mnt/data2/songwenzhao/projects" #root_dir / 'projects'
+LOCAL_REPOS_DIR = "/home/songwenzhao/projects" #root_dir / 'projects'
 CURATE_LOG_DIR = root_dir / "logs/curate"
 AGENT_SETTINGS_DIR = Path(__file__).parent / "utils/agents/settings"
+
+
+class KeepStage(StrEnum):
+    """Every stage that records a verdict under a record's `keep`. Centralized because a gate name
+    is data: a module importing another one just to learn a string drags its dependencies along.
+    This list IS the set of gates — what `wrap_up` reasons over, and what a reader checks a stage's
+    `exclude` / `required` against."""
+    DEV_TOOLS = "dev_tools"
+    TEST_MASK = "test_mask"
+    SEC_PROP = "sec_prop"
+    CHECK_COV = "func_coverage"         # the field it writes, not the module's name
+    BUILD_REPO = "build_repo"
+    ADAPTIVE_GEN = "adaptive_gen"
+    GEN_TEST = "gen_test"
+    VALIDATE = "validate"
 
 
 def get_log_dir(run_id: str, *module: str) -> Path:
     """Log dir for a run, grouped by run_id first then module:
     ``logs/curate/<run_id>/<module...>/`` — e.g.
-    get_log_dir("v2", "mine", "process") -> logs/curate/v2/mine/process.
+    get_log_dir("v2", "mine", "core") -> logs/curate/v2/mine/core.
     Keeping every module's logs for one run together (instead of one dir per
     module) makes a single run's artifacts easy to find and clean up."""
     return CURATE_LOG_DIR.joinpath(run_id, *module)
@@ -18,7 +33,7 @@ def get_log_dir(run_id: str, *module: str) -> Path:
 def get_agent_setting_path(name: str) -> Path:
     return AGENT_SETTINGS_DIR / f"{name}.yaml"
 
-LOGS_PARSER_MODEL = "o3"
+LOGS_PARSER_MODEL = "bedrock/us.anthropic.claude-sonnet-5"
 
 class TaskArtifact(StrEnum):
     """Names of the files/dirs written into a task directory."""

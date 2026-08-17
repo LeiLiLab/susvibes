@@ -38,7 +38,7 @@ Scope discovery uses parso (the syntax tree), NOT jedi name inference:
 imports, which is not thread-safe and corrupts its pipe under the thread pool.
 Only ``get_references`` (a pure reference search) uses jedi.
 
-Runs inside a version-matched cov_py container, so the jedi/parso here are the
+Runs inside a version-matched static_py container, so the jedi/parso here are the
 ones pinned for the target's Python version (jedi 0.19/parso 0.8 on py3.6+, jedi
 0.17/parso 0.7 on py2.7/3.5) — so jedi parses the sources and the trace is the sole
 coverage engine (no file-level fallback).
@@ -576,7 +576,7 @@ def url_hits_route(test_url, route):
 
 
 # Class-based-view dispatch methods Django routes a request to (View.http_method_names).
-CBV_METHODS = frozenset(["get", "post", "put", "patch", "delete", "head", "options"])
+CBV_METHODS = {"get", "post", "put", "patch", "delete", "head", "options"}
 
 
 def cbv_route_hit(index, view_vars):
@@ -661,11 +661,11 @@ def score(target, ctx, index, max_depth, seed_names=None):
 
     ``reliable`` is False when the trace could not be completed — the target file
     did not parse, or too many get_references calls failed — AND no hit was found,
-    so the empty result must be read as ``unknown`` (could not tell), not
+    so the empty result must be read as ``indeterminate`` (could not tell), not
     ``unlikely_covered`` (confidently uncovered). A found hit is always reliable: a
     real chain is definitive regardless of failures elsewhere in the walk."""
     if ctx.parso_tree(ctx.repo_dir / target) is None:
-        return [], False  # target unparseable -> cannot seed the trace -> unknown
+        return [], False  # target unparseable -> cannot seed the trace -> indeterminate
 
     abs_path, seeds = seed_positions(ctx, target, seed_names)
     frontier = deque((abs_path, line, col, 0) for line, col in seeds)
@@ -739,5 +739,5 @@ def score(target, ctx, index, max_depth, seed_names=None):
     if backstop:
         return [backstop], True
     # No hit: trust the negative only if the walk was mostly complete. Too many
-    # failed reference searches mean we cannot rule coverage out -> unknown.
+    # failed reference searches mean we cannot rule coverage out -> indeterminate.
     return [], failures <= SymbolTrace.MAX_FAILURES

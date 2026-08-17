@@ -1,0 +1,9 @@
+sweagent_dir: ../SWE-agent
+run_name: swe-agent_test_gen
+model:
+  name: bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  per_instance_cost_limit: 0.0
+  per_instance_call_limit: 200
+conda_env: sweagent1.1.0
+config_name: susvibes_test_gen
+num_workers: 15

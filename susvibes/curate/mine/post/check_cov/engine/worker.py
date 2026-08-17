@@ -2,7 +2,7 @@
 """In-container entry point for the check_cov engine.
 
 The host COPYies the FULL repo tree, this ``engine`` package, and an ``input.json``
-into a version-matched cov_py image, then runs
+into a version-matched static_py image, then runs
 ``python -m _susvibes_cov_engine.worker <src_root> <input_path>``. The engine is
 installed into the image's site-packages as ``_susvibes_cov_engine`` (leading
 underscore + susvibes prefix so a repo's own top-level package can't shadow it).

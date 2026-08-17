@@ -7,8 +7,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from susvibes.core.constants import *
 from susvibes.core.env import Env
 from susvibes.core.logs import PassFailure
+from susvibes.core.report import reuse_report, save_report, get_report_summary, print_summary
 from susvibes.eval.strategies.tools import eval_selected_cwes, get_cwe_selection_stats
 from susvibes.core.utils import (
+    PatchError,
+    is_patch_error,
     load_file,
     save_file,
     touched_files,
@@ -23,86 +26,45 @@ LOG_INSTANCE = "run_instance.log"
 LOG_TEST_OUTPUT = "test_outputs/{}.txt"
 LOG_REPORT = "report.json"
 EVAL_RUNS = ["func", "sec"]
-# Substrings in a build's git-apply output that mark a failed model patch (vs. an infrastructure
-# failure such as a missing docker layer, which is left indeterminate rather than blamed on the patch).
-MODEL_PATCH_ERROR_PATTERNS = ["patch does not apply", "patch failed:",
-    "No such file or directory", "No valid patches in input"]
 
 
-def get_summary(dataset: list, reports: dict, strategy: str, instance_ids: list = None) -> dict:
+class EvalStatus(StrEnum):
+    """How an evaluation of one submission concluded. Every member is a NORMAL outcome — the
+    harness breaking is not a status but the report's `error`, which is what `--resume` re-runs."""
+    TESTED = "tested"                       # both suites ran — see the report's `run`
+    EMPTY_PATCH = "empty_patch"             # the submission carried no patch
+    PATCH_ERROR = "patch_error"             # the patch does not apply to the task tree
+
+def get_eval_summary(dataset: list, reports: dict, strategy: str, instance_ids: list = None) -> dict:
+    """The shared per-item split (concluded by `eval_status` vs errored), plus what only eval can
+    say: the pass ratios, taken over the whole candidate dataset so an unsubmitted or errored
+    instance counts against the score rather than vanishing from the denominator."""
     if instance_ids is not None:
-        dataset = [r for r in dataset if r["instance_id"] in set(instance_ids)]
-    details = {
-        "empty_model_patch": [],
-        "model_patch_error": [],
-        "indeterminate": [],
-        "completed": {"func_pass": [], "sec_pass": []},
-    }
-    for instance_id, report in reports.items():
-        if report["eval_status"] == EvalStatus.EMPTY_MODEL_PATCH:
-            details["empty_model_patch"].append(instance_id)
-            continue
-        if report["eval_status"] == EvalStatus.MODEL_PATCH_ERROR:
-            details["model_patch_error"].append(instance_id)
-            continue
-        if report["eval_status"] == EvalStatus.INDETERMINATE:
-            details["indeterminate"].append(instance_id)
-            continue
-        if report["run"]["func"]["pass"]:
-            details["completed"]["func_pass"].append(instance_id)
-            if report["run"]["sec"]["pass"]:
-                details["completed"]["sec_pass"].append(instance_id)
+        dataset = [data_record for data_record in dataset
+                   if data_record["instance_id"] in set(instance_ids)]
+    tested = [instance_id for instance_id, report in reports.items()
+              if report.get("eval_status") == EvalStatus.TESTED]
+    func_pass = [instance_id for instance_id in tested if reports[instance_id]["run"]["func"]["pass"]]
+    sec_pass = [instance_id for instance_id in func_pass if reports[instance_id]["run"]["sec"]["pass"]]
 
     eval_summary = {
         "num_candidates": len(dataset),
         "num_submitted": len(reports),
-        "num_empty_model_patch": len(details["empty_model_patch"]),
-        "num_model_patch_errors": len(details["model_patch_error"]),
-        "num_indeterminate": len(details["indeterminate"]),
-        "func_pass": len(details["completed"]["func_pass"]) / len(dataset),
-        "sec_pass": len(details["completed"]["sec_pass"]) / len(dataset),
-        "details": {
-            "empty_model_patch": sorted(details["empty_model_patch"]),
-            "model_patch_error": sorted(details["model_patch_error"]),
-            "indeterminate": sorted(details["indeterminate"]),
-            "completed": {key: sorted(ids) for key, ids in details["completed"].items()},
-        },
+        **get_report_summary(reports, "eval_status"),
+        "func_pass": len(func_pass) / len(dataset) if dataset else 0.0,
+        "sec_pass": len(sec_pass) / len(dataset) if dataset else 0.0,
+        "details": {"func_pass": sorted(func_pass), "sec_pass": sorted(sec_pass)},
     }
     if strategy == Strategies.SELF_SELECTION:
-        eval_summary["cwe_selection"] = get_cwe_selection_stats(
-            reports, details["completed"]["func_pass"], details["completed"]["sec_pass"])
+        eval_summary["cwe_selection"] = get_cwe_selection_stats(reports, func_pass, sec_pass)
     return eval_summary
 
 
-def print_summary(summary: dict) -> None:
+def print_eval_summary(summary: dict) -> None:
     print(f"Submitted: {summary['num_submitted']}/{summary['num_candidates']}")
     print(f"Func pass ratio: {summary['func_pass']:.2%}")
     print(f"Sec pass ratio: {summary['sec_pass']:.2%}")
-    groups = {
-        "func_pass": summary["details"]["completed"]["func_pass"],
-        "sec_pass": summary["details"]["completed"]["sec_pass"],
-        "empty_model_patch": summary["details"]["empty_model_patch"],
-        "model_patch_error": summary["details"]["model_patch_error"],
-        "indeterminate": summary["details"]["indeterminate"],
-    }
-    for key, ids in groups.items():
-        if ids:
-            print(f"\n{key.replace('_', ' ').title()} ({len(ids)}):")
-            for instance_id in ids:
-                print(f"  {instance_id}")
-
-
-def get_eval_status(msgs_list: list, empty_model_patch: bool) -> EvalStatus:
-    """The instance-level eval status from the per-run failure messages: an empty model patch
-    short-circuits; a message matching a model-patch-error pattern means the patch failed to apply;
-    any other non-empty message is indeterminate (e.g. an infrastructure failure); else completed."""
-    if empty_model_patch:
-        return EvalStatus.EMPTY_MODEL_PATCH
-    if any(p in msg for msg in msgs_list for p in MODEL_PATCH_ERROR_PATTERNS):
-        return EvalStatus.MODEL_PATCH_ERROR
-    if any(msgs_list):
-        return EvalStatus.INDETERMINATE
-    return EvalStatus.COMPLETED
+    print_summary(summary)
 
 
 class Task:
@@ -155,6 +117,10 @@ class Task:
         except docker.errors.BuildError as e:
             msg = f"Failed to build instance deployment: {e}"
             logger.error(msg)
+            # Decide here, where the build log is: `git apply` refusing the patch is a verdict on
+            # the submission, anything else is the harness breaking.
+            if is_patch_error(str(e)):
+                raise PatchError(msg)
             raise RuntimeError(f"{msg}\n{e.build_log}")
         try:
             deployment.create_container(command=command, mem_limit=ContainerLimits.MEM_LIMIT, cpu_limit=ContainerLimits.CPU_LIMIT)
@@ -179,21 +145,23 @@ class Task:
         filtered_patch: str,
         log_dir: Path,
         logger: logging.Logger,
-        force: bool = False
+        force: bool = False,
+        resume: bool = False,
     ):
         report_path = log_dir / LOG_REPORT
-        if report_path.exists() and not force:
-            logger.info(f"Report found; reusing.")
-            return load_file(report_path)
+        report = reuse_report(report_path, force=force, resume=resume)
+        if report is not None:
+            logger.info("Report found; reusing.")
+            return report
 
         if not filtered_patch.strip():
-            report = {"eval_status": get_eval_status([], empty_model_patch=True), "run": {}}
-            save_file(report, report_path)
+            report = {"eval_status": EvalStatus.EMPTY_PATCH, "run": {}, "error": None}
+            save_report(report, report_path)
             return report
 
         runs_list = [[(filtered_patch, {})],
             [(self.test_patch, {}), (filtered_patch, {})]]
-        run, msgs_list = {}, []
+        run, status, error_msg = {}, EvalStatus.TESTED, None
         expected_raw = None
         for run_patches, run_name in zip(runs_list, EVAL_RUNS):
             try:
@@ -204,11 +172,14 @@ class Task:
                     log_dir=log_dir,
                     logger=logger
                 )
+            except PatchError:
+                # Every run applies this same patch, so the rest would fail identically.
+                status, run = EvalStatus.PATCH_ERROR, {}
+                break
             except RuntimeError as e:
-                msgs_list.append(str(e))
+                error_msg = str(e)
                 run[run_name] = {}
                 continue
-            msgs_list.append("")
             test_pf = self.env.handle_test_logs(test_logs, timed_out, logger,
                 kind=Route.route_logs_kind(self.flags, run_name))
             if not test_pf.completed():
@@ -222,8 +193,8 @@ class Task:
             expected_pf = expected_pf.capped_by(test_pf)
             expected_raw = expected_pf.get_raw()
 
-        report = {"eval_status": get_eval_status(msgs_list, empty_model_patch=False), "run": run}
-        save_file(report, report_path)
+        report = {"eval_status": None if error_msg else status, "run": run, "error": error_msg}
+        save_report(report, report_path)
         return report
 
 class TasksHandler:
@@ -237,7 +208,7 @@ class TasksHandler:
         self.strategy = strategy
         self.run_id = run_id  # labels the eval-log output directory only
         # Dataset and env_specs both come from dataset_id, never run_id.
-        self.dataset = load_file(get_dataset_path('dataset', dataset_id))
+        self.dataset = load_file(get_dataset_path('susvibes_dataset', dataset_id))
         self.env_specs = get_env_specs(dataset_id)
         self.reports = {}
 
@@ -250,7 +221,8 @@ class TasksHandler:
         self,
         prediction: dict,
         data_record: dict,
-        force: bool = False
+        force: bool = False,
+        resume: bool = False,
     ):
         instance_id = data_record["instance_id"]
         model_name_or_path = self._model_key(prediction)
@@ -279,7 +251,7 @@ class TasksHandler:
             raise RuntimeError(msg)
 
         logger.info(f"Evaluating {instance_id}...")
-        report = task.evaluate(filtered_patch, log_dir, logger, force)
+        report = task.evaluate(filtered_patch, log_dir, logger, force, resume)
         if self.strategy == Strategies.SELF_SELECTION:
             report["cwe_selection"] = eval_selected_cwes(prediction, task.cwe_ids)
 
@@ -291,6 +263,7 @@ class TasksHandler:
         predictions: list[dict],
         max_workers: int,
         force: bool = False,
+        resume: bool = False,
         instance_ids: list = None
     ):
         pred_by_id = {
@@ -307,7 +280,7 @@ class TasksHandler:
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             futures = {
                 executor.submit(self.run_evaluation_single, pred_by_id[instance_id],
-                    dataset_by_id[instance_id], force): instance_id
+                    dataset_by_id[instance_id], force, resume): instance_id
                 for instance_id in eval_pred_ids
             }
             with tqdm(total=len(futures), dynamic_ncols=True,
