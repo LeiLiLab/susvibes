@@ -195,12 +195,17 @@ def validate_gen_sec_test_breaks(
     timed_out_list: list,
     flags: dict,
     logger: logging.Logger,
+    allow_error: bool = False,
 ) -> tuple:
     """
     Verify the generated sec tests discriminate: the vulnerable run must break at least one case the
     secure run passes, and each state must conclude pass or fail (never error). Raises ValidationRejected
     on failure; returns (expected_pf, test_stats) on success — expected_pf carries the "sec" key (the
     distinguishing amount an eval submission must not break). Mirrors validate_repo_test_breaks.
+
+    `allow_error` gates the never-error contract: with it False (default) a run with any test-case ERROR is
+    rejected — check_runs_completed catches a run that never concluded, this catches a concluded run that
+    still has cases which crashed at collection/setup/teardown rather than a clean pass/fail.
     """
     test_pf_list = [env.handle_test_logs(test_logs, timed_out, logger,
         kind=Route.route_logs_kind(flags, run_name))
@@ -210,6 +215,14 @@ def validate_gen_sec_test_breaks(
 
     check_runs_completed(GEN_SEC_TEST_RUNS, test_pf_list,
                          GEN_SEC_ALLOW_TIMEOUT, GEN_SEC_ALLOW_ABORTED, logger)
+
+    if not allow_error:
+        for run_name, pf in zip(GEN_SEC_TEST_RUNS, test_pf_list):
+            if pf.errors:
+                msg = f"Failed to validate gen sec tests: {run_name} has {pf.errors} test-case error(s); " \
+                    "a security test must conclude pass or fail, never error"
+                logger.error(msg)
+                raise ValidationRejected(msg)
 
     if not vuln_pf.breaks_more_than(gold_pf):
         msg = "Failed to validate gen sec test breaks: no distinguishing tests (vuln fail + gold pass). " \

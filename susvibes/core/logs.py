@@ -163,9 +163,10 @@ class PassFailure(ABC):
 class PassFailureCount(PassFailure):
     """The outcome as a failure count."""
 
-    def __init__(self, status: TestStatus, failures: int):
+    def __init__(self, status: TestStatus, failures: int, errors: int = 0):
         super().__init__(status)
         self.failures = failures
+        self.errors = errors                 # ERROR cases (crash/setup/teardown), tracked apart from failures
 
     def __repr__(self):
         return f"PassFailureCount({self.failures}, {self.status})"
@@ -335,20 +336,27 @@ class LogsCount(LogsHandler):
         """Total countable failures (FAILED + ERROR) in a parsed test result."""
         return sum(test_result.get(item_status.value, 0) for item_status in FAILURE_STATUSES)
 
+    @staticmethod
+    def _count_errors(test_result: dict[str, int]) -> int:
+        """Cases that ERRORed — crashed at collection/setup/teardown rather than concluding pass/fail."""
+        return test_result.get(TestItemStatus.ERROR.value, 0)
+
     def handle(self, test_logs, timed_out, logger) -> PassFailureCount:
         """Status from logs_checker (always), failure count from logs_parser (when present).
         Raises RuntimeError if the logs can't be parsed."""
         try:
             status = self._check(self.logs_checker, test_logs, timed_out)
-            failures = None
+            failures = errors = None
             if self.logs_parser:
-                failures = self._count_failures(self._parse(self.logs_parser, test_logs, logger))
+                test_result = self._parse(self.logs_parser, test_logs, logger)
+                failures = self._count_failures(test_result)
+                errors = self._count_errors(test_result)
         except Exception as e:
             # "handle", not "parse": this covers the checker's status read as well as the count.
             msg = f"Failed to handle test logs: {e}"
             logger.error(msg)
             raise RuntimeError(msg)
-        return PassFailureCount(status, failures)
+        return PassFailureCount(status, failures, errors or 0)
 
     # --- Synthesizing the parser: a per-status regex that counts test outcomes. ---
     @classmethod
