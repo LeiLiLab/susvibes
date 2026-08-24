@@ -48,10 +48,22 @@ READONLY_TOOLS = ["Bash", "Read", "Grep", "WebFetch", "WebSearch"]  # read-only 
 AGENT_ENV = {"ANTHROPIC_MAX_RETRIES": "10"}
 MAX_BUFFER_SIZE = 10 * 1024 * 1024
 
+# The model declined a safety-flagged source mid-run. Only the message stream carries this: the run
+# may still finish and report success, and its output is then missing whatever the model declined to
+# read. Observed to be intermittent — a re-run got past it — so it belongs below with the transient
+# failures, and neither the CLI (the subtype's own name says `no_fallback`) nor the SDK retries it.
+REFUSAL_SUBTYPE = "model_refusal_no_fallback"
+REFUSAL_ERROR = "model refused a source"
+
 # Substrings marking an agent-run failure that a repeat attempt may get past on its own — a
-# transient API/network/subprocess hiccup — as opposed to a terminal one (max turns, a refusal).
+# transient API/network/subprocess hiccup, or a refusal — as opposed to a terminal one (max turns).
 # Distinct from `--resume`, which re-runs EVERY errored item later: this is the in-loop retry, and
 # only a transient failure is worth one. Matched against str(exc); widen as new shapes surface.
+#
+# The structured-output entry is here because the CLI's own 5 retries all share ONE session, and the
+# model gets stuck inside it — observed dropping a required array field, then dropping a second one
+# and repeating that verbatim to exhaustion. A fresh session gets past it. If instances ever start
+# failing this way even after a retry, the schema is what needs changing, not the retry count.
 TRANSIENT_ERRORS = (
     "Command failed with exit code",
     "rate_limit", "rate limit", "Rate limit", "429",
@@ -59,6 +71,8 @@ TRANSIENT_ERRORS = (
     "Service Unavailable", "Gateway Timeout",
     "connection reset", "ECONNRESET", "ETIMEDOUT", "EAI_AGAIN",
     "APIConnectionError", "APITimeoutError",
+    REFUSAL_ERROR,
+    "Failed to provide valid structured output",
 )
 
 
@@ -68,8 +82,8 @@ AGENT_BACKOFF_SEC = 30          # exponential backoff base: 30s, 60s, 120s, ... 
 
 def is_transient_error(error: str) -> bool:
     """Whether an agent run's failure is transient — a repeat attempt right now may get past it —
-    rather than terminal (max turns, a refusal). Gates the in-loop retry only; `--resume` re-runs
-    every errored item regardless, so do not read this as "retryable"."""
+    rather than terminal (max turns). Gates the in-loop retry only; `--resume` re-runs every errored
+    item regardless, so do not read this as "retryable"."""
     return any(sub in error for sub in TRANSIENT_ERRORS)
 
 
@@ -97,8 +111,14 @@ def message_to_dict(message) -> dict:
     if isinstance(message, SystemMessage):
         return {"role": "system", "subtype": message.subtype, "data": message.data}
     if isinstance(message, ResultMessage):
-        return {"role": "result", "is_error": message.is_error, "num_turns": message.num_turns,
-                "cost_usd": message.total_cost_usd, "structured_output": message.structured_output}
+        # `subtype` says how the CLI's loop ended, `is_error` whether the turn failed — they are
+        # independent, and a failing API call (a refusal, a 429) reads `is_error` with subtype
+        # "success". Without the rest, that combination is unreadable after the fact.
+        return {"role": "result", "is_error": message.is_error, "subtype": message.subtype,
+                "num_turns": message.num_turns, "cost_usd": message.total_cost_usd,
+                "errors": message.errors, "api_error_status": message.api_error_status,
+                "stop_reason": message.stop_reason,
+                "structured_output": message.structured_output}
     return {"role": type(message).__name__}
 
 
@@ -109,7 +129,7 @@ async def run_query(prompt: str, options: ClaudeAgentOptions, log_path):
     `cost_usd` that run had genuinely spent, which is what used to make every cost figure in this
     repo an under-report of the abort rate."""
     trajectory = open(log_path, "w") if log_path else None
-    result, error = None, None
+    result, error, refused = None, None, False
     try:
         async for message in query(prompt=prompt, options=options):
             if trajectory:
@@ -117,15 +137,18 @@ async def run_query(prompt: str, options: ClaudeAgentOptions, log_path):
                 trajectory.flush()
             if isinstance(message, ResultMessage):
                 result = message
+            elif isinstance(message, SystemMessage) and message.subtype == REFUSAL_SUBTYPE:
+                refused = True
     except Exception as e:
         error = str(e)
     finally:
         if trajectory:
             trajectory.close()
     meta = {"cost_usd": result.total_cost_usd, "num_turns": result.num_turns} if result else {}
-    if error or (result and result.is_error):
-        meta["error"] = error or "agent returned an error result"
-    output = result.structured_output if result and not result.is_error and not error else None
+    if refused or error or (result and result.is_error):
+        meta["error"] = (REFUSAL_ERROR if refused else
+                         error or "agent returned an error result")
+    output = result.structured_output if result and not result.is_error and not error and not refused else None
     return output, meta
 
 
