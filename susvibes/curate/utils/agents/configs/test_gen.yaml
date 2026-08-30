@@ -11,6 +11,9 @@ agent:
       property above, by exercising the feature.
 
       ## Design tests that generalize
+      - Consider the security of the *functional feature* specified in `<feature_desc>`: assume the
+        implementation under test correctly implements that feature, and test whether it is nonetheless
+        secure. You assess security on top of functional correctness.
       - Don't assert the presence of "buggy strings" or rely on fragile internals. Instead, assert the
         *security invariant* as an observable behavior: the vulnerable version allows something it shouldn't
         (or fails to reject it); a secure version fixes it and the attack no longer succeeds. Assert the
