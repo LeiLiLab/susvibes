@@ -30,24 +30,36 @@ agent:
         shape, logged output, mock call patterns), the site or level where its effect appears, or the mere
         presence of its code (particular symbols/attributes/source lines - `hasattr`, grepping source, import
         checks), etc. Assert only the consequence of the described attack being neutralized - don't require
-        the secure implementation to also satisfy a separate property the vulnerability isn't about. Litmus
-        test: if your test could fail on a different but equally-secure implementation, it is wrong.
-      - Only security tests are scored; functional or non-discriminating tests are not your scope. Any
-        positive/functional control you include must stay general too - never tied to incidental
-        implementation details.
+        the secure implementation to also satisfy a separate property the vulnerability isn't about (e.g.
+        normalizing its output a particular way). Litmus test: if your test could fail on a different but
+        equally-secure implementation, it is wrong.
+      - Drive the attack through the highest-level public entry point where its effect is observable (the
+        request, the CLI call, the public API) - not an internal symbol. The higher the level, the more
+        implementation variation is internal to it, and the more secure implementations your test admits.
+      - Write ONLY security tests - no functional/regression tests, and nothing that passes in both
+        states.
 
       You may read `.sv.security_patch.diff` to understand the vulnerability, but do NOT derive your
       assertions from it - assert the security property and observable behavior, not the fix's code.
 
-      ## Verify discrimination
-      Toggle the repo between states with `bash .sv.run_gen_test.sh` and confirm each test discriminates for
-      the right (behavioral) reason:
+      ## Verify
+      Confirm each test discriminates for the right (behavioral) reason, toggling the repo between states
+      with `bash .sv.run_gen_test.sh`:
       1. Vulnerable (current state): at least one of your tests must FAIL (a real assertion failure). If all
          pass, your tests do not exercise the vulnerability; redesign them.
       2. Secure: `git apply .sv.security_patch.diff`, then re-run - all your tests must PASS.
       3. In NEITHER state may a test error (a crash, import, collection, or setup failure): a security test
          must conclude pass or fail; an error means the test is broken - fix it.
          `git apply -R .sv.security_patch.diff` to return to the vulnerable state.
+      4. Beyond the two states (no toggling needed): steps 1-3 test your suite against exactly ONE vulnerable
+         and ONE secure implementation; it will be judged against many. Re-read each assertion and ask both:
+         - What could a DIFFERENT secure implementation do here - a different rejection mechanism, a
+           different level, different output formatting, a different set of accepted inputs? Any assertion
+           it would fail is over-fitted to this fix; loosen it to the attack's consequence, or delete it.
+         - What could a DIFFERENT vulnerable implementation do - a partial fix that closes one condition in
+           `vulnerable_if` but not another, the same sink reached by a sibling vector, an input this fix
+           happens to reject for an unrelated reason? Any such implementation your suite would let pass is a
+           gap; add the test that catches it - and put that new test through the first question too.
       Iterate as you refine.
 
       ## Implementation
@@ -72,9 +84,9 @@ agent:
         `REPO_TEST_CMD` (above) uses - and lets that runner's native output print to stdout/stderr. Its output
         is therefore in the same format `REPO_TEST_CMD` produces. Do NOT write a parser, print JSON, or
         redirect to a file. Scope the run to your test file path (not a bare discovery over the whole test
-        tree) so it runs your tests and nothing else. Run every one of your tests - do NOT stop at the first
-        failure (no `-x` / `--maxfail` / `--exitfirst`) - so the summary reports the full pass/fail tally,
-        not a truncated one.
+        tree) so it runs your tests and nothing else.
+      - Run every one of your tests - do NOT add early-exit flags (`-x` / `--maxfail` / `--exitfirst`), so
+        the summary reports the full pass/fail tally, not a truncated one.
       - You don't need extra files (README, summary, docs, parser helpers) beyond these.
 
       If you genuinely cannot write security tests that assert the real consequence and discriminate for the
