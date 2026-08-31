@@ -41,8 +41,8 @@ agent:
       Confirm each test discriminates for the right (behavioral) reason - a clean pass or fail in both
       states, never an error - toggling the repo with `bash .sv.run_gen_test.sh` (the script you write,
       see Deliverable):
-      1. Vulnerable (current state): EVERY one of your tests must FAIL (a real assertion failure). A test
-         that passes here does not exercise the vulnerability - make it exercise the attack, or delete it.
+      1. Vulnerable (current state): at least one of your tests must FAIL (a real assertion failure). If all
+         pass, your tests do not exercise the vulnerability; redesign them.
       2. Secure: `git apply .sv.security_patch.diff`, then re-run - all your tests must PASS.
       3. `git apply -R .sv.security_patch.diff` to return to the vulnerable state.
       Iterate as you refine.
