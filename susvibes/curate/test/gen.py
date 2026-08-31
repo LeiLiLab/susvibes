@@ -191,13 +191,12 @@ def prologue(run_id, max_workers, instance_ids=None) -> SWEAgentPort:
         if instance_id not in image_by_id:
             continue
         repo_test_cmd = get_repo_test_cmd(env_specs[instance_id]["dockerfile"])
-        sec_prop = record["sec_prop"]
+        sec_prop = record["sec_prop"]["property"]
         render_kwargs = {
             "VULN_CLASS": sec_prop["vuln_class"],
             "RISK_NARRATIVE": sec_prop["risk_narrative"],
             "INVARIANT": sec_prop["invariant"],
-            "VULNERABLE_IF": sec_prop["vulnerable_if"],
-            "SECURE_IF": sec_prop["secure_if"],
+            "ATTACK_VARIANTS": sec_prop["attack_variants"],
             "IRRELEVANT": sec_prop["security_irrelevant_differences"],
             "FEATURE_DESC": record["problem_statement"],
             "REPO_TEST_CMD": repo_test_cmd,

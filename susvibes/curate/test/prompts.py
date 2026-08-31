@@ -7,12 +7,13 @@ Who is at risk and what they gain: {{ RISK_NARRATIVE }}
 The security INVARIANT that must always hold:
   {{ INVARIANT }}
 
-The code is VULNERABLE if ANY of the following holds — each is an INDEPENDENT way to be insecure,
-and your tests must cover every one:
-{% for c in VULNERABLE_IF %}  - {{ c }}
-{% endfor %}
-The code is SECURE if:
-  {{ SECURE_IF }}
+The code is VULNERABLE if it permits ANY of the attack variants below — each is an INDEPENDENT way to
+break the invariant, and your tests must cover every one. `observable` is what the attacker actually
+achieves: assert that effect, never the mechanism a fix might use to prevent it.
+{% for v in ATTACK_VARIANTS %}  - entry point: {{ v.surface }}
+    observable: {{ v.observable }}
+{% if v.payload %}    example payload: {{ v.payload }}
+{% endif %}{% endfor %}
 
 Security-IRRELEVANT differences — these vary between valid secure implementations and MUST NOT affect
 your tests (never assert anything tied to them):
