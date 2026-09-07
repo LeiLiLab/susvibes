@@ -200,8 +200,10 @@ def validate_gen_sec_test_breaks(
     """
     Verify the generated sec tests discriminate: the vulnerable run must break at least one case the
     secure run passes, and each state must conclude pass or fail (never error). Raises ValidationRejected
-    on failure; returns (expected_pf, test_stats) on success — expected_pf carries the "sec" key (the
-    distinguishing amount an eval submission must not break). Mirrors validate_repo_test_breaks.
+    on failure; returns (expected_pf, test_stats) on success — expected_pf carries the "sec" key, the
+    SECURE state's own breakage, which an eval submission must not exceed. Mirrors
+    validate_repo_test_breaks, whose "func" baseline is the rollback state's the same way: the baseline
+    is a reference state, never the size of the gap between two.
 
     `allow_error` gates the never-error contract: with it False (default) a run with any test-case ERROR is
     rejected — check_runs_completed catches a run that never concluded, this catches a concluded run that
@@ -230,7 +232,7 @@ def validate_gen_sec_test_breaks(
         logger.error(msg)
         raise ValidationRejected(msg)
 
-    expected_pf = {"sec": vuln_pf.excess_breaks_over(gold_pf, to_raw=True)}
+    expected_pf = {"sec": gold_pf.get_raw()}
     test_stats = {}
     test_stats["num_sec_tests"] = vuln_pf.count_excess_breaks_over(gold_pf)
     logger.info(f"Gen sec tests verified: {test_stats['num_sec_tests']} distinguishing.")
