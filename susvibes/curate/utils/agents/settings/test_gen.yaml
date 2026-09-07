@@ -6,4 +6,4 @@ model:
   per_instance_call_limit: 200
 conda_env: sweagent1.1.0
 config_name: susvibes_test_gen
-num_workers: 15
+num_workers: 40
