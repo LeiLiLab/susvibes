@@ -15,8 +15,6 @@ npm -v
 
 npm install -g @google/gemini-cli@latest
 
-pip3 install "harness[sdk]"
-
 echo "Setting up environment..."
 mkdir -p /root/.gemini
 cat > /root/.gemini/.env << 'EOF'
