@@ -47,7 +47,7 @@ def aggregate(data_record, per_file, engine, n_target_files, reason=None):
         best = max(files, key=lambda v: (LABEL_RANK[v["label"]], v["score"]))
         label, score = best["label"], best["score"]
     else:
-        best, label, score = None, CoverageLabel.UNKNOWN, 0.0
+        best, label, score = None, CoverageLabel.INDETERMINATE, 0.0
     return OrderedDict([
         ("instance_id", data_record["instance_id"]),
         ("project", data_record["project"]),
@@ -71,7 +71,7 @@ def analyze(data_record, repo_dir, sources, targets, seed_names_map=None,
     given, a target absent from it (or mapping to an empty set) seeds nothing — there
     is no whole-file fallback. ``data_record`` provides the instance meta echoed into
     the result."""
-    # process.py guarantees the security_patch is non-empty and all target-language
+    # mine.core guarantees the security_patch is non-empty and all target-language
     # (.py): a patch with no .py target here means that upstream invariant was violated.
     if not targets or any(not tgt.endswith(TARGET_EXTENSIONS) for tgt in targets):
         raise ValueError(
@@ -100,8 +100,8 @@ def analyze(data_record, repo_dir, sources, targets, seed_names_map=None,
         evidence += heuristics.score(tgt, index, names)                           # H1-H10 always
         if not evidence and not reliable:
             # Symbol trace could not complete (jedi unreliable or target unparseable)
-            # and nothing else scored: we cannot tell — unknown, not (false) unlikely.
-            per_file[tgt] = file_result(CoverageLabel.UNKNOWN,
+            # and nothing else scored: we cannot tell — indeterminate, not (false) unlikely.
+            per_file[tgt] = file_result(CoverageLabel.INDETERMINATE,
                                         "symbol trace incomplete (jedi unreliable or target unparseable)")
         else:
             per_file[tgt] = result_from_evidence(evidence)

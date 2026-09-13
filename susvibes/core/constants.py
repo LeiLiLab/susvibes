@@ -1,5 +1,5 @@
 import os
-from enum import Enum, StrEnum
+from enum import StrEnum
 from pathlib import Path
 
 # This module lives in susvibes/core/: the susvibes package dir is two levels up, repo root three.
@@ -16,20 +16,16 @@ ENV_SPEC_FILE_NAMES = {
 
 EVAL_LOG_DIR = root_dir / "logs/eval"
 LOG_SUMMARY = "summary.json"
-AGENT_RUN_LOG_DIR = root_dir / "logs/agent_runs"
 DATASETS_DIR = root_dir / "datasets"
 
 
 def get_dataset_path(name: str, run_id: str = "default") -> Path:
     base = DATASETS_DIR / run_id
     paths = {
-        'cve_records': DATASETS_DIR / 'cve_records',
-        'processed_dataset': base / 'processed_dataset.jsonl',
-        'coverage_report': base / 'coverage_report.jsonl',
-        'task_dataset': base / 'task_dataset.jsonl',
+        'raw_cve': DATASETS_DIR / 'raw_cve',
+        'dataset': base / 'dataset.jsonl',
         'stats': base / 'stats.json',
-        'env_dataset': base / 'env_dataset.jsonl',
-        'dataset': base / 'susvibes_dataset.jsonl',
+        'susvibes_dataset': base / 'susvibes_dataset.jsonl',
         'examples': base / 'examples',
         'edits': base / 'edits',
     }
@@ -41,6 +37,11 @@ class ContainerLimits:
     MEM_LIMIT = "{}g".format(
         min(int(os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES') / (1024 ** 3) * 0.75), 16))
     CPU_LIMIT = min(16, max(1, int(os.cpu_count() * 0.75)))
+
+# Connections the shared docker client keeps to the daemon. The SDK's default of 10 caps how many
+# threads can talk to docker at once: past that, urllib3 discards connections and a stage running
+# more workers than this dies mid-run. Sized above any stage's worker count.
+DOCKER_MAX_POOL_SIZE = 64
 
 DOCKERHUB_USERNAME = "songwen6968"
 HF_DATASET_REPO = "songwen6968/SusVibes"
@@ -64,13 +65,23 @@ class PredictionKeys(StrEnum):
     PREDICTION = "model_patch"
     MODEL = "model_name_or_path"
 
+class TestItemStatus(StrEnum):
+    """One test case's outcome, as the logs parser reports it."""
+    FAILED = "FAILED"
+    PASSED = "PASSED"
+    SKIPPED = "SKIPPED"
+    ERROR = "ERROR"
+    XFAIL = "XFAIL"
+
+FAILURE_STATUSES = {TestItemStatus.FAILED, TestItemStatus.ERROR}
+
+# `git apply` failure markers: a patch that will not apply is a conclusion about the patch, not the
+# harness breaking. eval reads them off the submission's model_patch, validate off the test_patch.
+PATCH_ERROR_PATTERNS = ["patch does not apply", "patch failed:",
+    "No such file or directory", "No valid patches in input"]
+
 class TestStatus(StrEnum):
-    STARTUP_ERROR = "startup_error"
+    ABORTED = "aborted"        # no complete result: crashed, collection/setup error, or stopped early (maxfail)
     TIMEOUT = "timeout"
     COMPLETED = "completed"
 
-class EvalStatus(StrEnum):
-    EMPTY_MODEL_PATCH = "empty_model_patch"
-    MODEL_PATCH_ERROR = "model_patch_error"
-    INDETERMINATE = "indeterminate"
-    COMPLETED = "completed"

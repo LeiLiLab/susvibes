@@ -3,6 +3,7 @@ import tempfile
 from pathlib import Path
 
 from susvibes.core.env import Deployment
+from susvibes.curate.validate.constants import KEEP_STAGE, ValidateStatus, ValidationRejected
 from susvibes.env_specs import WORKSPACE_DIR_NAME
 
 
@@ -38,3 +39,46 @@ def build_clean_eval_deployment(
             dockerfile=clean_dockerfile,
             image_name=target_image_name,
         )
+
+
+def check_runs_completed(run_names, test_pf_list, allow_timeout, allow_aborted, logger) -> None:
+    """Reject the instance when a run that had to complete did not. Which runs may not is the
+    caller's, since only it knows what each run is for: a masked task that crashes IS the break it
+    was meant to show, while the runs it is measured against must produce a result or the comparison
+    means nothing — a non-completed run compares as infinitely broken, and would read as a break it
+    never earned."""
+    for id, (run_name, test_pf) in enumerate(zip(run_names, test_pf_list)):
+        if (test_pf.timed_out() and id not in allow_timeout) or \
+                (test_pf.aborted() and id not in allow_aborted):
+            msg = f"Failed to validate tests: {run_name} did not complete ({test_pf.status})"
+            logger.error(msg)
+            raise ValidationRejected(msg)
+
+
+def validate_report(status, **payload) -> dict:
+    """A report for an instance that concluded: the status plus whatever that status carries — a
+    `reason` when a check rejected it, the expected_pf / flags / image_name / logs_handler / stats
+    the caller projects onto the record when it validated."""
+    return {"validate_status": status, **payload, "error": None}
+
+
+def validate_miss(error: str) -> dict:
+    """A report for a run that concluded nothing — the harness failed to build or run a container.
+    `error` set is what `--resume` re-runs. Mirrors `sec_prop_miss` / `check_cov_miss`."""
+    return {"validate_status": None, "error": error}
+
+
+def apply_validate_report(report: dict, data_record: dict, env_spec: dict, stats: dict) -> None:
+    """Project one concluded report onto the artifacts that carry it: the record (what wrap_up
+    publishes, plus this stage's `keep` verdict), the env_spec, and the run's stats (keyed by instance). The report is
+    their cache — the dataset stays their home."""
+    validated = report["validate_status"] == ValidateStatus.VALIDATED
+    data_record.setdefault("keep", {})[KEEP_STAGE] = validated
+    for key in ("expected_pf", "flags", "image_name"):
+        if validated:
+            data_record[key] = report[key]
+        else:
+            data_record.pop(key, None)      # a re-validation that now fails leaves nothing behind
+    if validated:
+        env_spec["logs_handler"] = report["logs_handler"]
+        stats.setdefault(data_record["instance_id"], {}).update(report["stats"])

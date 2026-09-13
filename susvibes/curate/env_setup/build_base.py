@@ -1,16 +1,16 @@
 """
-Build / push / pull the base_py + dind_py + cov_py images for selected Python versions.
+Build / push / pull the base_py + dind_py + static_py images for selected Python versions.
 
   --mode         (required): build | push | pull
-  --image_names  (default all three): JSON list of "base_py", "dind_py", "cov_py"
+  --image_names  (default all three): JSON list of "base_py", "dind_py", "static_py"
   --versions     (required): JSON list of Python versions
 
-dind_py and cov_py are built FROM base_py. cov_py adds the version-matched jedi/parso stack
+dind_py and static_py are built FROM base_py. static_py adds the version-matched jedi/parso stack
 check_cov needs (these may fail to install on old interpreters, failing that version's build).
 Rebuilds can drift the upstream python base, so pass only the versions you need.
 
   python -m susvibes.curate.env_setup.build_base --mode build --versions '["3.6"]'
-  python -m susvibes.curate.env_setup.build_base --mode build --image_names '["cov_py"]' --versions '["3.10"]'
+  python -m susvibes.curate.env_setup.build_base --mode build --image_names '["static_py"]' --versions '["3.10"]'
   python -m susvibes.curate.env_setup.build_base --mode pull --versions '["3.10"]'
 """
 
@@ -28,11 +28,12 @@ from susvibes.core.env import Deployment
 from susvibes.core.constants import ImageLoc
 from susvibes.curate.constants import get_log_dir
 from susvibes.env_specs import DEV_TOOL_VERSIONS
-from susvibes.env_specs.dockerfiles import DOCKERFILE_BASE_PY, DOCKERFILE_DIND_PY, DOCKERFILE_COV_PY
+from susvibes.env_specs.dockerfiles import DOCKERFILE_BASE_PY, DOCKERFILE_DIND_PY, DOCKERFILE_STATIC_PY
 from susvibes.core.utils import get_image_name, setup_logger
+from susvibes.core.report import get_two_state_summary, print_summary
 
 DEV_TOOL_NAME = "python"
-IMAGE_NAMES = ("base_py", "dind_py", "cov_py")
+IMAGE_NAMES = ("base_py", "dind_py", "static_py")
 
 
 def _build_single(image_name: str, version: str, dockerfile_content: str,
@@ -45,7 +46,7 @@ def _build_single(image_name: str, version: str, dockerfile_content: str,
             Deployment.from_build(logger, context_path=Path(tmp),
                 dockerfile=dockerfile_content, image_name=image_tag)
     except docker.errors.BuildError as e:
-        return None, str(e)
+        return None, f"Failed to build image: {e}"
     return image_tag, None
 
 
@@ -62,12 +63,12 @@ def build_dind_py_single(version: str, logger: logging.Logger) -> tuple[str | No
         DOCKERFILE_DIND_PY.format(base_image=base_py_image), logger)
 
 
-def build_cov_single(version: str, logger: logging.Logger) -> tuple[str | None, str | None]:
-    """Build the cov_py image for this version from the base_py image with matched jedi/parso."""
+def build_static_py_single(version: str, logger: logging.Logger) -> tuple[str | None, str | None]:
+    """Build the static_py image for this version from the base_py image with matched jedi/parso."""
     base_py_image = f'{get_image_name("base_py")}:{version}'
-    cov_deps = DEV_TOOL_VERSIONS[DEV_TOOL_NAME]["versions"][version]["cov_deps"]
-    return _build_single("cov_py", version,
-        DOCKERFILE_COV_PY.format(base_image=base_py_image, jedi_parso=cov_deps), logger)
+    static_deps = DEV_TOOL_VERSIONS[DEV_TOOL_NAME]["versions"][version]["static_deps"]
+    return _build_single("static_py", version,
+        DOCKERFILE_STATIC_PY.format(base_image=base_py_image, jedi_parso=static_deps), logger)
 
 
 def build_threadpool(image_name: str, versions: list, build_fn, max_workers: int) -> list:
@@ -76,7 +77,7 @@ def build_threadpool(image_name: str, versions: list, build_fn, max_workers: int
     Returns the list of (version, image_tag) pairs that succeeded.
     """
     print(f"\nBuilding {len(versions)} {image_name} images: {versions}")
-    built, failed = [], {}
+    built, errored = [], {}
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futs = {ex.submit(build_fn, version): version for version in versions}
         with tqdm(total=len(futs), dynamic_ncols=True,
@@ -90,18 +91,11 @@ def build_threadpool(image_name: str, versions: list, build_fn, max_workers: int
                 if image_tag:
                     built.append((version, image_tag))
                 else:
-                    failed[version] = reason
+                    errored[version] = reason
                 pbar.update(1)
                 pbar.set_description(
-                    f"{len(built)} built, {len(failed)} failed")
-    if built:
-        print(f"Built ({len(built)}):")
-        for version, image_tag in built:
-            print(f"  python {version}: {image_tag}")
-    if failed:
-        print(f"Build failed ({len(failed)}):")
-        for version, err in failed.items():
-            print(f"  python {version}: {err}")
+                    f"{len(built)} built, {len(errored)} failed")
+    print_summary(get_two_state_summary([tag for _, tag in built], errored))
     return built
 
 
@@ -117,10 +111,10 @@ def push_threadpool(push_targets: list, max_workers: int) -> None:
             Deployment.push_image(image_tag)
             return image_tag, None
         except Exception as e:
-            return image_tag, str(e)
+            return image_tag, f"Failed to move image: {e}"
 
     print(f"\nPushing {len(push_targets)} images...")
-    succeeded, failed = [], {}
+    succeeded, errored = [], {}
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futs = [ex.submit(_push, image_name, version) for image_name, version in push_targets]
         with tqdm(total=len(futs), dynamic_ncols=True,
@@ -130,18 +124,11 @@ def push_threadpool(push_targets: list, max_workers: int) -> None:
                 if err is None:
                     succeeded.append(image_tag)
                 else:
-                    failed[image_tag] = err
+                    errored[image_tag] = err
                 pbar.update(1)
                 pbar.set_description(
-                    f"{len(succeeded)} pushed, {len(failed)} failed")
-    if succeeded:
-        print(f"Pushed ({len(succeeded)}):")
-        for image_tag in succeeded:
-            print(f"  {image_tag}")
-    if failed:
-        print(f"Failed ({len(failed)}):")
-        for image_tag, err in failed.items():
-            print(f"  {image_tag}: {err}")
+                    f"{len(succeeded)} pushed, {len(errored)} failed")
+    print_summary(get_two_state_summary(succeeded, errored))
 
 
 def pull_threadpool(pull_targets: list, max_workers: int) -> None:
@@ -152,10 +139,10 @@ def pull_threadpool(pull_targets: list, max_workers: int) -> None:
             Deployment.collect_image(image_name=image_tag, image_loc=ImageLoc.REMOTE)
             return image_tag, None
         except Exception as e:
-            return image_tag, str(e)
+            return image_tag, f"Failed to move image: {e}"
 
     print(f"\nPulling {len(pull_targets)} images...")
-    succeeded, failed = [], {}
+    succeeded, errored = [], {}
     with ThreadPoolExecutor(max_workers=max_workers) as ex:
         futs = [ex.submit(_pull, image_name, version) for image_name, version in pull_targets]
         with tqdm(total=len(futs), dynamic_ncols=True,
@@ -165,18 +152,11 @@ def pull_threadpool(pull_targets: list, max_workers: int) -> None:
                 if err is None:
                     succeeded.append(image_tag)
                 else:
-                    failed[image_tag] = err
+                    errored[image_tag] = err
                 pbar.update(1)
                 pbar.set_description(
-                    f"{len(succeeded)} pulled, {len(failed)} failed")
-    if succeeded:
-        print(f"Pulled ({len(succeeded)}):")
-        for image_tag in succeeded:
-            print(f"  {image_tag}")
-    if failed:
-        print(f"Failed ({len(failed)}):")
-        for image_tag, err in failed.items():
-            print(f"  {image_tag}: {err}")
+                    f"{len(succeeded)} pulled, {len(errored)} failed")
+    print_summary(get_two_state_summary(succeeded, errored))
 
 
 if __name__ == "__main__":
@@ -191,7 +171,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--image_names", type=json.loads, default=supported_image_names,
         help=f'JSON list of image names among {supported_image_names}. '
-             'Default: all. Example: --image_names \'["cov_py"]\'',
+             'Default: all. Example: --image_names \'["static_py"]\'',
     )
     parser.add_argument(
         "--versions", type=json.loads, default=supported_versions,
@@ -218,8 +198,8 @@ if __name__ == "__main__":
                     version, DEV_TOOL_VERSIONS[DEV_TOOL_NAME]["versions"][version]["upstream_image_name"], logger),
                 args.max_workers,
             )
-        # dind_py/cov_py are built FROM base_py, so it must already exist locally.
-        if "dind_py" in image_names or "cov_py" in image_names:
+        # dind_py/static_py are built FROM base_py, so it must already exist locally.
+        if "dind_py" in image_names or "static_py" in image_names:
             missing_base = []
             for version in versions:
                 base_py_image = f'{get_image_name("base_py")}:{version}'
@@ -235,10 +215,10 @@ if __name__ == "__main__":
                 lambda version: build_dind_py_single(version, logger),
                 args.max_workers,
             )
-        if "cov_py" in image_names:
+        if "static_py" in image_names:
             build_threadpool(
-                "cov_py", versions,
-                lambda version: build_cov_single(version, logger),
+                "static_py", versions,
+                lambda version: build_static_py_single(version, logger),
                 args.max_workers,
             )
     elif args.mode == "push":

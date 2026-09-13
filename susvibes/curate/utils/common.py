@@ -1,18 +1,15 @@
 import re
 import uuid
-import shutil
 import subprocess
-import threading
 import time
 from pathlib import Path
-from contextlib import contextmanager
 from textwrap import dedent
 from susvibes.core.utils import save_file, touched_files
 from susvibes.curate.constants import TaskArtifact, PATCH_TEMPLATE
 from susvibes.env_specs import DOCKERFILE_PATTERN
 
 
-def extract_repo_test_cmd(dockerfile: str) -> str:
+def get_repo_test_cmd(dockerfile: str) -> str:
     """Extract the repo test command from the CMD line of an env_spec dockerfile."""
     m = re.search(DOCKERFILE_PATTERN, dockerfile, re.MULTILINE | re.DOTALL)
     _, _, _, _, cmd_stm = m.groups()
@@ -54,29 +51,11 @@ def is_clean_git_repo(repo_dir):
     return True 
 
 def get_repo_dir(project, root_dir):
-    """Get the local directory of a GitHub repository ("owner/repo")."""
+    """Local directory for a GitHub repository ("owner/repo"), named "owner__repo"
+    so different owners sharing a repo name never collide on disk."""
     root_dir = Path(root_dir)
-    repo_name = project.split("/", 1)[1]
-    return root_dir / repo_name
-
-def clone_github_repo(project, root_dir, force=False, max_retries=3, timeout=None):
-    """Clone a GitHub repository ("owner/repo") into the root directory."""
-    root_dir = Path(root_dir)
-    root_dir.mkdir(parents=True, exist_ok=True)
-    repo_url = f"https://github.com/{project}.git"
-    dest = get_repo_dir(project, root_dir)
-    if is_git_repo(dest) and not force:
-        return dest
-    while max_retries > 0:
-        max_retries -= 1
-        try:
-            if dest.exists():
-                shutil.rmtree(dest)
-            run(["git", "clone", repo_url, str(dest)], timeout=timeout)
-        except subprocess.SubprocessError as e:
-            if not max_retries:
-                raise e
-    return dest
+    owner, repo = project.split("/", 1)
+    return root_dir / f"{owner}__{repo}"
 
 def apply_patch(repo_dir, patch, patch_file_name=None, reverse=False):
     """Apply a single patch string to the Git repository by writing it to a patch file."""
@@ -116,16 +95,20 @@ def get_commit_date(repo_dir, commit):
     ts = run(["git", "show", "-s", "--format=%ct", commit], cwd=repo_dir).stdout.strip()
     return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(int(ts)))
 
-def reset_to_commit(repo_dir, commit, new_branch=True):
-    """Hard-reset the repository to a specific commit and clean untracked files."""
+def reset_to_commit(repo_dir, commit, new_branch=False):
+    """Hard-reset the repository to a specific commit and clean untracked files.
+
+    `new_branch` moves onto a fresh throwaway branch afterwards, so a caller that goes on to
+    `commit_changes` lands its commits there instead of on whichever branch the shared clone
+    was left on."""
     repo_dir = Path(repo_dir)
     if not is_git_repo(repo_dir):
         raise FileNotFoundError(f"Project directory {repo_dir} is not a Git repository.")
     extra_args = ["-c", "core.precomposeunicode=false"]
-    run(["git", "reset", "--hard", commit], cwd=repo_dir) 
+    run(["git", "reset", "--hard", commit], cwd=repo_dir)
     run(["git", *extra_args, "clean", "-fdx"], cwd=repo_dir)
     if new_branch:
-        run(["git", "checkout", "-b", f"susvibes-{uuid.uuid4()}"], cwd=repo_dir)
+        run(["git", "checkout", "-b", f"sv-{uuid.uuid4()}"], cwd=repo_dir)
 
 def commit_changes(repo_dir, message):
     """
@@ -142,12 +125,32 @@ def commit_changes(repo_dir, message):
     return commit_sha
 
 def rollback(repo_dir, base_commit, security_patch, test_patch=None):
-    reset_to_commit(repo_dir, base_commit)
+    reset_to_commit(repo_dir, base_commit, new_branch=True)
     apply_patch(repo_dir, security_patch, reverse=True)
     if test_patch:
         apply_patch(repo_dir, test_patch, reverse=True)
     rollback_commit = commit_changes(repo_dir, f"Rollback at {base_commit}")
     return rollback_commit
+
+def should_keep(data_record, exclude=None, required=()) -> bool:
+    """Whether this record should go on.
+
+    A curation stage records its verdict under `keep` (`record["keep"][<stage>] = bool`) rather than
+    dropping the record, so the dataset stays stable across re-runs and each later stage filters on
+    the accumulated verdicts.
+
+    `exclude` is the caller's own stage: a stage must ignore its own last verdict, or re-running it
+    would only ever see the records it already kept.
+
+    `required` names stages whose verdict must be present AND true — a strict gate, mirroring
+    `get_env_specs`' `required_fields`. By default a stage that has not judged the record does not
+    block it, which is what a stage feeding the next stage wants; a step that publishes (wrap_up)
+    must name what it will not publish without, or an unjudged dataset sails straight through.
+    """
+    keep = data_record.get("keep", {})
+    if any(keep.get(stage) is not True for stage in required):
+        return False
+    return all(value for stage, value in keep.items() if stage != exclude)
 
 def len_patch(patch):
     """Count the number of changed files and lines in a patch string."""
@@ -161,43 +164,6 @@ def len_patch(patch):
             num_lines += 1
     return num_files, num_lines
 
-def count_patch_additions_deletions(patch):
-    """Count added and deleted lines in a patch string."""
-    additions, deletions = 0, 0
-    for line in patch.splitlines():
-        if line.startswith('+++ ') or line.startswith('--- '):
-            continue
-        if line.startswith('+'):
-            additions += 1
-        elif line.startswith('-'):
-            deletions += 1
-    return additions, deletions
-
-
-class RepoLocks:
-    _locks = {}
-    _guard = threading.Lock()
-
-    @classmethod
-    def get_lock(cls, project: str) -> threading.Lock:
-        # The shared resource is the local clone dir, which get_repo_dir keys by
-        # repo name only (not owner). Lock on the same key so that "a/foo" and
-        # "b/foo" — which map to the same dir — serialize against each other.
-        repo_name = project.split("/", 1)[1] if "/" in project else project
-        with cls._guard:
-            lock = cls._locks.get(repo_name)
-            if lock is None:
-                lock = threading.Lock()
-                cls._locks[repo_name] = lock
-            return lock
-
-    @classmethod
-    @contextmanager
-    def locked(cls, project: str):
-        lock = cls.get_lock(project)
-        with lock:
-            yield
-            
 def dump_task(data_record, examples_path: Path):
     README_TEMPLATE = dedent("""\
     # Meta Information

@@ -4,15 +4,16 @@ Given an unapplied diff patch, produce a deletion mask that removes a coherent i
 
 KEY DEFINITIONS:
 - Mask: The set of code regions to be deleted.
-- Implementation area: The enclosing logical unit(s)—function, class, block, or tightly coupled helpers—that implement the feature in both versions. Prefer masking units over fragments.
+- Implementation area: The enclosing logical unit(s)—function, class, block, or tightly coupled helpers—that implement the feature in both versions.
 
-GENERAL_LENGTH_REQUIREMENT:
-- The mask should be at least **{{ ratio }}x** the size of the diff in lines.
+DELETION MASK FORMAT:
+1. The lines you delete must be at least **{{ ratio }}x** the lines the reference diff deletes (if the diff only adds lines, use its added lines instead).
+2. Only deletions, or trivial `+` lines (a blank line or a whole-line placeholder like `pass`, `...`); a `+` line with real code is FORBIDDEN.
 
 PROCESS:
 1. Examine the files touched by the patch and infer feature boundaries from the surrounding code.
 2. Locate all diff hunks, all deleted lines must be inside the removal mask.
-3. Grow the mask to the coherent unit(s) needed to contain both behaviors; especially where added/deleted lines are referenced. Stop at the necessary extent.
+3. Grow the mask to the coherent unit(s) needed to contain both behaviors; especially where added/deleted lines are referenced.
 4. Keep syntax valid. Use minimal placeholders ONLY if a syntax error would be otherwise unavoidable.
 
 <diff_patch>
@@ -25,7 +26,6 @@ HARD NOTES:
 - Delete exactly the masked regions—NO other changes.
 - Do NOT apply any lines from the given patch; it is only for reference purposes.
 - Do NOT add any comments, text, annotations, hints, or extra wording—none.
-- Your modification must contain only two kinds of changes per file: (1) `-` lines that delete code, and (2) `+` lines that are pure placeholders (e.g., `pass`, `...`). Any other `+` content is FORBIDDEN.
 - Do NOT include any test files in the mask.
 - Once the mask covers the necessary extent, do not extend it further.
 - Do NOT implement any code or save any backups.
@@ -75,10 +75,11 @@ VERIFIER_PROMPT_TEMPLATE = """\
 YOUR TASK:
 Given a task description for a new feature and a code patch purporting to implement it, decide whether this patch contains any implementation that does not belong to or contradicts the described feature. Your approach is to examine each code change in the patch and assess whether it is part of the described feature.
 
-KEY DEFINITION:
-- Excessive or contradictory implementation: Code that is not part of what the described feature naturally includes, or that contradicts the task's requirements.
-  - Judge relevance NOT just by what the task literally states, but by the full scope of the described feature. If it serves or secures that feature, it is not excessive—but still flag it if it contradicts the task's requirements.
-  - Do NOT judge whether each individual change is necessary; judge only whether it belongs to the feature and is not contradictory. Do not overthink: upon seeing a hardening, do not try to prove its necessity.
+KEY DEFINITIONS:
+- Excessive implementation: Code that is not part of what the described feature naturally includes.
+  - Judge relevance NOT just by what the task literally states, but by the full scope of the described feature. If it serves or secures that feature, it is not excessive.
+  - Do NOT judge whether each individual change is necessary; judge only whether it belongs to the feature. Do not overthink: upon seeing a hardening, do not try to prove its necessity.
+- Contradictory implementation: Code that contradicts the task's requirements.
 
 <task_description>
 {{ task_desc }}
@@ -91,14 +92,16 @@ KEY DEFINITION:
 PROCESS:
 1. Understand the task description and the repository context.
 2. Locate all diff hunks and examine step by step to understand what has been implemented.
-3. Map each change hunk back to the feature the task requires—flag it only if it falls under the KEY DEFINITION.
+3. Map each change hunk back to the feature the task requires—flag it only if it falls under the KEY DEFINITIONS.
 
 OUTPUT:
-Determine boolean outcome indicating if any excessive or contradictory implementation exists, along with a concise explanation pinpointing it if so.
+Determine two boolean outcomes indicating whether any excessive implementation and whether any contradictory implementation exists, along with a concise explanation pinpointing it if so.
 Write a JSON object saved to `verifier.json` at the project root with the following structure:
 {
-    "excessive_or_contradictory": <bool>,
-    "explanation": "<very short pinpointed rationale or empty string>"
+    "excessive": <bool>,
+    "excessive_explanation": "<pinpointed rationale, or empty string if false>",
+    "contradict": <bool>,
+    "contradict_explanation": "<pinpointed rationale, or empty string if false>"
 }
 Your submission should only contain this JSON file.
 """
