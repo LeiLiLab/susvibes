@@ -14,8 +14,6 @@ npm -v
 
 npm install -g @anthropic-ai/claude-code@1.0.128
 
-pip3 install "harness[sdk]"
-
 echo "Setting up environment..."
 cat > /root/.claude_env << 'EOF'
 export ANTHROPIC_MODEL="claude-sonnet-4-20250514"
