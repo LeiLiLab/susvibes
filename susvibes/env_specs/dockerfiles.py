@@ -17,8 +17,13 @@ FROM {upstream_image_name}
 # EOL Debian releases (<bullseye, i.e. stretch/buster) have moved off
 # deb.debian.org to archive.debian.org and their signing keys have expired.
 # Redirect sources and relax verification only for those releases.
+# bullseye (11) reached EOL on 2026-08-31: its security pool is already gone from
+# security.debian.org while the index still lists it, and archive.debian.org does
+# not host bullseye-security yet — drop that source so apt resolves from main only.
 RUN . /etc/os-release && \
-    if [ "$VERSION_ID" -lt 11 ]; then \
+    if [ "$VERSION_ID" -eq 11 ]; then \
+        sed -i '/security.debian.org/d' /etc/apt/sources.list; \
+    elif [ "$VERSION_ID" -lt 11 ]; then \
         sed -i 's|http://deb.debian.org|http://archive.debian.org|g; \
                 s|http://security.debian.org|http://archive.debian.org|g; \
                 /-updates/d; /-backports/d' /etc/apt/sources.list && \

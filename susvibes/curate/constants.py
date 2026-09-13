@@ -2,7 +2,7 @@ from enum import StrEnum
 from pathlib import Path
 
 root_dir = Path(__file__).parent.parent.parent
-LOCAL_REPOS_DIR = "/home/songwenzhao/projects" #root_dir / 'projects'
+LOCAL_REPOS_DIR = "/mnt/data2/songwenzhao/projects"
 CURATE_LOG_DIR = root_dir / "logs/curate"
 AGENT_SETTINGS_DIR = Path(__file__).parent / "utils/agents/settings"
 
@@ -33,7 +33,7 @@ def get_log_dir(run_id: str, *module: str) -> Path:
 def get_agent_setting_path(name: str) -> Path:
     return AGENT_SETTINGS_DIR / f"{name}.yaml"
 
-LOGS_PARSER_MODEL = "bedrock/us.anthropic.claude-sonnet-5"
+LOGS_PARSER_MODEL = "claude-sonnet-5"
 
 class TaskArtifact(StrEnum):
     """Names of the files/dirs written into a task directory."""
