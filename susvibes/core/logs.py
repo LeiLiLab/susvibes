@@ -151,8 +151,8 @@ class PassFailure(ABC):
     @staticmethod
     def add_raw(a, b):
         """Add two stored expected-raw values across eval runs: both counts → sum, both case lists
-        → de-duped union; a count mixed with a list (func vs synthesized sec) isn't summed — the
-        list is the threshold that matters, so return it."""
+        → de-duped union; a count mixed with a list isn't summed — the list is the threshold that
+        matters, so return it."""
         if isinstance(a, list) and isinstance(b, list):
             return list(dict.fromkeys(a + b))
         if isinstance(a, list) or isinstance(b, list):

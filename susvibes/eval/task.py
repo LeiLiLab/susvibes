@@ -185,7 +185,8 @@ class Task:
             if not test_pf.completed():
                 run[run_name] = {"pass": False, "test_status": test_pf.status}
                 continue
-            expected_raw = self.expected_pf[run_name] if expected_raw is None \
+            expected_raw = self.expected_pf[run_name] \
+                if expected_raw is None or Route.route_standalone(self.flags, run_name) \
                 else PassFailure.add_raw(expected_raw, self.expected_pf[run_name])
             expected_pf = PassFailure.from_raw(expected_raw)
             run[run_name] = {"pass": not test_pf.breaks_more_than(expected_pf),

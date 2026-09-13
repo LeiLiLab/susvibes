@@ -265,3 +265,10 @@ class Route:
     @staticmethod
     def route_logs_kind(flags: dict, run_name: str) -> str:
         return "count_gen_sec" if Route._gen_test(flags, run_name) else "count"
+
+    @staticmethod
+    def route_standalone(flags: dict, run_name: str) -> bool:
+        """Whether this run executes only its own suite. A gen-sec run does — .sv.run_gen_test.sh runs
+        the generated tests alone — so its expected threshold is its own; a human sec run executes the
+        whole suite on top of the functional tests, and its threshold accumulates the functional run's."""
+        return Route._gen_test(flags, run_name)
