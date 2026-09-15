@@ -75,6 +75,12 @@ class Deployment():
                             raise
                 if logger:
                     logger.info(f"Image {image_name} pulled successfully.")
+                if not image.tags:      # pulled by digest: FROM statements need a name
+                    default_image_name = Deployment.get_default_image_name()
+                    if logger:
+                        logger.warning(f"Image has no names, tagging a default name {default_image_name}.")
+                    assert image.tag(default_image_name)
+                    image.reload()
                 return image
             except docker.errors.APIError as e:
                 if logger:
@@ -98,6 +104,7 @@ class Deployment():
                 if logger:
                     logger.warning(f"Image has no names, tagging a default name {default_image_name}.")
                 assert image.tag(default_image_name)
+                image.reload()
             return image
         except docker.errors.APIError as e:
             if logger:

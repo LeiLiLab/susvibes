@@ -72,7 +72,7 @@ def run_repo_test_suite_multi(
             # on the instance, anything else is the harness breaking.
             raise PatchError(msg) if is_patch_error(str(e)) else RuntimeError(msg)
         try:
-            deployment.create_container(command=Route.route_test_cmd(flags, run_name),
+            deployment.create_container(command=Route.route_test_cmd(flags, run_name, env.logs_handler),
                 mem_limit=ContainerLimits.MEM_LIMIT, cpu_limit=ContainerLimits.CPU_LIMIT)
         except docker.errors.APIError as e:
             msg = f"Failed to create container: {e}"
@@ -169,7 +169,7 @@ def run_gen_sec_test_suite_multi(
             logger.error(msg)
             raise PatchError(msg) if is_patch_error(str(e)) else RuntimeError(msg)
         try:
-            deployment.create_container(command=Route.route_test_cmd(flags, run_name),
+            deployment.create_container(command=Route.route_test_cmd(flags, run_name, env.logs_handler),
                 mem_limit=ContainerLimits.MEM_LIMIT, cpu_limit=ContainerLimits.CPU_LIMIT)
         except docker.errors.APIError as e:
             msg = f"Failed to create gen sec test container: {e}"
