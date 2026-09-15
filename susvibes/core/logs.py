@@ -332,6 +332,12 @@ class LogsCount(LogsHandler):
         return test_result
 
     @staticmethod
+    def _any_match(logs_parser: dict, test_logs: str) -> bool:
+        """Whether any per-status pattern of the parser matches the test logs at all."""
+        test_logs = strip_ansi(test_logs)
+        return any(re.search(pattern, test_logs, re.MULTILINE) for pattern in logs_parser.values() if pattern)
+
+    @staticmethod
     def _count_failures(test_result: dict[str, int]) -> int:
         """Total countable failures (FAILED + ERROR) in a parsed test result."""
         return sum(test_result.get(item_status.value, 0) for item_status in FAILURE_STATUSES)
@@ -351,6 +357,14 @@ class LogsCount(LogsHandler):
                 test_result = self._parse(self.logs_parser, test_logs, logger)
                 failures = self._count_failures(test_result)
                 errors = self._count_errors(test_result)
+                # Fail closed: a parser that knows the runner's summary (it has a PASSED pattern) and
+                # matches nothing saw a run that never reported — a crash before or during the suite,
+                # not a run with zero failures. Parsers without a PASSED pattern (unittest's `OK` prints
+                # no count) keep the old reading, since silence is their passing shape.
+                if status == TestStatus.COMPLETED and self.logs_parser.get(TestItemStatus.PASSED.value) \
+                        and not self._any_match(self.logs_parser, test_logs):
+                    logger.info("No test outcome matched by the logs parser; treating the run as aborted.")
+                    status = TestStatus.ABORTED
         except Exception as e:
             # "handle", not "parse": this covers the checker's status read as well as the count.
             msg = f"Failed to handle test logs: {e}"
