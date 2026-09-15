@@ -87,6 +87,12 @@ class SWEAgentPort:
                     "docker_args": docker_args,
                 },
                 "repo": repo_config,
+                # swe-rex drives an interactive bash through a pty, where readline treats every TAB in
+                # the input as a completion request: a tab-indented file sent through
+                # `str_replace_editor create` hangs the session on "Display all N possibilities?"
+                # until the command times out. Inserting tabs literally is what a shell fed by a
+                # program needs.
+                "post_startup_commands": ["bind 'set disable-completion on'"],
             },
             "problem_statement": {
                 "type": "text",
