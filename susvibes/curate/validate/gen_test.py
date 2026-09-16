@@ -72,7 +72,7 @@ def run_repo_test_suite_multi(
             # on the instance, anything else is the harness breaking.
             raise PatchError(msg) if is_patch_error(str(e)) else RuntimeError(msg)
         try:
-            deployment.create_container(command=Route.route_test_cmd(flags, run_name),
+            deployment.create_container(command=Route.route_test_cmd(flags, run_name, env.logs_handler),
                 mem_limit=ContainerLimits.MEM_LIMIT, cpu_limit=ContainerLimits.CPU_LIMIT)
         except docker.errors.APIError as e:
             msg = f"Failed to create container: {e}"
@@ -169,7 +169,7 @@ def run_gen_sec_test_suite_multi(
             logger.error(msg)
             raise PatchError(msg) if is_patch_error(str(e)) else RuntimeError(msg)
         try:
-            deployment.create_container(command=Route.route_test_cmd(flags, run_name),
+            deployment.create_container(command=Route.route_test_cmd(flags, run_name, env.logs_handler),
                 mem_limit=ContainerLimits.MEM_LIMIT, cpu_limit=ContainerLimits.CPU_LIMIT)
         except docker.errors.APIError as e:
             msg = f"Failed to create gen sec test container: {e}"
@@ -286,14 +286,16 @@ def validate_single(
         logger.error(msg)
         raise RuntimeError(msg)
 
-    flags = {"gen_test": True}
+    # The record's own flags (e.g. test_adapter) route every run; this line only re-decides gen_test.
+    flags = {**{k: v for k, v in data_record.get("flags", {}).items() if k != "gen_test"}, "gen_test": True}
     try:
         # Functional: the repo's own tests across base/rollback/task, with a count parser synthesized from them.
         test_logs_list, timed_out_list = run_repo_test_suite_multi(
             env, data_record, flags, log_dir, logger, force)
-        env.logs_handler = LogsHandler.get_by_kind("count", env.logs_handler,
-            test_logs_list=test_logs_list, timed_out_list=timed_out_list,
-            model=LOGS_PARSER_MODEL, log_dir=log_dir, logger=logger, force=force)
+        if Route.route_logs_kind(flags, "base") == "count":     # an adapter instance reads its own script's counts
+            env.logs_handler = LogsHandler.get_by_kind("count", env.logs_handler,
+                test_logs_list=test_logs_list, timed_out_list=timed_out_list,
+                model=LOGS_PARSER_MODEL, log_dir=log_dir, logger=logger, force=force)
         expected_pf, test_stats = validate_repo_test_breaks(
             env, test_logs_list, timed_out_list, flags, logger)
 

@@ -1,6 +1,7 @@
 import os
 import re
 import sys
+import hashlib
 import json
 import yaml
 import logging
@@ -9,7 +10,7 @@ from tqdm import tqdm
 from pathlib import Path
 
 from susvibes.core.constants import ARCH, DOCKERHUB_USERNAME, ENV_SPECS_DIR, ENV_SPEC_FILE_NAMES, PATCH_ERROR_PATTERNS
-from susvibes.env_specs import GEN_SEC_TEST_CMD
+from susvibes.env_specs import GEN_SEC_TEST_CMD, TEST_ADAPTER_CMD_TEMPLATE
 
 
 def get_image_name(local_name: str, username: str = DOCKERHUB_USERNAME) -> str:
@@ -303,19 +304,30 @@ class Route:
     native output (the same format REPO_TEST_CMD produces). Both run families use a synthesized count parser,
     but each has its OWN (the sec run's output can differ from the functional run's — different framework,
     flags, or summary decoration), so the gen-sec run reads the `count_gen_sec` handler and every other run
-    the `count` handler; non-gen-test runs also use the image's default command."""
+    the `count` handler; non-gen-test runs also use the image's default command. A test_adapter
+    instance (flags["test_adapter"]) runs its logs_handler's adapter script on every non-gen-test run
+    and reads the `test_adapter` handler — the script both runs the repo's tests and reports the counts."""
 
     @staticmethod
     def _gen_test(flags: dict, run_name: str) -> bool:
         return flags.get("gen_test", False) and (run_name == "sec" or run_name.endswith("_gen_test"))
 
     @staticmethod
-    def route_test_cmd(flags: dict, run_name: str) -> list | None:
-        return GEN_SEC_TEST_CMD if Route._gen_test(flags, run_name) else None
+    def route_test_cmd(flags: dict, run_name: str, logs_handler: dict = None) -> list | None:
+        if Route._gen_test(flags, run_name):
+            return GEN_SEC_TEST_CMD
+        if flags.get("test_adapter", False):
+            spec = logs_handler["test_adapter"]
+            if hashlib.sha256(spec["script"].encode()).hexdigest() != spec["script_sha256"]:
+                raise RuntimeError("Test adapter script does not match its script_sha256.")
+            return ["bash", "-c", TEST_ADAPTER_CMD_TEMPLATE.format(script=spec["script"])]
+        return None
 
     @staticmethod
     def route_logs_kind(flags: dict, run_name: str) -> str:
-        return "count_gen_sec" if Route._gen_test(flags, run_name) else "count"
+        if Route._gen_test(flags, run_name):
+            return "count_gen_sec"
+        return "test_adapter" if flags.get("test_adapter", False) else "count"
 
     @staticmethod
     def route_standalone(flags: dict, run_name: str) -> bool:

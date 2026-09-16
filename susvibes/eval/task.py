@@ -168,7 +168,7 @@ class Task:
                 test_logs, timed_out = self._run_test_suite(
                     run_name=run_name,
                     patches=run_patches,
-                    command=Route.route_test_cmd(self.flags, run_name),
+                    command=Route.route_test_cmd(self.flags, run_name, self.env.logs_handler),
                     log_dir=log_dir,
                     logger=logger
                 )

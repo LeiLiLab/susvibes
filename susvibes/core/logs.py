@@ -14,7 +14,7 @@ from susvibes.curate.validate.prompts import (
     LOGS_CHECKER_PROMPT_TEMPLATE,
 )
 from susvibes.core.constants import TestStatus, TestItemStatus, FAILURE_STATUSES
-from susvibes.env_specs import TEST_SYMBOL_RESOLUTION_ERROR_PATTERNS
+from susvibes.env_specs import TEST_SYMBOL_RESOLUTION_ERROR_PATTERNS, TEST_ADAPTER_RESULTS_MARKER
 from susvibes.core.utils import load_file, save_file
 
 load_dotenv()
@@ -332,6 +332,12 @@ class LogsCount(LogsHandler):
         return test_result
 
     @staticmethod
+    def _any_match(logs_parser: dict, test_logs: str) -> bool:
+        """Whether any per-status pattern of the parser matches the test logs at all."""
+        test_logs = strip_ansi(test_logs)
+        return any(re.search(pattern, test_logs, re.MULTILINE) for pattern in logs_parser.values() if pattern)
+
+    @staticmethod
     def _count_failures(test_result: dict[str, int]) -> int:
         """Total countable failures (FAILED + ERROR) in a parsed test result."""
         return sum(test_result.get(item_status.value, 0) for item_status in FAILURE_STATUSES)
@@ -351,6 +357,14 @@ class LogsCount(LogsHandler):
                 test_result = self._parse(self.logs_parser, test_logs, logger)
                 failures = self._count_failures(test_result)
                 errors = self._count_errors(test_result)
+                # Fail closed: a parser that knows the runner's summary (it has a PASSED pattern) and
+                # matches nothing saw a run that never reported — a crash before or during the suite,
+                # not a run with zero failures. Parsers without a PASSED pattern (unittest's `OK` prints
+                # no count) keep the old reading, since silence is their passing shape.
+                if status == TestStatus.COMPLETED and self.logs_parser.get(TestItemStatus.PASSED.value) \
+                        and not self._any_match(self.logs_parser, test_logs):
+                    logger.info("No test outcome matched by the logs parser; treating the run as aborted.")
+                    status = TestStatus.ABORTED
         except Exception as e:
             # "handle", not "parse": this covers the checker's status read as well as the count.
             msg = f"Failed to handle test logs: {e}"
@@ -662,7 +676,47 @@ class LogsCount(LogsHandler):
         return cls(logs_parser=logs_parser, logs_checker=logs_checker)
 
 
+class LogsAdapter(LogsHandler):
+    """The test-adapter handler: a per-instance bash `script` (plus its `script_sha256`) that runs the
+    repo's tests itself and writes test_results.json — {passed, failed, errors, skipped}. The container
+    command (TEST_ADAPTER_CMD_TEMPLATE) prints that file after TEST_ADAPTER_RESULTS_MARKER, so `handle`
+    reads the counts from the logs instead of parsing the runner's output. Never synthesized here: the
+    script ships with the dataset's env_specs."""
+
+    KIND = "test_adapter"
+
+    def __init__(self, script: str, script_sha256: str):
+        self.script = script
+        self.script_sha256 = script_sha256
+
+    def to_dict(self) -> dict:
+        return {"script": self.script, "script_sha256": self.script_sha256}
+
+    def handle(self, test_logs, timed_out, logger) -> PassFailureCount:
+        """TIMEOUT when the run timed out; ABORTED when no result was written or the adapter reported
+        only errors (nothing concluded); otherwise COMPLETED with the reported failures and errors.
+        Raises RuntimeError if the result after the marker is not the adapter's JSON."""
+        if timed_out:
+            return PassFailureCount(TestStatus.TIMEOUT, None)
+        _, marker, tail = test_logs.rpartition(TEST_ADAPTER_RESULTS_MARKER)
+        if not marker:
+            logger.info("No test results written by the adapter; run aborted.")
+            return PassFailureCount(TestStatus.ABORTED, None)
+        try:
+            result = json.loads(strip_ansi(tail))
+            passed, failed, errors = (int(result[key]) for key in ("passed", "failed", "errors"))
+        except (ValueError, KeyError, TypeError) as e:
+            msg = f"Failed to handle test logs: adapter result is not {{passed, failed, errors, skipped}}: {e}"
+            logger.error(msg)
+            raise RuntimeError(msg)
+        if errors and not (passed or failed):
+            logger.info("Adapter reported errors and no outcomes; run aborted.")
+            return PassFailureCount(TestStatus.ABORTED, None, errors)
+        return PassFailureCount(TestStatus.COMPLETED, failed, errors)
+
+
 # Two count-parser kinds: `count` for the repo's functional runs and `count_gen_sec` for the synthesized
 # security-test runs — the same LogsCount machinery, each synthesized from its own run family's output (the
-# sec run's format can differ from the functional run's), stored side by side in logs_handler.json.
-LOGS_KINDS = {LogsCount.KIND: LogsCount, "count_gen_sec": LogsCount}
+# sec run's format can differ from the functional run's), stored side by side in logs_handler.json. The
+# `test_adapter` kind is a dataset-supplied script that runs and counts the repo's tests itself.
+LOGS_KINDS = {LogsCount.KIND: LogsCount, "count_gen_sec": LogsCount, LogsAdapter.KIND: LogsAdapter}

@@ -56,3 +56,10 @@ BANNED_REINSTALL_FOR_INSTANCE = {}
 # the agent's new tests via the repo's own runner and emits its native output (same format REPO_TEST_CMD
 # produces) for the count logs handler to parse.
 GEN_SEC_TEST_CMD = ["bash", "-c", "bash .sv.run_gen_test.sh"]
+# Container command for a test_adapter instance (flags["test_adapter"]): its logs_handler carries a bash
+# script that runs the repo's tests itself and writes test_results.json ({passed, failed, errors, skipped});
+# the wrapper feeds the script to bash and prints the file after a marker so the LogsAdapter handler can
+# read it off the container logs. The script's own heredocs are unaffected by the outer delimiter.
+TEST_ADAPTER_RESULTS_MARKER = "__SV_TEST_RESULTS__"
+TEST_ADAPTER_CMD_TEMPLATE = ("cd /project && bash -s <<'SV_TEST_ADAPTER'\n{script}\nSV_TEST_ADAPTER\n"
+                             f"echo {TEST_ADAPTER_RESULTS_MARKER}; cat /project/test_results.json")
