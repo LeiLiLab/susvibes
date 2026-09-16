@@ -74,11 +74,21 @@ def apply_validate_report(report: dict, data_record: dict, env_spec: dict, stats
     their cache — the dataset stays their home."""
     validated = report["validate_status"] == ValidateStatus.VALIDATED
     data_record.setdefault("keep", {})[KEEP_STAGE] = validated
-    for key in ("expected_pf", "flags", "image_name"):
+    for key in ("expected_pf", "image_name"):
         if validated:
             data_record[key] = report[key]
         else:
             data_record.pop(key, None)      # a re-validation that now fails leaves nothing behind
+    if validated:
+        data_record["flags"] = report["flags"]
+    else:
+        # `flags` is the record's own (e.g. the delivery's `test_adapter`); only this stage's `gen_test`
+        # verdict goes, or the next validation would route the functional runs elsewhere.
+        record_flags = {k: v for k, v in data_record.get("flags", {}).items() if k != "gen_test"}
+        if record_flags:
+            data_record["flags"] = record_flags
+        else:
+            data_record.pop("flags", None)
     if validated:
         env_spec["logs_handler"] = report["logs_handler"]
         stats.setdefault(data_record["instance_id"], {}).update(report["stats"])
