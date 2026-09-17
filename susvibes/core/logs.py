@@ -13,11 +13,10 @@ from susvibes.curate.validate.prompts import (
     LOGS_PARSER_PROMPT_TEMPLATE,
     LOGS_CHECKER_PROMPT_TEMPLATE,
 )
-from susvibes.core.constants import TestStatus
-from susvibes.core.test_counts import strip_ansi, parse_test_counts
-from susvibes.curate.validate.constants import FAILURE_STATUSES, TestItemStatus
-from susvibes.env_specs import TEST_SYMBOL_RESOLUTION_ERROR_PATTERNS
+from susvibes.core.constants import TestStatus, TestItemStatus, FAILURE_STATUSES
+from susvibes.env_specs import TEST_SYMBOL_RESOLUTION_ERROR_PATTERNS, TEST_ADAPTER_RESULTS_MARKER
 from susvibes.core.utils import load_file, save_file
+from susvibes.core.test_counts import strip_ansi, validated_test_counts
 
 load_dotenv()
 
@@ -106,6 +105,12 @@ class PassFailure(ABC):
     def completed(self) -> bool:
         return self.status == TestStatus.COMPLETED
 
+    def timed_out(self) -> bool:
+        return self.status == TestStatus.TIMEOUT
+
+    def aborted(self) -> bool:
+        return self.status == TestStatus.ABORTED
+
     @abstractmethod
     def breaks_more_than(self, other: "PassFailure") -> bool:
         """Whether this run is strictly more broken than `other` (a non-completed run always is)."""
@@ -138,8 +143,8 @@ class PassFailure(ABC):
     @staticmethod
     def add_raw(a, b):
         """Add two stored expected-raw values across eval runs: both counts → sum, both case lists
-        → de-duped union; a count mixed with a list (func vs synthesized sec) isn't summed — the
-        list is the threshold that matters, so return it."""
+        → de-duped union; a count mixed with a list isn't summed — the list is the threshold that
+        matters, so return it."""
         if isinstance(a, list) and isinstance(b, list):
             return list(dict.fromkeys(a + b))
         if isinstance(a, list) or isinstance(b, list):
@@ -150,9 +155,10 @@ class PassFailure(ABC):
 class PassFailureCount(PassFailure):
     """The outcome as a failure count."""
 
-    def __init__(self, status: TestStatus, failures: int):
+    def __init__(self, status: TestStatus, failures: int, errors: int = 0):
         super().__init__(status)
         self.failures = failures
+        self.errors = errors                 # ERROR cases (crash/setup/teardown), tracked apart from failures
 
     def __repr__(self):
         return f"PassFailureCount({self.failures}, {self.status})"
@@ -215,7 +221,7 @@ class LogsHandler(ABC):
     """Base for the per-kind logs handlers: each turns a run's container logs into a PassFailure.
     A handler instance carries its data; `handle_by_kind` rebuilds the right one from a stored dict
     and applies it, so callers route by kind alone. The per-instance synthesis cache (log_dir's
-    logs_handler.json) is shared and keyed by kind, e.g. {"count": {...}, "gen_sec": {}}."""
+    logs_handler.json) is shared and keyed by kind, e.g. {"count": {...}, "count_gen_sec": {...}}."""
 
     CACHE_FILE_NAME = "logs_handler.json"
     KIND: str
@@ -240,10 +246,10 @@ class LogsHandler(ABC):
         tuple of names tried in priority order — the first kind present in `logs_handler` wins.
         Raises RuntimeError if none of the requested kinds is available."""
         kinds = (kind,) if isinstance(kind, str) else kind
-        if "test_adapter" in logs_handler:
-            kinds = ("test_adapter",)
-        elif "gen_sec" in kinds and "count_gen_sec" in logs_handler:
+        if "gen_sec" in kinds and "count_gen_sec" in logs_handler:
             kinds = tuple("count_gen_sec" if k == "gen_sec" else k for k in kinds)
+        if kinds == ("count",) and "test_adapter" in logs_handler:
+            kinds = ("test_adapter",)
         for k in kinds:
             if k in logs_handler:
                 return LOGS_KINDS[k].from_dict(logs_handler[k]).handle(test_logs, timed_out, logger)
@@ -256,7 +262,7 @@ class LogsHandler(ABC):
         """Get the kind's handler (its `get`, reusing this kind's existing data) and merge it into
         the existing logs_handler dict, preserving the other kinds' stored data."""
         existing_data = existing_data or {}
-        handler = LOGS_KINDS[kind].get(existing_data=existing_data.get(kind), **kwargs)
+        handler = LOGS_KINDS[kind].get(kind=kind, existing_data=existing_data.get(kind), **kwargs)
         return {**existing_data, kind: handler.to_dict()}
 
     @staticmethod
@@ -266,17 +272,19 @@ class LogsHandler(ABC):
             for pattern in TEST_SYMBOL_RESOLUTION_ERROR_PATTERNS)
 
     @classmethod
-    def _load_cache(cls, log_dir: Path) -> dict:
-        """This kind's cached data under log_dir's logs_handler.json ({} if not cached yet)."""
+    def _load_cache(cls, log_dir: Path, kind: str) -> dict:
+        """`kind`'s cached data under log_dir's logs_handler.json ({} if not cached yet). Keyed by the
+        kind asked for, not by cls.KIND: two kinds share this class, and keying by the class would
+        hand the second one whatever the first just cached."""
         path = log_dir / cls.CACHE_FILE_NAME
-        return (load_file(path) if path.exists() else {}).get(cls.KIND, {})
+        return (load_file(path) if path.exists() else {}).get(kind, {})
 
     @classmethod
-    def _save_cache(cls, log_dir: Path, data: dict) -> None:
-        """Write this kind's data into log_dir's logs_handler.json, keeping the other kinds."""
+    def _save_cache(cls, log_dir: Path, kind: str, data: dict) -> None:
+        """Write `kind`'s data into log_dir's logs_handler.json, keeping the other kinds."""
         path = log_dir / cls.CACHE_FILE_NAME
         cache = load_file(path) if path.exists() else {}
-        cache[cls.KIND] = data
+        cache[kind] = data
         save_file(cache, path)
 
 
@@ -302,154 +310,209 @@ class LogsCount(LogsHandler):
             return TestStatus.TIMEOUT
         test_logs = strip_ansi(test_logs)
         if "___SUSVIBES_EXECUTION_STARTUP_FAILED___" in test_logs:
-            return TestStatus.STARTUP_ERROR
+            return TestStatus.ABORTED
         if logs_checker and re.search(logs_checker, test_logs, re.MULTILINE):
-            return TestStatus.STARTUP_ERROR
+            return TestStatus.ABORTED
         return TestStatus.COMPLETED
 
     @staticmethod
     def _parse(logs_parser: dict, test_logs: str, logger: logging.Logger) -> dict[str, int]:
         """Count test outcomes in the test logs using the per-status logs_parser regexes."""
         logger.info("Parsing test logs...")
-        return parse_test_counts(logs_parser, test_logs)
+        test_logs = strip_ansi(test_logs)
+        test_result = {}
+        for item_status, pattern in logs_parser.items():
+            if pattern:
+                logs_parse_re = re.compile(pattern, re.MULTILINE)
+                m = None
+                for m in logs_parse_re.finditer(test_logs):
+                    pass
+                test_result[item_status] = int(m.group(1)) if m else 0
+        return test_result
+
+    @staticmethod
+    def _any_match(logs_parser: dict, test_logs: str) -> bool:
+        """Whether any per-status pattern of the parser matches the test logs at all."""
+        test_logs = strip_ansi(test_logs)
+        return any(re.search(pattern, test_logs, re.MULTILINE) for pattern in logs_parser.values() if pattern)
 
     @staticmethod
     def _count_failures(test_result: dict[str, int]) -> int:
         """Total countable failures (FAILED + ERROR) in a parsed test result."""
         return sum(test_result.get(item_status.value, 0) for item_status in FAILURE_STATUSES)
 
+    @staticmethod
+    def _count_errors(test_result: dict[str, int]) -> int:
+        """Cases that ERRORed — crashed at collection/setup/teardown rather than concluding pass/fail."""
+        return test_result.get(TestItemStatus.ERROR.value, 0)
+
     def handle(self, test_logs, timed_out, logger) -> PassFailureCount:
         """Status from logs_checker (always), failure count from logs_parser (when present).
         Raises RuntimeError if the logs can't be parsed."""
         try:
             status = self._check(self.logs_checker, test_logs, timed_out)
-            failures = None
-            if self.logs_parser is not None and status == TestStatus.COMPLETED:
-                failures = self._count_failures(self._parse(self.logs_parser, test_logs, logger))
+            failures = errors = None
+            if status == TestStatus.COMPLETED:
+                if self.logs_parser is None:
+                    return PassFailureCount(status, None)
+                test_result = self._parse(self.logs_parser, test_logs, logger)
+                if self.logs_parser.get(TestItemStatus.PASSED.value) and not self._any_match(self.logs_parser, test_logs):
+                    logger.info("No test outcome matched by the logs parser; treating the run as aborted.")
+                    status = TestStatus.ABORTED
+                else:
+                    test_result = validated_test_counts(
+                        test_logs, test_result, aggregate=self.KIND == "count_gen_sec")
+                    failures = self._count_failures(test_result)
+                    errors = self._count_errors(test_result)
         except Exception as e:
-            msg = "Failed to parse test logs."
+            # "handle", not "parse": this covers the checker's status read as well as the count.
+            msg = f"Failed to handle test logs: {e}"
             logger.error(msg)
             raise RuntimeError(msg) from e
-        return PassFailureCount(status, failures)
+        return PassFailureCount(status, failures, errors or 0)
 
     # --- Synthesizing the parser: a per-status regex that counts test outcomes. ---
-    @staticmethod
-    def _validate_parser(logs_parser: dict, logger: logging.Logger,
-        require_failures: bool = True) -> bool:
+    @classmethod
+    def _validate_parser(
+        cls,
+        logs_parser: dict,
+        declared: list,
+        test_logs_list: list,
+        logger: logging.Logger,
+    ) -> str | None:
+        """What is wrong with this parser, or None when every regex reproduces, on every run, the
+        count the model declared for it. Mirrors `_validate_checker`: the candidate is measured
+        against the model's own reading of the logs, and the problem is returned rather than a bool
+        so the caller can both name the cause and hand it back for correction. Every mismatch is
+        reported, not the first — a parser usually gets several statuses wrong at once."""
         if not isinstance(logs_parser, dict):
-            logger.warning(f"Logs parser is not a dict: {type(logs_parser).__name__}.")
-            return False
+            return f"patterns is not an object but a {type(logs_parser).__name__}"
         try:
-            logs_parser = {TestItemStatus(item_status).value: pattern for item_status, pattern
+            usable = {TestItemStatus(item_status).value: pattern for item_status, pattern
                 in logs_parser.items() if pattern}
         except ValueError as e:
-            logger.warning(f"Invalid logs parser: {e}")
-            return False
-        if not logs_parser:
-            logger.warning("Invalid logs parser: no usable pattern.")
-            return False
-        if require_failures and all(item_status.value not in logs_parser for item_status in FAILURE_STATUSES):
-            logger.warning(f"Invalid logs parser with no failure status.")
-            return False
-        return True
+            return f"patterns names a status that does not exist ({e})"
+        if not usable:
+            return "patterns holds no usable regex"
+        if not isinstance(declared, list) or len(declared) != len(test_logs_list):
+            return f"'runs' must be a list of {len(test_logs_list)} objects, one per run in order"
+
+        problems = []
+        for id, test_logs in enumerate(test_logs_list):
+            if not isinstance(declared[id], dict):
+                problems.append(f"run{id}: its 'runs' entry is not an object of per-status counts")
+                continue
+            try:
+                counts = cls._parse(logs_parser, test_logs, logger)
+            except Exception as e:
+                problems.append(f"run{id}: a regex raised ({e}) — give exactly one capturing group of digits")
+                continue
+            for status in TestItemStatus:
+                try:
+                    declared_count = int(declared[id].get(status, 0))
+                except (TypeError, ValueError):
+                    problems.append(f"run{id}: the {status} count you declared is not a number")
+                    continue
+                if declared_count != int(counts.get(status, 0)):
+                    problems.append(f"run{id}: your {status} regex captured "
+                        f"{counts.get(status, 0)} but you declared {declared_count}")
+        return "; ".join(problems) or None
 
     @classmethod
     def _gen_parser(
         cls,
         test_logs_list: list,
-        test_statuses: list,
         model: str,
         logger: logging.Logger,
-        ordering_checks: list[tuple[int, int]],
         max_retries: int = 10,
-        conservative_max_retries: int = 5,
-        require_failures: bool = True,
     ) -> dict:
-        """Synthesize and return a logs parser from the test logs. Raises RuntimeError on failure."""
-        test_logs_list = [clip_tokens(test_logs, model, limit=(get_max_tokens(model) // 8))
+        """Synthesize and return a logs parser from the test logs. Raises RuntimeError on failure.
+
+        The model declares, per run, the count it reads for every status AND the regexes; a candidate
+        is accepted only when each regex reproduces its own declared count on every run. That
+        self-check is the whole correctness gate: it compares the regex against the model's
+        independent reading of the summary, so nothing here judges whether the counts themselves look
+        right — whether a suite that fails nowhere is acceptable is the caller's verdict, not this
+        one's. A rejection is fed back with what mismatched, so the model corrects the regex rather
+        than resampling blind."""
+        clipped_logs = [clip_tokens(strip_ansi(test_logs), model, limit=(get_max_tokens(model) // 8))
             for test_logs in test_logs_list]
 
-        messages = []
+        base_messages = []
         for prompt_key, prompt in LOGS_PARSER_PROMPT_TEMPLATE.items():
             if prompt_key == "system":
-                messages.append({"role": "system", "content": Template(prompt).render(
-                    statuses=[item_status.value for item_status in TestItemStatus])})
+                base_messages.append({"role": "system", "content": Template(prompt).render(
+                    statuses=list(TestItemStatus))})
             else:
-                messages.append({"role": "user", "content": Template(prompt).render(
-                    logs=[test_logs for test_logs, test_status in zip(test_logs_list, test_statuses) if test_status])})
+                base_messages.append({"role": "user", "content": Template(prompt).render(
+                    logs=clipped_logs)})
+        messages = base_messages
 
         logger.info("Synthesizing logs parser...")
-        is_success = False
-        conserv_retry = 1
+        # Why the last attempt was rejected, carried into the exception: "failed to synthesize" alone
+        # cannot tell a model that will not answer from regexes that contradict their own counts.
+        last_reason = "no attempt was made"
         for retry in range(max_retries):
             if retry:
                 logger.info(f"Retrying... {retry + 1}/{max_retries}")
             try:
-                response = completion(model=model, messages=messages)
+                response = completion(model=model, messages=messages, max_tokens=get_max_tokens(model))
             except Exception as e:
+                last_reason = f"the model did not respond ({e})"
                 logger.warning(f"Failed to get model response: {e}")
+                messages = base_messages   # drop any poisoned exchange so the next attempt can recover
                 continue
             record_llm_cost(response)
-            message = response.choices[0].message
-            logs_parser = extract_json_object(message.content)
-            if logs_parser is None:
-                logger.warning("Failed to parse model response as JSON.")
+            raw = response.choices[0].message.content or ""
+            if not raw.strip():
+                # Never feed an empty reply back: an empty content block is rejected by the API, and
+                # an empty reply has nothing to correct. Retry from the base prompt instead.
+                last_reason = "the model returned an empty response"
+                logger.warning("Empty model response; retrying from the base prompt.")
+                messages = base_messages
                 continue
-            if not cls._validate_parser(logs_parser, logger, require_failures):
-                continue
-            test_result_list, test_failures_list = [], []
-            for test_logs, test_status in zip(test_logs_list, test_statuses):
-                if test_status != TestStatus.COMPLETED:
-                    test_result_list.append({})
-                    test_failures_list.append(0)
-                    continue
-                try:
-                    test_result = cls._parse(logs_parser, test_logs, logger)
-                    test_result_list.append(test_result)
-                except Exception as e:
-                    logger.warning(f"Failed to parse test logs: {e}. logs_parser-{logs_parser}")
-                    break
-                test_failures_list.append(cls._count_failures(test_result))
-            if len(test_result_list) < len(test_logs_list):
-                continue
-            if any(tf < 0 for tf in test_failures_list):
-                logger.warning(f"Invalid (negative) test failures detected. logs_parser-{logs_parser}")
-                continue
-            if not sum(test_failures_list):
-                if require_failures:
-                    logger.warning(f"Invalid test failures detected. logs_parser-{logs_parser}")
-                    continue
-                if any(ts != TestStatus.COMPLETED for ts in test_statuses):
-                    # A run did not complete (e.g. the masked task crashes): zero countable
-                    # failures is the expected structural break. Accept; the functional-break
-                    # verdict is made from run statuses downstream.
-                    is_success = True
-                    break
-                # All runs completed yet no countable failures: either the change is not
-                # covered by the suite, or the model missed real failures. Retry.
-                logger.warning(f"Invalid test failures detected. logs_parser-{logs_parser}")
-                continue
-            test_completed_list = [ts == TestStatus.COMPLETED for ts in test_statuses]
-            ordering_failed = any(
-                test_completed_list[a] and test_failures_list[a] < test_failures_list[b]
-                for a, b in ordering_checks
-            )
-            if ordering_failed:
-                if conserv_retry < conservative_max_retries:
-                    conserv_retry += 1
-                    logger.warning(f"Failed to verify test failures. logs_parser-{logs_parser}")
-                    continue
-                else:
-                    logger.warning(f"Conservative retry limit reached. logs_parser-{logs_parser}")
-            is_success = True
-            break
+            result = extract_json_object(raw)
 
-        if not is_success:
-            msg = "Failed to synthesize logs parser."
-            logger.error(msg)
-            raise RuntimeError(msg)
-        logger.info("Logs parser created successfully.")
-        return logs_parser
+            def retry_with(correction: str) -> list:
+                """The next attempt's messages: the prompt, this reply, and what to fix. Only the
+                latest exchange is carried, so ten retries do not accumulate ten replies."""
+                return base_messages + [{"role": "assistant", "content": raw},
+                    {"role": "user", "content": f"{correction} Output only the corrected JSON."}]
+
+            if not isinstance(result, dict) or "patterns" not in result or "runs" not in result:
+                last_reason = "the model's response held no JSON object with both 'runs' and 'patterns'"
+                logger.warning(f"Failed to parse model response as JSON: {last_reason}.")
+                messages = retry_with("Your reply had no JSON object with both 'runs' and 'patterns'.")
+                continue
+            logs_parser, declared = result["patterns"], result["runs"]
+            problem = cls._validate_parser(logs_parser, declared, clipped_logs, logger)
+            if problem:
+                last_reason = f"the regexes contradict the counts the model declared ({problem})"
+                logger.warning(f"Parser self-check failed: {problem}")
+                messages = retry_with(f"Your patterns do not reproduce your declared counts: {problem}. "
+                    "Match the digits in the summary line (e.g. '===== 7 failed, 4 passed ====='), "
+                    'or record 0 and use "" for a status with no number. '
+                    "Keep the declared counts and fix the regexes.")
+                continue
+            # The self-check ran on the clipped logs; `handle` will apply this parser to the full
+            # ones. Prove it survives them — a regex whose group is not digits raises there, and a
+            # parser that raises at handle time is a wrong count nobody sees.
+            try:
+                for test_logs in test_logs_list:
+                    cls._parse(logs_parser, test_logs, logger)
+            except Exception as e:
+                last_reason = f"the parser raised on the unclipped logs ({e})"
+                logger.warning(f"Parser failed on the full logs: {e}")
+                messages = retry_with(
+                    f"Applied to the untruncated logs your patterns raised: {e}. "
+                    "Every pattern must capture exactly one group of digits.")
+                continue
+            logger.info("Logs parser created successfully.")
+            return logs_parser
+
+        msg = f"Failed to synthesize logs parser: {last_reason}"
+        logger.error(msg)
+        raise RuntimeError(msg)
 
     # --- Synthesizing the checker: one regex that detects aborted runs (no pass/fail summary). ---
     @staticmethod
@@ -458,27 +521,27 @@ class LogsCount(LogsHandler):
         aborted_runs: set,
         test_logs_list: list,
         logger: logging.Logger,
-    ) -> bool:
-        """A logs checker is valid iff it matches exactly the runs flagged as aborted."""
+    ) -> str | None:
+        """What is wrong with this checker, or None when it matches exactly the runs the model
+        flagged as aborted. The self-check the parser's is modelled on: the regex is measured against
+        the model's own reading of the runs. Returns the problem rather than a bool so the caller can
+        both name the cause and hand it back for correction."""
         if not logs_checker:
             if aborted_runs:
-                logger.warning("Empty logs checker but runs were flagged as aborted.")
-                return False
-            return True
+                return f"you gave no regex but flagged runs {sorted(aborted_runs)} as aborted"
+            return None
         if not isinstance(logs_checker, str):
-            logger.warning(f"Logs checker is not a string: {type(logs_checker).__name__}.")
-            return False
+            return f"logs_checker is not a string but a {type(logs_checker).__name__}"
         try:
             checker_re = re.compile(logs_checker, re.MULTILINE)
         except re.error as e:
-            logger.warning(f"Invalid logs checker regex: {e}")
-            return False
+            return f"logs_checker is not a valid regex ({e})"
         for idx, test_logs in enumerate(test_logs_list, start=1):
             matched = checker_re.search(test_logs) is not None
             if matched != (idx in aborted_runs):
-                logger.warning(f"Logs checker mismatch on run {idx}: matched={matched}, expected={idx in aborted_runs}.")
-                return False
-        return True
+                return (f"your regex {'matches' if matched else 'does not match'} run {idx}, "
+                    f"which you did {'not ' if idx not in aborted_runs else ''}flag as aborted")
+        return None
 
     @classmethod
     def _gen_checker(
@@ -489,48 +552,73 @@ class LogsCount(LogsHandler):
         max_retries: int = 10,
     ) -> str | None:
         """Synthesize and return a per-instance startup-error checker (one regex) from the test logs
-        (None when no run failed to start). Raises RuntimeError on failure."""
-        logs_for_prompt = [clip_tokens(test_logs, model, limit=(get_max_tokens(model) // 8))
+        (None when no run failed to start). Raises RuntimeError on failure.
+
+        The model flags which runs aborted AND gives the regex; a candidate is accepted only when the
+        regex matches exactly those runs. Same shape as the parser's synthesis, down to feeding a
+        rejection back so the model corrects its regex rather than resampling blind."""
+        clipped_logs = [clip_tokens(strip_ansi(test_logs), model, limit=(get_max_tokens(model) // 8))
             for test_logs in test_logs_list]
 
-        messages = []
+        base_messages = []
         for prompt_key, prompt in LOGS_CHECKER_PROMPT_TEMPLATE.items():
             if prompt_key == "system":
-                messages.append({"role": "system", "content": Template(prompt).render()})
+                base_messages.append({"role": "system", "content": Template(prompt).render()})
             else:
-                messages.append({"role": "user", "content": Template(prompt).render(logs=logs_for_prompt)})
+                base_messages.append({"role": "user", "content": Template(prompt).render(logs=clipped_logs)})
+        messages = base_messages
 
         logger.info("Synthesizing logs checker...")
-        is_success = False
+        last_reason = "no attempt was made"
         for retry in range(max_retries):
             if retry:
                 logger.info(f"Retrying... {retry + 1}/{max_retries}")
             try:
-                response = completion(model=model, messages=messages)
+                response = completion(model=model, messages=messages, max_tokens=get_max_tokens(model))
             except Exception as e:
+                last_reason = f"the model did not respond ({e})"
                 logger.warning(f"Failed to get model response: {e}")
+                messages = base_messages   # drop any poisoned exchange so the next attempt can recover
                 continue
             record_llm_cost(response)
-            message = response.choices[0].message
-            response = extract_json_object(message.content)
-            try:
-                logs_checker = response["logs_checker"]
-                aborted_runs = set(response["aborted_runs"])
-            except (KeyError, TypeError) as e:
-                logger.warning(f"Failed to parse model response as JSON: {e}")
+            raw = response.choices[0].message.content or ""
+            if not raw.strip():
+                # Never feed an empty reply back: an empty content block is rejected by the API, and
+                # an empty reply has nothing to correct. Retry from the base prompt instead.
+                last_reason = "the model returned an empty response"
+                logger.warning("Empty model response; retrying from the base prompt.")
+                messages = base_messages
                 continue
-            if not cls._validate_checker(logs_checker, aborted_runs, logs_for_prompt, logger):
-                continue
-            is_success = True
-            break
+            result = extract_json_object(raw)
 
-        if not is_success:
-            msg = "Failed to synthesize logs checker."
-            logger.error(msg)
-            raise RuntimeError(msg)
-        logs_checker = logs_checker or None
-        logger.info("Logs checker created successfully.")
-        return logs_checker
+            def retry_with(correction: str) -> list:
+                """The next attempt's messages: the prompt, this reply, and what to fix. Only the
+                latest exchange is carried, so ten retries do not accumulate ten replies."""
+                return base_messages + [{"role": "assistant", "content": raw},
+                    {"role": "user", "content": f"{correction} Output only the corrected JSON."}]
+
+            try:
+                logs_checker = result["logs_checker"]
+                aborted_runs = set(result["aborted_runs"])
+            except (KeyError, TypeError) as e:
+                last_reason = f"the model's response held no JSON object with both keys ({e})"
+                logger.warning(f"Failed to parse model response as JSON: {e}")
+                messages = retry_with("Your reply had no JSON object with both 'logs_checker' and 'aborted_runs'.")
+                continue
+            problem = cls._validate_checker(logs_checker, aborted_runs, clipped_logs, logger)
+            if problem:
+                last_reason = f"the regex contradicts the runs the model flagged ({problem})"
+                logger.warning(f"Checker self-check failed: {problem}")
+                messages = retry_with(f"Your checker does not match what you flagged: {problem}. "
+                    "Anchor on the abort signature the aborted runs share and the completed ones lack, "
+                    'or use "" if no run aborted.')
+                continue
+            logger.info("Logs checker created successfully.")
+            return logs_checker or None
+
+        msg = f"Failed to synthesize logs checker: {last_reason}"
+        logger.error(msg)
+        raise RuntimeError(msg)
 
     # --- The full {logs_parser, logs_checker} spec, reused or generated end to end. ---
     @classmethod
@@ -541,19 +629,17 @@ class LogsCount(LogsHandler):
         model: str,
         log_dir: Path,
         logger: logging.Logger,
-        ordering_checks: list[tuple[int, int]],
-        allow_timeout,
-        allow_startup_error,
+        kind: str,
         existing_data: dict = None,
-        require_failures: bool = True,
         force: bool = False,
     ) -> "LogsCount":
         """Get the count handler end to end, reusing in priority order existing (stored env_spec) →
         cache (log_dir) → freshly generated; `force` skips both reuse tiers. The checker is built
-        first, used to classify each run for the critical-abort rules (allow_timeout /
-        allow_startup_error), then the parser. Raises on critical abort or synthesis failure."""
+        first, then the parser — from the runs that completed, since a run with no summary has no
+        counts to declare or capture. Raises only when a spec cannot be synthesized; whether the runs
+        it describes are acceptable is the caller's verdict, not this one's."""
         existing_data = existing_data or {}
-        cache = cls._load_cache(log_dir)
+        cache = cls._load_cache(log_dir, kind)
 
         if not force and "logs_checker" in existing_data:
             logger.info("Reusing existing logs checker.")
@@ -563,19 +649,10 @@ class LogsCount(LogsHandler):
             logs_checker = cache["logs_checker"]
         else:
             logs_checker = cls._gen_checker(test_logs_list, model=model, logger=logger)
-            cls._save_cache(log_dir, {**cls._load_cache(log_dir), "logs_checker": logs_checker})
+            cls._save_cache(log_dir, kind, {**cls._load_cache(log_dir, kind), "logs_checker": logs_checker})
 
         test_statuses = [cls._check(logs_checker, test_logs, timed_out)
             for test_logs, timed_out in zip(test_logs_list, timed_out_list)]
-        for id, test_status in enumerate(test_statuses):
-            if test_status == TestStatus.TIMEOUT and not allow_timeout(id):
-                msg = "Failed to run tests because of critical timeout."
-                logger.error(msg)
-                raise RuntimeError(msg)
-            if test_status == TestStatus.STARTUP_ERROR and not allow_startup_error(id):
-                msg = "Failed to run tests because of critical startup error."
-                logger.error(msg)
-                raise RuntimeError(msg)
 
         if not force and existing_data.get("logs_parser"):
             logger.info("Reusing existing logs parser.")
@@ -584,82 +661,75 @@ class LogsCount(LogsHandler):
             logger.info("Reusing cached logs parser.")
             logs_parser = cache["logs_parser"]
         else:
-            logs_parser = cls._gen_parser(test_logs_list, test_statuses, model=model,
-                logger=logger, ordering_checks=ordering_checks, require_failures=require_failures)
-            cls._save_cache(log_dir, {**cls._load_cache(log_dir), "logs_parser": logs_parser})
+            completed_logs = [test_logs for test_logs, test_status
+                in zip(test_logs_list, test_statuses) if test_status == TestStatus.COMPLETED]
+            if completed_logs:
+                logs_parser = cls._gen_parser(completed_logs, model=model, logger=logger)
+                cls._save_cache(log_dir, kind, {**cls._load_cache(log_dir, kind), "logs_parser": logs_parser})
+            else:
+                # Nothing completed: no summary to synthesize from, and no count worth having —
+                # every run compares as infinitely broken, and the caller's abort rules reject it.
+                logger.warning("No run completed; leaving the parser unsynthesized.")
+                logs_parser = None
 
         return cls(logs_parser=logs_parser, logs_checker=logs_checker)
 
 
-class LogsGenSec(LogsHandler):
-    """The generated-sec-test handler: the container prints a per-case pass map as a JSON object;
-    `handle` extracts it. No synthesis (the format is fixed by the sec-test harness), so its stored
-    data is empty — `gen` just records that trivially in the per-instance cache."""
+class LogsAdapter(LogsHandler):
+    """The test-adapter handler: a per-instance bash `script` (plus its `script_sha256`) that runs the
+    repo's tests itself and writes test_results.json — {passed, failed, errors, skipped}. The container
+    command (TEST_ADAPTER_CMD_TEMPLATE) prints that file after TEST_ADAPTER_RESULTS_MARKER, so `handle`
+    reads the counts from the logs instead of parsing the runner's output. Never synthesized here: the
+    script ships with the dataset's env_specs."""
 
-    KIND = "gen_sec"
-
-    def to_dict(self) -> dict:
-        return {}
-
-    @classmethod
-    def get(cls, log_dir: Path, existing_data: dict = None) -> "LogsGenSec":
-        handler = cls()
-        cls._save_cache(log_dir, handler.to_dict())
-        return handler
-
-    def handle(self, test_logs: str, timed_out: bool, logger: logging.Logger,
-        allow_timeout: bool = False) -> PassFailureCases:
-        """Parse the generated sec test's container logs (its last JSON object) into a per-case
-        PassFailureCases ({test_case: passes}). Raises RuntimeError on timeout (unless allow_timeout)
-        or unparseable logs."""
-        if timed_out and not allow_timeout:
-            msg = "Failed to run tests because of gen sec test timeout."
-            logger.error(msg)
-            raise RuntimeError(msg)
-        cases = extract_json_object(strip_ansi(test_logs))
-        if cases is None:
-            msg = "Failed to parse gen sec test logs."
-            logger.error(msg)
-            raise RuntimeError(msg)
-        status = TestStatus.TIMEOUT if timed_out else TestStatus.COMPLETED
-        return PassFailureCases(status, cases)
-
-
-class LogsCountGenSec(LogsCount):
-    """Independent generated count suites preserve failures across unittest runs."""
-    KIND = "count_gen_sec"
-
-    @staticmethod
-    def _parse(logs_parser, test_logs, logger):
-        return parse_test_counts(logs_parser, test_logs, aggregate=True)
-
-
-class LogsTestAdapter(LogsHandler):
-    """Structured benchmark adapter output; scripts run only in deployments."""
     KIND = "test_adapter"
 
-    def __init__(self, **spec):
-        from susvibes.core.test_adapter import adapter_command
-        adapter_command(spec)  # Validate script/hash, without executing it.
-        self.spec = spec
+    def __init__(self, script: str, script_sha256: str):
+        self.script = script
+        self.script_sha256 = script_sha256
 
-    def to_dict(self):
-        return dict(self.spec)
+    def to_dict(self) -> dict:
+        return {"script": self.script, "script_sha256": self.script_sha256}
 
-    @classmethod
-    def get(cls, **kwargs):
-        raise NotImplementedError("Adapter specs are supplied by the benchmark")
-
-    def handle(self, test_logs, timed_out, logger):
-        from susvibes.core.test_adapter import parse_adapter_result
-        status = LogsCount._check(None, test_logs, timed_out)
-        if status != TestStatus.COMPLETED:
-            return PassFailureCount(status, None)
+    def handle(self, test_logs, timed_out, logger) -> PassFailureCount:
+        """TIMEOUT when the run timed out; ABORTED when no result was written or the adapter reported
+        only errors (nothing concluded); otherwise COMPLETED with the reported failures and errors.
+        Raises RuntimeError if the result after the marker is not the adapter's JSON."""
+        if timed_out:
+            return PassFailureCount(TestStatus.TIMEOUT, None)
+        # Older deployments frame the adapter result with BEGIN/END markers.
+        from susvibes.core.test_adapter import BEGIN, parse_adapter_result
+        if BEGIN in test_logs:
+            try:
+                result = parse_adapter_result(strip_ansi(test_logs))
+            except (ValueError, TypeError, KeyError) as e:
+                raise RuntimeError("Failed to parse test adapter output") from e
+            return PassFailureCount(TestStatus.COMPLETED, result["failed"], result["errors"])
+        _, marker, tail = test_logs.rpartition(TEST_ADAPTER_RESULTS_MARKER)
+        if not marker:
+            logger.info("No test results written by the adapter; run aborted.")
+            return PassFailureCount(TestStatus.ABORTED, None)
         try:
-            counts = parse_adapter_result(strip_ansi(test_logs))
-        except (ValueError, TypeError, KeyError) as exc:
-            raise RuntimeError("Failed to parse test adapter output") from exc
-        return PassFailureCount(status, counts["failed"])
+            result = json.loads(strip_ansi(tail))
+            passed, failed, errors = (int(result[key]) for key in ("passed", "failed", "errors"))
+        except (ValueError, KeyError, TypeError) as e:
+            msg = f"Failed to handle test logs: adapter result is not {{passed, failed, errors, skipped}}: {e}"
+            logger.error(msg)
+            raise RuntimeError(msg)
+        if errors and not (passed or failed):
+            logger.info("Adapter reported errors and no outcomes; run aborted.")
+            return PassFailureCount(TestStatus.ABORTED, None, errors)
+        return PassFailureCount(TestStatus.COMPLETED, failed, errors)
 
 
-LOGS_KINDS = {cls.KIND: cls for cls in (LogsCount, LogsGenSec, LogsCountGenSec, LogsTestAdapter)}
+# Two count-parser kinds: `count` for the repo's functional runs and `count_gen_sec` for the synthesized
+# security-test runs — the same LogsCount machinery, each synthesized from its own run family's output (the
+# sec run's format can differ from the functional run's), stored side by side in logs_handler.json. The
+# `test_adapter` kind is a dataset-supplied script that runs and counts the repo's tests itself.
+class LogsCountGenSec(LogsCount):
+    """Preserve failures across independent generated unittest suites."""
+
+    KIND = "count_gen_sec"
+
+
+LOGS_KINDS = {cls.KIND: cls for cls in (LogsCount, LogsCountGenSec, LogsAdapter)}

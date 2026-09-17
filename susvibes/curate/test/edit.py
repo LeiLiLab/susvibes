@@ -26,13 +26,13 @@ from susvibes.curate.constants import (
     TaskArtifact,
     PATCH_TEMPLATE,
 )
-from susvibes.curate.utils import extract_repo_test_cmd, reverse_patch
+from susvibes.curate.utils import get_repo_test_cmd, reverse_patch
 from susvibes.core.env import Env, Deployment
+from susvibes.core.report import get_two_state_summary, print_summary
 from susvibes.core.utils import (
     get_image_name, load_file, parse_instance_id, save_file, setup_instance_logger, get_env_specs,
 )
 
-docker_client = docker.from_env()
 
 LOG_BUILD = "build_base_no_test_image.log"
 
@@ -91,12 +91,13 @@ def build_base_no_test_deployment(
             remove_image=False,
         )
     except docker.errors.BuildError as e:
-        logger.error(f"Failed to build base_no_test deployment for {instance_id}: {e}")
-        return None
+        msg = f"Failed to build base_no_test deployment: {instance_id}: {e}"
+        logger.error(msg)
+        return None, msg
 
     assert deployment.image.tag(target_image_name)
     logger.info(f"base_no_test deployment built: {target_image_name}")
-    return deployment
+    return deployment, None
 
 
 def dump_test(data_record, env_spec, edits_dir: Path):
@@ -119,7 +120,7 @@ def dump_test(data_record, env_spec, edits_dir: Path):
         cve_id=data_record["cve_id"],
         cwes=", ".join(data_record["cwe_ids"]),
         base_no_test_image_name=data_record["base_no_test_image_name"],
-        repo_test_cmd=extract_repo_test_cmd(env_spec["dockerfile"]),
+        repo_test_cmd=get_repo_test_cmd(env_spec["dockerfile"]),
         test_patch_file=TaskArtifact.TEST_PATCH,
         feature_vuln_file=TaskArtifact.FEATURE_VULN,
         security_fix_file=TaskArtifact.SECURITY_FIX,
@@ -129,18 +130,20 @@ def dump_test(data_record, env_spec, edits_dir: Path):
     save_file(readme, task_dir / TaskArtifact.README)
 
 
-def dump_single(record, env_spec, edits_dir: Path, log_dir: Path, require_test: bool = True):
+def dump_single(data_record, env_spec, edits_dir: Path, log_dir: Path, require_test: bool = True) -> tuple:
+    """Dump one instance's edit bundle. Returns (result, None) on success, (None, reason) on
+    failure — the reason is what the run summary groups the failures by."""
     if not require_test:
-        dump_test(record, env_spec, edits_dir)
-        return True
-    base_no_test_image_name = get_image_name(f"base_no_test_{record['instance_id']}")
-    deployment = build_base_no_test_deployment(
-        record, env_spec, base_no_test_image_name, log_dir)
+        dump_test(data_record, env_spec, edits_dir)
+        return True, None
+    base_no_test_image_name = get_image_name(f"base_no_test_{data_record['instance_id']}")
+    deployment, reason = build_base_no_test_deployment(
+        data_record, env_spec, base_no_test_image_name, log_dir)
     if not deployment:
-        return None
-    record["base_no_test_image_name"] = base_no_test_image_name
-    dump_test(record, env_spec, edits_dir)
-    return base_no_test_image_name
+        return None, reason
+    data_record["base_no_test_image_name"] = base_no_test_image_name
+    dump_test(data_record, env_spec, edits_dir)
+    return base_no_test_image_name, None
 
 
 def dump_threadpool(
@@ -155,44 +158,37 @@ def dump_threadpool(
     """Build base_no_test images and dump editable folders for all candidate
     instances in parallel. Returns (dumped_count, failed_instance_ids).
     When require_test is False, the base_no_test image build is skipped."""
-    candidates = [r for r in dataset
-        if r.get("test_patch") and r["instance_id"] in env_specs]
+    candidates = [data_record for data_record in dataset
+        if data_record.get("test_patch") and data_record["instance_id"] in env_specs]
     if instance_ids is not None:
-        candidates = [r for r in candidates if r["instance_id"] in set(instance_ids)]
+        candidates = [data_record for data_record in candidates if data_record["instance_id"] in set(instance_ids)]
 
-    succeeded, failed = [], []
+    succeeded, errored = [], {}
     with ThreadPoolExecutor(max_workers=max_workers) as executor:
         futures = {
             executor.submit(
-                dump_single, r, env_specs[r["instance_id"]], edits_dir, log_dir,
+                dump_single, data_record, env_specs[data_record["instance_id"]], edits_dir, log_dir,
                 require_test=require_test,
-            ): r["instance_id"] for r in candidates
+            ): data_record["instance_id"] for data_record in candidates
         }
         with tqdm(total=len(futures), dynamic_ncols=True,
             desc=f"Dumping [{max_workers} threads]") as pbar:
             for future in as_completed(futures):
                 instance_id = futures[future]
                 try:
-                    result = future.result()
+                    result, reason = future.result()
                 except Exception as e:
                     raise RuntimeError(f"Internal error for {instance_id}: {e}")
                 if result:
                     succeeded.append(instance_id)
                 else:
-                    failed.append(instance_id)
+                    errored[instance_id] = reason
                 pbar.update(1)
                 pbar.set_description(
-                    f"{len(succeeded)} dumped, {len(failed)} failed"
+                    f"{len(succeeded)} dumped, {len(errored)} failed"
                 )
-    if succeeded:
-        print(f"Succeeded ({len(succeeded)}):")
-        for instance_id in sorted(succeeded):
-            print(f"  {instance_id}")
-    if failed:
-        print(f"\nFailed ({len(failed)}):")
-        for instance_id in sorted(failed):
-            print(f"  {instance_id}")
-    return len(succeeded), failed
+    print_summary(get_two_state_summary(succeeded, errored))
+    return len(succeeded), errored
 
 
 def parse_patch_md(path: Path) -> str | None:
@@ -272,13 +268,13 @@ if __name__ == "__main__":
     )
     args = parser.parse_args()
 
-    dataset_path = get_dataset_path("env_dataset", args.run_id)
+    dataset_path = get_dataset_path("dataset", args.run_id)
     edits_dir = get_dataset_path("edits", args.run_id)
     dataset = load_file(dataset_path)
 
     if args.mode == "dump":
         env_specs = get_env_specs(args.run_id)
-        log_dir = get_log_dir(args.run_id, "test")
+        log_dir = get_log_dir(args.run_id, "test", "edit")
         edits_dir.mkdir(parents=True, exist_ok=True)
         dumped, failed = dump_threadpool(
             dataset, env_specs, edits_dir, log_dir, args.max_workers,
@@ -291,7 +287,7 @@ if __name__ == "__main__":
     else:
         candidates = dataset
         if args.instance_ids is not None:
-            candidates = [r for r in dataset if r["instance_id"] in set(args.instance_ids)]
+            candidates = [data_record for data_record in dataset if data_record["instance_id"] in set(args.instance_ids)]
         updated, unchanged, invalid = 0, 0, []
         for record in candidates:
             try:

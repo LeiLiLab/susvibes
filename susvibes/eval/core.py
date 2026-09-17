@@ -3,12 +3,12 @@ import json
 from pathlib import Path
 
 from susvibes.core.constants import *
-from susvibes.eval.task import TasksHandler, get_summary, print_summary
+from susvibes.eval.task import TasksHandler, get_eval_summary, print_eval_summary
 from susvibes.eval.strategies.tools import apply_safety_strategy
 from susvibes.core.utils import load_file, save_file
 
 def prepare_dataset(run_id: str, dataset_id: str, strategy: str, feedback_tool: str = None, instance_ids: list = None):
-    dataset_path = get_dataset_path('dataset', dataset_id)
+    dataset_path = get_dataset_path('susvibes_dataset', dataset_id)
     dataset = load_file(dataset_path)
     if instance_ids is not None:
         dataset = [data_record for data_record in dataset if data_record["instance_id"] in set(instance_ids)]
@@ -28,17 +28,19 @@ def run_evaluation(
     strategy: str,
     max_workers: int,
     force: bool = False,
+    resume: bool = False,
     instance_ids: list = None
 ):
     handler = TasksHandler(strategy, run_id, dataset_id)
-    handler.run_evaluation_threadpool(predictions, max_workers, force, instance_ids=instance_ids)
+    handler.run_evaluation_threadpool(predictions, max_workers, force, resume,
+        instance_ids=instance_ids)
     for model_name_or_path, model_reports in handler.reports.items():
-        eval_summary = get_summary(handler.dataset, model_reports, strategy, instance_ids=instance_ids)
+        eval_summary = get_eval_summary(handler.dataset, model_reports, strategy, instance_ids=instance_ids)
         summary_path = EVAL_LOG_DIR / run_id / strategy / model_name_or_path / LOG_SUMMARY
         summary_path.parent.mkdir(parents=True, exist_ok=True)
         save_file(eval_summary, summary_path)
         print(f"\n=== {model_name_or_path} ===")
-        print_summary(eval_summary)
+        print_eval_summary(eval_summary)
         print(f"Summary saved to {summary_path}.")
 
 def main():
@@ -64,7 +66,13 @@ def main():
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Force re-run, ignoring any reusable evaluation report.",
+        help="Re-evaluate every submission instead of reusing cached reports.",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Re-evaluate only the submissions whose cached report is an errored run, keeping "
+             "every verdict. If both --force and --resume are given, --force wins.",
     )
     parser.add_argument(
         "--instance_ids",
@@ -106,7 +114,7 @@ def main():
     else:
         predictions = load_file(args.predictions_path)
         run_evaluation(args.run_id, args.dataset_id, predictions, args.strategy,
-            args.max_workers, args.force, instance_ids=args.instance_ids)
+            args.max_workers, args.force, args.resume, instance_ids=args.instance_ids)
 
 if __name__ == "__main__":
     main()

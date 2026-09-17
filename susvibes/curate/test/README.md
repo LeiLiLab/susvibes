@@ -3,7 +3,7 @@
 This module manages the security test patches (`test_patch` field of `susvibes_dataset.jsonl`). Two workflows are supported:
 
 - **Editing** ([`edit.py`](edit.py)) — dump existing `test_patch` entries to disk for manual refinement, then sync the edits back into the dataset.
-- **Synthesis** ([`gen_prologue.py`](gen_prologue.py)) — for instances where no usable test patch exist, drive a SWE-agent (sv) to author `test_patch` from the security fix.
+- **Synthesis** ([`gen.py`](gen.py)) — for instances where no usable test patch exist, drive a SWE-agent (sv) to author `test_patch` from the security fix.
 
 Both workflows assume the per-instance environment images from [`env_setup/build_repo.py`](../env_setup/build_repo.py) already exist and the dataset is otherwise complete (`task_patch`, `security_patch`, `mask_patch`, `env_image_name`, etc.).
 
@@ -57,7 +57,7 @@ python -m susvibes.curate.validate.with_test \
   --run_id <run_id> \
   --from_base_no_test_image \
   --max_workers <N> \
-  [--from_existing_specs] \
+  [--resume] \
   [--force]
 ```
 
@@ -69,44 +69,43 @@ This is for instances where the original commit had no usable test_patch — a S
 
 This path expects the upstream pipeline to have been run in `--require_test false` mode, i.e.:
 
-- `python -m susvibes.curate.mine.process --require_test false ...` — keeps vulnerability records that have no associated test files
+- `python -m susvibes.curate.mine.core --require_test false ...` — keeps vulnerability records that have no associated test files
 - `python -m susvibes.curate.adaptive_gen.core --require_test false ...` — produces tasks without requiring a `test_patch` field
 - `python -m susvibes.curate.env_setup.build_repo --prologue --require_test false ...` — instructs SWE-agent (sv-env-setup) to run the full repo test suite instead of a designated set of test files
+- `python -m susvibes.curate.mine.post.sec_prop --run_id <run_id> ...` — annotates each record with its **security property** (`invariant` / `vulnerable_if` / `secure_if` / `security_irrelevant_differences`). **Required**: `test.gen` renders these into the agent prompt, so each record it reads must carry a `secprop` field.
 
-The synthesis agent itself uses the config at [`../utils/agents/configs/test_gen.yaml`](../utils/agents/configs/test_gen.yaml). Set it up the same way as other SWE-agent configs in this curation pipeline (place under SWE-agent's `config/` directory; see [`../utils/agents/settings/`](../utils/agents/settings/)).
+The synthesis agent uses the SWE-agent config `susvibes_test_gen.yaml` (placed under SWE-agent's `config/` directory) with the run settings in [`../utils/agents/settings/test_gen.yaml`](../utils/agents/settings/test_gen.yaml) (model, workers, conda env). Its `instance_template` holds the static how-to; the per-instance security property + vulnerable feature are rendered into `{{problem_statement}}` by `gen.py` from [`prompts.py`](prompts.py).
 
-### 1. Build rollback images + prepare agent batch
+### 1. Generate security tests
 
 ```bash
-python -m susvibes.curate.test.gen_prologue \
+python -m susvibes.curate.test.gen \
   --run_id <run_id> \
   --max_workers <N> \
-  [--strategy patch_secfix|secfix]  # Optional: prompt hint variant, default patch_secfix
   [--instance_ids '["<id_1>", ...]']
-  [--force]                         # Optional: rebuild rollback images even if present
 ```
 
-For each candidate this builds a *rollback* variant of the env image with the `security_patch` reversed (so the repo sits in the vulnerable state) and the patch persisted at `.susvibes.security_patch.diff` so the agent can toggle states. It then assembles the SWE-agent batch instances yaml.
+For each candidate this (a) builds a *rollback* variant of the env image with the `security_patch` reversed (so the repo sits in the vulnerable state) and the patch persisted at `.sv.security_patch.diff` so the agent can toggle states, (b) assembles the SWE-agent batch, and (c) runs the synthesis agent (SWE-agent, sv) over it in-process. `--max_workers` sets the rollback-image build concurrency; the agent's `num_workers` comes from the settings. Build logs and agent trajectories both land under `logs/curate/<run_id>/test/gen/<instance_id>/`.
 
-### 2. Run the synthesis agent
+For each instance, the agent produces:
 
-Run SWE-agent with `test_gen.yaml` as specified in [`../utils/agents/runs.sh`](../utils/agents/runs.sh), pointing at the batch yaml produced in step 1.
+- new security-test file(s) added to the repo's own test suite (written in the repo's test framework, the one `REPO_TEST_CMD` uses).
+- `.sv.run_gen_test.sh` — the entrypoint. It runs only those new tests via the repo's test runner (sending all run output to a temp file), then a small parser it writes reads that file and prints, as the **only stdout line**, a single JSON object mapping each test name to a boolean (`true` = secure observed, `false` = vulnerable or could-not-run). The harness reads this from stdout — no results file.
 
-For each instance, the agent must produce:
+The epilogue then takes each agent's diff onto its record as `test_patch` — the same field
+`test_mask` writes for the instances that HAD tests to hide — keeping only what `git apply` accepts,
+and records `keep.gen_test`. A patch that will not apply is this stage's failure to conclude, so
+validation never has to be the first to discover the tests were unusable. `--prologue` / `--epilogue`
+split the two halves when the agent batch is run by hand.
 
-- `sectests.sh` — the entrypoint that runs the synthesized tests
-- `secresults.json` — per-test pass/fail JSON written by the test runner
-- supporting test files (typically a small Python runner script)
-
-### 3. Validate
+### 2. Validate
 
 ```bash
-python -m susvibes.curate.validate.no_test \
-  --test_agent_output_dir <path_to_agent_output> \
+python -m susvibes.curate.validate.gen_test \
   --run_id <run_id> \
   --max_workers <N> \
-  [--from_existing_specs] \
+  [--resume] \
   [--force]
 ```
 
-This pulls each agent's `model_patch` as the candidate `test_patch`, runs the repo's functional tests across three variants (base / rollback / task), then runs the synthesized sectests under both `rollback_with_test` and `base_with_test`, verifying that at least one test distinguishes the vulnerable from the secure state. Successful instances get an evaluation image tagged and the synthesized `test_patch` written back into the dataset.
+This pulls each agent's `model_patch` as the candidate `test_patch`, runs the repo's functional tests across three variants (base / rollback / task), then runs the synthesized security tests (via `.sv.run_gen_test.sh`) under both `rollback_with_gen_test` (vulnerable) and `base_with_gen_test` (secure), verifying that at least one test distinguishes the vulnerable from the secure state. Successful instances get an evaluation image tagged and the synthesized `test_patch` written back into the dataset.

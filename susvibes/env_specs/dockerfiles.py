@@ -17,8 +17,13 @@ FROM {upstream_image_name}
 # EOL Debian releases (<bullseye, i.e. stretch/buster) have moved off
 # deb.debian.org to archive.debian.org and their signing keys have expired.
 # Redirect sources and relax verification only for those releases.
+# bullseye (11) reached EOL on 2026-08-31: its security pool is already gone from
+# security.debian.org while the index still lists it, and archive.debian.org does
+# not host bullseye-security yet — drop that source so apt resolves from main only.
 RUN . /etc/os-release && \
-    if [ "$VERSION_ID" -lt 11 ]; then \
+    if [ "$VERSION_ID" -eq 11 ]; then \
+        sed -i '/security.debian.org/d' /etc/apt/sources.list; \
+    elif [ "$VERSION_ID" -lt 11 ]; then \
         sed -i 's|http://deb.debian.org|http://archive.debian.org|g; \
                 s|http://security.debian.org|http://archive.debian.org|g; \
                 /-updates/d; /-backports/d' /etc/apt/sources.list && \
@@ -56,14 +61,15 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 """
 
-# cov_py = base_py + the version-matched static-analysis stack for check_cov.
-# Built `FROM {base_image}` (the base_py Hub tag) so each cov image inherits the exact Python version
+# static_py = base_py + the version-matched static-analysis stack. It is where a stage's vendored
+# `engine/` runs whenever the analysis must read the instance's own Python syntax — test_mask parses
+# function spans, check_cov traces symbols; neither executes the repo.
+# Built `FROM {base_image}` (the base_py Hub tag) so each image inherits the exact Python version
 # (its native `ast` then parses that version's syntax, and jedi introspects its
-# native stdlib). `jedi` + `parso` are REQUIRED (symbol trace) — if the pinned
-# versions cannot install on this version the build FAILS by design, since check_cov
-# cannot run without them. `tree-sitter` is best-effort (repo_index falls back to
-# regex), so its install is allowed to fail.
-DOCKERFILE_COV_PY = r"""
+# native stdlib). `jedi` + `parso` are REQUIRED — if the pinned versions cannot install on this
+# version the build FAILS by design, since the engines cannot parse without them.
+# `tree-sitter` is best-effort (repo_index falls back to regex), so its install is allowed to fail.
+DOCKERFILE_STATIC_PY = r"""
 FROM {base_image}
 
 RUN pip install --no-cache-dir {jedi_parso}

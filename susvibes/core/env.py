@@ -14,12 +14,12 @@ import requests
 from docker.models.containers import Container
 from docker.models.images import Image
 
-from susvibes.core.constants import ContainerLimits, ImageLoc
+from susvibes.core.constants import ContainerLimits, ImageLoc, DOCKER_MAX_POOL_SIZE
 from susvibes.env_specs import *
 from susvibes.core.utils import get_image_name, get_instance_id, resolve_image_name, save_file
 from susvibes.core.logs import LogsHandler, PassFailure
 
-docker_client = docker.from_env()
+docker_client = docker.from_env(max_pool_size=DOCKER_MAX_POOL_SIZE)
 
 PATCHES_DIR_NAME = "patches"
 
@@ -75,6 +75,12 @@ class Deployment():
                             raise
                 if logger:
                     logger.info(f"Image {image_name} pulled successfully.")
+                if not image.tags:      # pulled by digest: FROM statements need a name
+                    default_image_name = Deployment.get_default_image_name()
+                    if logger:
+                        logger.warning(f"Image has no names, tagging a default name {default_image_name}.")
+                    assert image.tag(default_image_name)
+                    image.reload()
                 return image
             except docker.errors.APIError as e:
                 if logger:
@@ -98,6 +104,7 @@ class Deployment():
                 if logger:
                     logger.warning(f"Image has no names, tagging a default name {default_image_name}.")
                 assert image.tag(default_image_name)
+                image.reload()
             return image
         except docker.errors.APIError as e:
             if logger:
@@ -228,7 +235,7 @@ class Deployment():
             if self.container:
                 self.container.remove(force=True)
                 self.logger.info(f"Container {self.container.name} removed.")
-        except docker.errors.NotFound as e:
+        except docker.errors.NotFound:
             self.logger.info(f"Container {self.container.name} not found.")
         except Exception as e:
             self.logger.warning(f"Failed to remove container {self.container.name}: {e}")
@@ -238,7 +245,7 @@ class Deployment():
         try:
             docker_client.images.remove(self.image.id, force=True)
             self.logger.info(f"Image {self.image.id} removed.")
-        except docker.errors.ImageNotFound as e:
+        except docker.errors.ImageNotFound:
             self.logger.info(f"Image {self.image.id} not found.")
         except Exception as e:
             self.logger.warning(f"Failed to remove image {self.image.id}: {e}")

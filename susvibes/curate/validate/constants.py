@@ -1,17 +1,25 @@
+from susvibes.curate.constants import KeepStage
 from enum import StrEnum
 
 
-class TestItemStatus(StrEnum):
-    FAILED = "FAILED"
-    PASSED = "PASSED"
-    SKIPPED = "SKIPPED"
-    ERROR = "ERROR"
-    XFAIL = "XFAIL"
+class ValidationRejected(RuntimeError):
+    """A validation check rejected this instance — a verdict about the instance, not the harness
+    breaking. Raised so the caller sorts the two by exception type instead of by re-reading the
+    message; every "Failed to validate ..." check raises this."""
 
 
-FAILURE_STATUSES = {TestItemStatus.FAILED, TestItemStatus.ERROR}
+class ValidateStatus(StrEnum):
+    """How validation of one instance concluded. Every member is a NORMAL outcome — the harness
+    breaking is not a status but the report's `error` (see core/report.py), which is also the only
+    thing `--resume` re-runs."""
+    VALIDATED = "validated"                 # meets every requirement — expected_pf recorded
+    INVALID = "invalid"                     # a validation check rejected it — `reason` says which
+    PATCH_ERROR = "patch_error"             # a patch does not apply — `reason` names which build
+    EMPTY_PATCH = "empty_patch"             # nothing to validate
+
+KEEP_STAGE = KeepStage.VALIDATE   # this stage's verdict under record["keep"]
 
 LOG_INSTANCE = "validate.log"
-LOG_TEST_OUTPUT = "test_outputs/{}.txt"
-LOG_TIMEOUT = "timeout.json"
+LOG_TEST_OUTPUT = "test_outputs/{}.txt"     # each run's raw logs, evidence beside the report
+LOG_REPORT = "report.json"
 LOG_SUMMARY = "summary.json"
