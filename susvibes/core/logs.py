@@ -14,6 +14,7 @@ from susvibes.curate.validate.prompts import (
     LOGS_CHECKER_PROMPT_TEMPLATE,
 )
 from susvibes.core.constants import TestStatus
+from susvibes.core.test_counts import strip_ansi, parse_test_counts
 from susvibes.curate.validate.constants import FAILURE_STATUSES, TestItemStatus
 from susvibes.env_specs import TEST_SYMBOL_RESOLUTION_ERROR_PATTERNS
 from susvibes.core.utils import load_file, save_file
@@ -239,6 +240,10 @@ class LogsHandler(ABC):
         tuple of names tried in priority order — the first kind present in `logs_handler` wins.
         Raises RuntimeError if none of the requested kinds is available."""
         kinds = (kind,) if isinstance(kind, str) else kind
+        if "test_adapter" in logs_handler:
+            kinds = ("test_adapter",)
+        elif "gen_sec" in kinds and "count_gen_sec" in logs_handler:
+            kinds = tuple("count_gen_sec" if k == "gen_sec" else k for k in kinds)
         for k in kinds:
             if k in logs_handler:
                 return LOGS_KINDS[k].from_dict(logs_handler[k]).handle(test_logs, timed_out, logger)
@@ -295,6 +300,9 @@ class LogsCount(LogsHandler):
         """Test status from the test logs, using the logs_checker regex."""
         if timed_out:
             return TestStatus.TIMEOUT
+        test_logs = strip_ansi(test_logs)
+        if "___SUSVIBES_EXECUTION_STARTUP_FAILED___" in test_logs:
+            return TestStatus.STARTUP_ERROR
         if logs_checker and re.search(logs_checker, test_logs, re.MULTILINE):
             return TestStatus.STARTUP_ERROR
         return TestStatus.COMPLETED
@@ -303,15 +311,7 @@ class LogsCount(LogsHandler):
     def _parse(logs_parser: dict, test_logs: str, logger: logging.Logger) -> dict[str, int]:
         """Count test outcomes in the test logs using the per-status logs_parser regexes."""
         logger.info("Parsing test logs...")
-        test_result = {}
-        for item_status, pattern in logs_parser.items():
-            if pattern:
-                logs_parse_re = re.compile(pattern, re.MULTILINE)
-                m = None
-                for m in logs_parse_re.finditer(test_logs):
-                    pass
-                test_result[item_status] = int(m.group(1)) if m else 0
-        return test_result
+        return parse_test_counts(logs_parser, test_logs)
 
     @staticmethod
     def _count_failures(test_result: dict[str, int]) -> int:
@@ -324,12 +324,12 @@ class LogsCount(LogsHandler):
         try:
             status = self._check(self.logs_checker, test_logs, timed_out)
             failures = None
-            if self.logs_parser:
+            if self.logs_parser is not None and status == TestStatus.COMPLETED:
                 failures = self._count_failures(self._parse(self.logs_parser, test_logs, logger))
         except Exception as e:
             msg = "Failed to parse test logs."
             logger.error(msg)
-            raise RuntimeError(msg)
+            raise RuntimeError(msg) from e
         return PassFailureCount(status, failures)
 
     # --- Synthesizing the parser: a per-status regex that counts test outcomes. ---
@@ -399,8 +399,9 @@ class LogsCount(LogsHandler):
                 continue
             test_result_list, test_failures_list = [], []
             for test_logs, test_status in zip(test_logs_list, test_statuses):
-                if not test_status:
+                if test_status != TestStatus.COMPLETED:
                     test_result_list.append({})
+                    test_failures_list.append(0)
                     continue
                 try:
                     test_result = cls._parse(logs_parser, test_logs, logger)
@@ -615,7 +616,7 @@ class LogsGenSec(LogsHandler):
             msg = "Failed to run tests because of gen sec test timeout."
             logger.error(msg)
             raise RuntimeError(msg)
-        cases = extract_json_object(test_logs)
+        cases = extract_json_object(strip_ansi(test_logs))
         if cases is None:
             msg = "Failed to parse gen sec test logs."
             logger.error(msg)
@@ -624,4 +625,41 @@ class LogsGenSec(LogsHandler):
         return PassFailureCases(status, cases)
 
 
-LOGS_KINDS = {LogsCount.KIND: LogsCount, LogsGenSec.KIND: LogsGenSec}
+class LogsCountGenSec(LogsCount):
+    """Independent generated count suites preserve failures across unittest runs."""
+    KIND = "count_gen_sec"
+
+    @staticmethod
+    def _parse(logs_parser, test_logs, logger):
+        return parse_test_counts(logs_parser, test_logs, aggregate=True)
+
+
+class LogsTestAdapter(LogsHandler):
+    """Structured benchmark adapter output; scripts run only in deployments."""
+    KIND = "test_adapter"
+
+    def __init__(self, **spec):
+        from susvibes.core.test_adapter import adapter_command
+        adapter_command(spec)  # Validate script/hash, without executing it.
+        self.spec = spec
+
+    def to_dict(self):
+        return dict(self.spec)
+
+    @classmethod
+    def get(cls, **kwargs):
+        raise NotImplementedError("Adapter specs are supplied by the benchmark")
+
+    def handle(self, test_logs, timed_out, logger):
+        from susvibes.core.test_adapter import parse_adapter_result
+        status = LogsCount._check(None, test_logs, timed_out)
+        if status != TestStatus.COMPLETED:
+            return PassFailureCount(status, None)
+        try:
+            counts = parse_adapter_result(strip_ansi(test_logs))
+        except (ValueError, TypeError, KeyError) as exc:
+            raise RuntimeError("Failed to parse test adapter output") from exc
+        return PassFailureCount(status, counts["failed"])
+
+
+LOGS_KINDS = {cls.KIND: cls for cls in (LogsCount, LogsGenSec, LogsCountGenSec, LogsTestAdapter)}

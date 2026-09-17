@@ -85,7 +85,7 @@ def run_test_suite_multi(
                 logger.error(msg)
                 raise RuntimeError(msg)
             try:
-                deployment.create_container(command=Route.route_test_cmd(flags, run_name),
+                deployment.create_container(command=env.test_command(Route.route_test_cmd(flags, run_name)),
                     mem_limit=ContainerLimits.MEM_LIMIT, cpu_limit=ContainerLimits.CPU_LIMIT)
             except docker.errors.APIError as e:
                 msg = f"Failed to create container: {e}"

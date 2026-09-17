@@ -16,6 +16,9 @@ LOGS_PARSER_PROMPT_TEMPLATE = {
 
         RULES:
         - Statuses reported in all provided runs must be captured—consider all runs together.
+        - Put the requested status count in capturing group 1; use non-capturing groups for all other fields.
+        - Match each count independently: zero-valued fields may be omitted, and summaries may include warnings, skipped tests, xfails, xpasses, or an extra formatted duration.
+        - Capture positive execution evidence (such as passed tests) when available. Never invent a never-matching pattern to represent successful execution; empty output and zero-test runs are not passing runs.
         - If the logs use a different label for any of these statuses, map it to the standard name; if a status does not appear anywhere, use an empty string for its pattern.
         - Some runs might be having chaotic logs, for which you may ignore that run.
 

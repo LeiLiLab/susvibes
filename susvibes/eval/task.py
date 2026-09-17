@@ -200,7 +200,7 @@ class Task:
                 test_logs, timed_out = self._run_test_suite(
                     run_name=run_name,
                     patches=run_patches,
-                    command=Route.route_test_cmd(self.flags, run_name),
+                    command=self.env.test_command(Route.route_test_cmd(self.flags, run_name)),
                     log_dir=log_dir,
                     logger=logger
                 )
@@ -214,6 +214,9 @@ class Task:
             if not test_pf.completed():
                 run[run_name] = {"pass": False, "test_status": test_pf.status}
                 continue
+            if (run_name == "sec" and Route.route_logs_kind(self.flags, run_name) == "gen_sec"
+                    and "count_gen_sec" in (self.env.logs_handler or {})):
+                expected_raw = None
             expected_raw = self.expected_pf[run_name] if expected_raw is None \
                 else PassFailure.add_raw(expected_raw, self.expected_pf[run_name])
             expected_pf = PassFailure.from_raw(expected_raw)

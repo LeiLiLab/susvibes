@@ -441,6 +441,13 @@ class Env:
             )
         return deployment
     
+    def test_command(self, default=None):
+        """Use the verified benchmark adapter when present; otherwise keep routing."""
+        if self.logs_handler and "test_adapter" in self.logs_handler:
+            from susvibes.core.test_adapter import adapter_command
+            return ["bash", "-c", adapter_command(self.logs_handler["test_adapter"])]
+        return default
+
     def handle_test_logs(self, test_logs: str, timed_out: bool,
         logger: logging.Logger, kind: str | tuple) -> PassFailure:
         """Apply this instance's logs handler for `kind` to the test logs, returning a PassFailure
