@@ -182,6 +182,7 @@ def test_context_manager_calls_cleanup():
     [
         ("claude_code", "claude", "/root/.claude_env"),
         ("gemini_cli", "gemini", "/root/.gemini/.env"),
+        ("kimi_cli", "kimi", "/root/.kimi/.env"),
     ],
 )
 def test_agent_subclass_config(agent_dir, expected_name, expected_env_file):
@@ -200,7 +201,7 @@ def test_agent_subclass_config(agent_dir, expected_name, expected_env_file):
     assert hasattr(mod, "ALLOWED_TOOLS")
 
 
-@pytest.mark.parametrize("agent_dir", ["claude_code", "gemini_cli"])
+@pytest.mark.parametrize("agent_dir", ["claude_code", "gemini_cli", "kimi_cli"])
 def test_agent_workspace_prefix(agent_dir, tmp_path):
     mod = import_agent_module(agent_dir)
     harness = mod.DockerIntegration("img:latest", workspace_root=str(tmp_path))

@@ -75,7 +75,7 @@ The SusVibes dataset ships with this repository at `datasets/default/susvibes_da
      "model_patch": "the-implementation-patch"
    }
    ```
-For an example guideline on how to run Kimi CLI on SusVibes, see [tutorial](evaluation_harness/kimi_cli_tutorial.md); ready-made batch runners for other agents live under [evaluation_harness](evaluation_harness/).
+For guidelines and ready-made batch runners for agents (including Claude Code, Gemini CLI, and Kimi CLI), see [evaluation_harness](evaluation_harness/). A step-by-step manual walkthrough for Kimi is also available in the [tutorial](evaluation_harness/kimi_cli_tutorial.md).
 
 
 ### Step 2: Evaluate the Agent's Solutions
