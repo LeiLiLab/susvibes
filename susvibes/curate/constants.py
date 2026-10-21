@@ -20,6 +20,7 @@ class KeepStage(StrEnum):
     ADAPTIVE_GEN = "adaptive_gen"
     GEN_TEST = "gen_test"
     VALIDATE = "validate"
+    LEAK = "leak"
 
 
 def get_log_dir(run_id: str, *module: str) -> Path:

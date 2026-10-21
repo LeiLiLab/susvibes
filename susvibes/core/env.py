@@ -130,6 +130,21 @@ class Deployment():
                     raise
                 time.sleep(base_delay * (2 ** retry))
 
+    @staticmethod
+    def tag_image(image_name: str, target_name: str, logger: logging.Logger = None) -> None:
+        """Give the local image `image_name` the additional name `target_name`, taking that name
+        over from whatever held it — a snapshot before a change, or a restore after one."""
+        image = docker_client.images.get(image_name)
+        assert image.tag(target_name)
+        if logger:
+            logger.info(f"Image {image_name} tagged as {target_name}.")
+
+    @staticmethod
+    def get_image_config(image_name: str) -> dict:
+        """What a run of the image starts from: its Cmd and WorkingDir."""
+        config = docker_client.images.get(image_name).attrs["Config"]
+        return {"Cmd": config.get("Cmd"), "WorkingDir": config.get("WorkingDir")}
+
     @classmethod
     def from_build(cls,
         logger: logging.Logger,
@@ -203,15 +218,22 @@ class Deployment():
         command: str | list = None,
         mem_limit: str = None,
         cpu_limit: int = None,
+        entrypoint: str | list = None,
+        environment: dict = None,
+        volumes: dict = None,
     ) -> None:
+        """`entrypoint` overrides the image's; `environment` is {name: value}; `volumes` is the
+        docker SDK's {host_path: {"bind": container_path, "mode": "ro"|"rw"}}."""
         try:
             container = docker_client.containers.create(
                 image=self.image.id,
                 detach=True,
                 mem_limit=mem_limit,
                 nano_cpus=int(cpu_limit * 1e9) if cpu_limit else None,
-                command=command
-                # command="tail -f /dev/null",
+                command=command,
+                entrypoint=entrypoint,
+                environment=environment,
+                volumes=volumes,
             )
             self.logger.info(f"Container for {self.image.id} created: {container.name}")
             self.container = container

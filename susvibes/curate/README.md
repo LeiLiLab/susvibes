@@ -14,7 +14,8 @@ The pipeline runs in this order (all artifacts land under `datasets/<run_id>/` a
 6. [`mine/post/check_cov`](mine/post/check_cov/) *(optional)* — label each instance's test coverage → `func_coverage`
 7. [`adaptive_gen`](adaptive_gen/) — generate masks + problem statements → `task_patch`
 8. [`env_setup/build_repo`](env_setup/) — build a per-instance environment image → `env_image_name`
-9. [`validate`](validate/) — validate via execution, then publish the dataset
+9. [`validate`](validate/) — validate via execution → `expected_pf`, `image_name`
+10. [`leak`](leak/) — strip copies of the golden code from the eval images, then publish the dataset
 
 Every stage records its verdict under a record's `keep`, and a stage admits only the records that
 passed *every* verdict recorded so far. That AND is why **the order within steps 4–6 is a
@@ -160,6 +161,16 @@ python -m susvibes.curate.validate.with_test \
 
 This requires an LLM API for generating test-suite output parsers: configure the model in [`constants.py`](constants.py), set the API key in your `.env`, and set your Docker Hub namespace in [`susvibes/core/constants.py`](../core/constants.py).
 
+## 10. Checking for Golden Leaks and Publishing
+
+An eval image can carry a copy of the instance's golden code outside the work tree (a cached wheel, `build/lib` output, an installed copy). The leak check sweeps every validated instance's eval image, removes what a rule covers, re-validates, and excludes the instances whose copy cannot go — see [`leak`](leak/):
+
+```bash
+python -m susvibes.curate.leak.core \
+  --run_id playground \
+  [--push_images]  # Optional: push each fixed instance's rebuilt eval and env images
+```
+
 If you want to publish the dataset, finalize it and publish to it Hugging Face:
 
 ```bash
@@ -171,12 +182,12 @@ This filters to validated instances, computes each golden patch, strips records 
 
 ## Two Curation Pipelines
 
-The nine steps above are the **main pipeline**: each task's security `test_patch` is mined directly from the vulnerability-fixing commit. A **second pipeline** handles commits that ship *no* test changes — there's no potential tests that come with the security-fix commit, so a SWE-agent synthesizes the security tests from the security fix, while functional regression still uses the repo's own suite.
+The ten steps above are the **main pipeline**: each task's security `test_patch` is mined directly from the vulnerability-fixing commit. A **second pipeline** handles commits that ship *no* test changes — there's no potential tests that come with the security-fix commit, so a SWE-agent synthesizes the security tests from the security fix, while functional regression still uses the repo's own suite.
 
 The second pipeline reuses the same stages, differing only in three points:
 
 - Steps 1, 7, 8 (`mine.core`, `adaptive_gen.core`, `build_repo --prologue`) take `--require_test false` — keeping only the test-less records; steps 2–6 are unchanged (step 4 concludes `no_test_patch` for a record with nothing to hide).
 - A test-synthesis stage is inserted before validation: `test.gen` builds rollback images and runs a SWE-agent to author the security tests.
-- Step 9 validation uses `validate.gen_test` instead of `validate.with_test`; `wrap_up` is shared.
+- Step 9 validation uses `validate.gen_test` instead of `validate.with_test`; step 10 (`leak`, `wrap_up`) is shared.
 
 See [`test`](test/) for the full second-pipeline walkthrough (it also covers manually editing an existing `test_patch`).
