@@ -1,7 +1,8 @@
 sweagent_dir: ../Env-agent
 run_name: env-agent_default
 model:
-  name: claude-sonnet-4-5-20250929
+  name: bedrock/us.anthropic.claude-sonnet-4-5-20250929-v1:0
+  max_output_tokens: 64000
   per_instance_cost_limit: 0.0
   per_instance_call_limit: 200
 conda_env: envagent1.1.0

@@ -33,7 +33,9 @@ def get_dataset_path(name: str, run_id: str = "default") -> Path:
 
 class ContainerLimits:
     """Resource limits and run timeout for analysis / test containers."""
-    RUN_TIMEOUT = 1800  # seconds
+    # A repository whose own suite needs longer than this per run cannot be validated at all, so the
+    # timeout is raisable for such a run (`SV_RUN_TIMEOUT=7200`) without moving it for everything.
+    RUN_TIMEOUT = int(os.environ.get("SV_RUN_TIMEOUT", 1800))  # seconds
     MEM_LIMIT = "{}g".format(
         min(int(os.sysconf('SC_PAGE_SIZE') * os.sysconf('SC_PHYS_PAGES') / (1024 ** 3) * 0.75), 16))
     CPU_LIMIT = min(16, max(1, int(os.cpu_count() * 0.75)))
