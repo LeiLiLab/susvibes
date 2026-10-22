@@ -30,8 +30,7 @@ from susvibes.curate.leak.constants import (
 )
 
 # Runs inside the image on the mounted python. Golden-only lines (markers) are computed against the
-# image's own work tree, which is only meaningful when that tree is the task state (the eval image);
-# to sweep an image whose tree is already golden (the env image), pass the eval image's reference.
+# image's own work tree, so the image must hold the task state (the eval image).
 SWEEP_SRC = r'''
 import base64, hashlib, json, os, subprocess, tarfile, zipfile
 
@@ -47,34 +46,21 @@ def module_stem(name):
 
 touched = json.loads(base64.b64decode(os.environ["TOUCHED_B64"]))
 gold, work, markers = {}, {}, {}
-reference = os.environ.get("REF_B64")
-if reference:
-    reference = json.loads(base64.b64decode(reference))
-    gold = {rel: tuple(v) for rel, v in reference["gold"].items()}
-    markers = {rel: [base64.b64decode(m) for m in ms] for rel, ms in reference["markers"].items()}
-else:
-    for rel in touched:
-        gold_path, work_path = "/tmp/gold/" + rel, "/project/" + rel
-        if not os.path.exists(gold_path):
-            continue
-        gold_text = open(gold_path, "rb").read()
-        work_text = open(work_path, "rb").read() if os.path.exists(work_path) else b""
-        gold[rel] = (sha_bytes(gold_text), len(gold_text))
-        lines = {l.strip() for l in gold_text.split(b"\n") if len(l.strip()) >= 24}
-        markers[rel] = sorted({l for l in lines if l not in work_text}, key=len, reverse=True)[:40]
+for rel in touched:
+    gold_path, work_path = "/tmp/gold/" + rel, "/project/" + rel
+    if not os.path.exists(gold_path):       # a file the golden patch deletes
+        continue
+    gold_text = open(gold_path, "rb").read()
+    work_text = open(work_path, "rb").read() if os.path.exists(work_path) else b""
+    gold[rel] = (sha_bytes(gold_text), len(gold_text))
+    lines = {l.strip() for l in gold_text.split(b"\n") if len(l.strip()) >= 24}
+    markers[rel] = sorted({l for l in lines if l not in work_text}, key=len, reverse=True)[:40]
 for rel in touched:
     work_path = "/project/" + rel
     work[rel] = sha_bytes(open(work_path, "rb").read()) if os.path.exists(work_path) else None
 stem_to_rels = {}
 for rel in gold:
     stem_to_rels.setdefault(module_stem(os.path.basename(rel)), []).append(rel)
-reference_out = {"gold": gold,
-                 "markers": {rel: [base64.b64encode(m).decode() for m in ms]
-                             for rel, ms in markers.items()}}
-if os.environ.get("REF_ONLY"):
-    print("__RESULT__" + json.dumps({"gold": {r: s for r, (s, _) in gold.items()}, "work": work,
-                                    "hits": [], "reference": reference_out}))
-    raise SystemExit(0)
 
 sha_to_rel = {s: rel for rel, (s, _) in gold.items()}
 sizes = {size for _, size in gold.values()}
@@ -177,8 +163,7 @@ for line in objects.stdout.splitlines():
     if sha_bytes(blob) in sha_to_rel:
         add("git-object", name, sha_to_rel[sha_bytes(blob)])
 
-print("__RESULT__" + json.dumps({"gold": {r: s for r, (s, _) in gold.items()},
-                                "work": work, "hits": hits, "reference": reference_out}))
+print("__RESULT__" + json.dumps({"gold": {r: s for r, (s, _) in gold.items()}, "work": work, "hits": hits}))
 '''.replace("MOUNT_DIR", repr(SWEEP_MOUNT_DIR)).replace("MIN_MARKERS", str(MIN_MARKERS))
 
 # Rebuilds the golden files under /tmp/gold from the work tree + golden_patch, then runs the sweep.
@@ -229,26 +214,21 @@ def b64(text: str) -> str:
     return base64.b64encode(text.encode()).decode()
 
 
-def sweep_image(golden_patch: str, image_name: str, logger: logging.Logger,
-                reference: dict = None, reference_only: bool = False) -> dict:
-    """Walk the local image for copies of the golden code `golden_patch` produces. Returns {touched, apply,
-    gold, work, hits, reference}: `touched` the golden files, `apply` how golden_patch applied
-    (`git` / `patch` / `FAIL`), `hits` the copies found, `reference` the golden digests and markers
-    to sweep a second image against (`reference_only` computes it without walking).
+def sweep_image(golden_patch: str, image_name: str, logger: logging.Logger) -> dict:
+    """Walk the local image for copies of the golden code `golden_patch` produces. Returns {touched,
+    apply, gold, work, hits}: `touched` the files the patch touches on either side, `apply` how it
+    applied (`git` / `patch` / `FAIL`), `hits` the copies found.
 
     Raises RuntimeError when the sweep itself did not conclude (the container timed out or
     produced no result) — the harness failing, not a verdict about the image."""
     python_dir = ensure_sweep_python(logger)
-    touched = sorted(touched_files(golden_patch, side="post"))
+    # Both sides: a file the patch deletes must be in the scratch copy for the patch to apply.
+    touched = sorted(touched_files(golden_patch, side="post") | touched_files(golden_patch, side="pre"))
     environment = {
         "GP_B64": b64(golden_patch),
         "SWEEP_B64": b64(SWEEP_SRC),
         "TOUCHED_B64": b64(json.dumps(touched)),
     }
-    if reference:
-        environment["REF_B64"] = b64(json.dumps(reference))
-    if reference_only:
-        environment["REF_ONLY"] = "1"
     deployment = Deployment.from_local(logger=logger, image_name=image_name)
     deployment.create_container(
         command=["-c", CONTAINER_SH],

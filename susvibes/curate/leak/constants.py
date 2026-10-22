@@ -58,15 +58,18 @@ GENERIC_DIRS = {"src", "lib", "python", "packages", "pkg", "source"}   # not a p
 # bazel, and bun's store wherever BUN_INSTALL points it.
 PKG_CACHES = re.compile(r"^((?:/root|/usr/local|/home/[^/]+)(?:/\.cache/(?:pip|uv|pypoetry|deno|node-gyp|yarn)"
                         r"|/\.cache/bazel|/\.bun/install/cache|/install/cache|/\.npm/_cacache))/")
-# Copies our own build left behind, removable as a whole directory: (pattern -> the directory, why)
+# Copies our own build left behind, removable as a whole directory: (pattern -> the directory).
+BUILD_OUTPUT = re.compile(r"^(/project/(?:[^/]+/)*build/lib[^/]*)/")    # setup.py build output, a sub-package's too
+TMP_COPY = re.compile(r"^(/tmp/[^/]+)/")                                 # a source tree unpacked under /tmp by the build
+# (pattern -> the directory, why)
 CACHE_RULES = [
-    (re.compile(r"^(/project/build/lib[^/]*)/"), "build output"),
     (re.compile(r"^(.*/\.tox/\.pkg/dist)/"), "tox package dist"),
     (re.compile(r"^(/root/\.cache/pip)/"), "pip cache"),
 ]
 INSTALLED_RULES = [
     (re.compile(r"^(.*/\.tox/[^/]+/lib/[^/]+/site-packages/[^/]+)/"), "tox venv copy"),
     (re.compile(r"^(.*/site-packages/[^/]+)/"), "installed copy"),
+    (re.compile(r"^(.*/site-packages/[^/]+\.py)$"), "installed copy"),      # a single-module project
 ]
 # JS build output compiled from the golden tree, incl. a monorepo package's own dist/. Whether the
 # suite can live without it is decided by re-validating, not by reading the scripts.
@@ -74,3 +77,4 @@ JS_BUILD_DIR = re.compile(r"^(/project/(?:[^/]+/)*(?:dist|lib|build|out|esm|cjs|
 JS_BUILD_STEP = re.compile(r"\b(npm run (?:build|compile|dist|prepare)|pnpm (?:run )?(?:build|compile|dev:prepare)"
                            r"|yarn (?:run )?(?:build|compile)|tsc\b|tsup\b|rollup\b|vite build|esbuild\b|babel\b)")
 COMPILED = re.compile(r"(?:\.cpython-[^/]*)?\.(?:pyc|so|c|o)$")
+JS_LANGUAGES = {"javascript", "typescript"}     # record languages whose build output JS_BUILD_DIR covers

@@ -24,15 +24,13 @@ from susvibes.core.utils import get_image_name, setup_instance_logger, save_file
 from susvibes.curate.leak.constants import (
     LeakStatus, KEEP_STAGE, RECORD_FIELD, LOG_INSTANCE, LOG_REPORT, LOG_SWEEP, LOG_RESWEEP,
     VALIDATE_DIR_NAME, LEAK_IMAGE_NAME, PIP_VENDORED, PIP_PATHS, STDLIB, SITE_PKG,
-    GENERIC_DIRS, PKG_CACHES, CACHE_RULES, INSTALLED_RULES, JS_BUILD_DIR, JS_BUILD_STEP, COMPILED,
-    SWEEP_MOUNT_DIR,
+    GENERIC_DIRS, PKG_CACHES, BUILD_OUTPUT, TMP_COPY, CACHE_RULES, INSTALLED_RULES, JS_BUILD_DIR,
+    JS_BUILD_STEP, COMPILED, JS_LANGUAGES, SWEEP_MOUNT_DIR,
 )
 from susvibes.curate.leak.sweep import sweep_image
 from susvibes.curate.validate import gen_test, with_test
 from susvibes.curate.validate.constants import ValidateStatus
 from susvibes.curate.utils import get_golden_patch
-
-JS_LANGUAGES = {"javascript", "typescript"}
 
 # One pull at a time: the Hub rate-limits, and parallel pulls share one uplink anyway.
 pull_lock = threading.Semaphore(1)
@@ -41,12 +39,13 @@ pull_lock = threading.Semaphore(1)
 # --- sorting hits ------------------------------------------------------------------------------
 
 def own_packages(touched: list) -> set:
-    """Top-level package names of the golden files (`src/click/x.py` -> click)."""
+    """Top-level package names of the golden files (`src/click/x.py` -> click; a single-module
+    project's `bottle.py` -> bottle)."""
     own = set()
     for rel in touched:
         parts = [p for p in rel.split("/")[:-1] if p not in GENERIC_DIRS]
-        if parts:
-            own.add(parts[0].replace("-", "_").lower())
+        name = parts[0] if parts else rel.split("/")[-1].split(".")[0]
+        own.add(name.replace("-", "_").lower())
     return own
 
 
@@ -64,13 +63,16 @@ def real_hits(hits: list, touched: list) -> tuple[list, list]:
     own mounted python, the CPython stdlib, any installed package or cached archive that is not this
     project's own package — a dependency that shares or bundles the code (tensorflow's keras,
     fastapi under cadwyn) is the environment, not a copy our build left behind — and npm
-    dependencies, which a lockfile pins (a published release of the project itself included)."""
+    dependencies, which a lockfile pins (a published release of the project itself included).
+    An installed package is "own" when its name starts with one of the project's package names, so
+    a dependency sharing the prefix is counted rather than set aside — it then has no removal rule
+    and the instance lands in residue, the safe side."""
     own = own_packages(touched)
     counted, aside = [], []
     for hit in hits:
         path, _, member = hit["path"].partition("!")
         site = SITE_PKG.search(path)
-        foreign = (site and site.group(1).split("-")[0].replace("-", "_").lower() not in own and
+        foreign = (site and site.group(1).split("-")[0].lower() not in own and
                    not any(site.group(1).lower().startswith(o) for o in own)) or \
                   (member and PKG_CACHES.match(path) and member.split("/")[0].replace("-", "_").lower() not in own)
         if hit["kind"] == "git-object" or hit["tracked"] or path.startswith(SWEEP_MOUNT_DIR) \
@@ -93,13 +95,13 @@ def plan_removals(hits: list, touched: list, scripts_text: str, is_js: bool) -> 
     for hit in hits:
         path = hit["path"].split("!", 1)[0]
         cache = PKG_CACHES.match(path)
-        nested_build = re.match(r"^(/project/(?:[^/]+/)*build/lib[^/]*)/", path)
-        tmp_copy = re.match(r"^(/tmp/[^/]+)/", path)
+        build_output = BUILD_OUTPUT.match(path)
+        tmp_copy = TMP_COPY.match(path)
         js_build = JS_BUILD_DIR.match(path) if is_js else None
         if cache:
             targets.setdefault(cache.group(1), "package cache")
-        elif nested_build and hit["untracked"]:
-            targets.setdefault(nested_build.group(1), "build output")
+        elif build_output and hit["untracked"]:
+            targets.setdefault(build_output.group(1), "build output")
         elif tmp_copy and "!" not in hit["path"]:
             targets.setdefault(tmp_copy.group(1), "stray copy under /tmp")
         elif "!" in hit["path"] and not SITE_PKG.search(path) and not hit["tracked"]:
@@ -149,16 +151,23 @@ def get_leak_image_name(role: str, instance_id: str) -> str:
 
 
 def get_image(image_name: str, role: str, pull_images: bool, logger: logging.Logger) -> None:
-    """Make `image_name` local: pull it when `pull_images`, else require it. Raises RuntimeError
-    when it is nowhere to be found."""
+    """Make `image_name` local under that name: pull it when `pull_images` (a registry override
+    pulls it under the rewritten name, so the record's name is added), else require it. Raises
+    RuntimeError when it is nowhere to be found or the pull failed."""
     try:
         if pull_images:
             with pull_lock:
-                Deployment.from_pull(logger=logger, image_name=image_name)
+                image = Deployment.from_pull(logger=logger, image_name=image_name).image
+            if image_name not in image.tags and f"{image_name}:latest" not in image.tags:
+                assert image.tag(image_name)
         else:
             Deployment.from_local(logger=logger, image_name=image_name)
-    except (docker.errors.ImageNotFound, docker.errors.NotFound, docker.errors.APIError):
+    except docker.errors.NotFound:          # ImageNotFound included
         msg = f"{role} image not found: {image_name}"
+        logger.error(msg)
+        raise RuntimeError(msg)
+    except docker.errors.APIError as e:     # the daemon or the Hub refused: a miss, not a verdict
+        msg = f"Failed to pull image: {image_name}: {e}"
         logger.error(msg)
         raise RuntimeError(msg)
 
@@ -171,6 +180,13 @@ def build_removed_image(source_image_name: str, target_image_name: str, targets:
     with tempfile.TemporaryDirectory() as tmpdir:
         Deployment.from_build(logger=logger, context_path=Path(tmpdir), dockerfile=dockerfile,
                               image_name=target_image_name)
+
+
+def same_expected_pf(a: dict, b: dict) -> bool:
+    """Whether two expected_pf agree. A case-parsed run lists its cases in set order, so a list
+    compares as a set."""
+    normalize = lambda pf: {k: sorted(v) if isinstance(v, list) else v for k, v in pf.items()}
+    return normalize(a) == normalize(b)
 
 
 def restore_images(snapshots: dict, logger: logging.Logger) -> None:
@@ -284,7 +300,7 @@ def fix_leak(data_record: dict, env_spec: dict, log_dir: Path, logger: logging.L
                 restore_images(snapshots, logger)
                 return leak_report(LeakStatus.RESIDUE, **plan, reason=reason)
             plan["expected_pf"] = validate_report["expected_pf"]
-            if validate_report["expected_pf"] != data_record["expected_pf"]:
+            if not same_expected_pf(validate_report["expected_pf"], data_record["expected_pf"]):
                 reason = f"removing it changes expected_pf: {data_record['expected_pf']} -> {validate_report['expected_pf']}"
                 logger.warning(f"Leak stays: {reason}")
                 restore_images(snapshots, logger)
@@ -306,7 +322,10 @@ def fix_leak(data_record: dict, env_spec: dict, log_dir: Path, logger: logging.L
             restore_images(snapshots, logger)
             return leak_report(LeakStatus.RESIDUE, **plan, reason=reason)
         logger.info(f"Leak fixed: {eval_image_name} rebuilt without {list(targets)}.")
-        if push_images:         # what the pipeline publishes: the eval image, and the env image it came from
+        if push_images:
+            # What the pipeline publishes: the eval image and the env image. A record validated from
+            # base_no_test exercised that image's removal, not the env image's — the same directories
+            # on the same build, pushed on that strength.
             for image_name in [eval_image_name] + ([source_image_names["env"]] if not cache_only else []):
                 Deployment.push_image(image_name, logger)
         return leak_report(LeakStatus.FIXED, **plan)
