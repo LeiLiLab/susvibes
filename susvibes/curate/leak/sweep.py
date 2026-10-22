@@ -6,13 +6,15 @@ tree), then the filesystem is walked:
 - exact copies: every file whose size matches a golden file is hashed, and so is every member of
   every zip / tar archive (found by magic bytes, so pip's extension-less HTTP cache is included);
 - derived copies: every file or archive member named after a golden module (`.pyc`, `.so`, `.c`,
-  `.o`, another version's `.py`, ...), and every untracked file under /project, is grepped for
-  golden-only lines — at least MIN_MARKERS of them, so one shared line is not a hit;
+  `.o`, another version's `.py`, ...), and every file under /project the upstream repo does not
+  track, is grepped for golden-only lines — at least MIN_MARKERS of them, so one shared line is
+  not a hit;
 - every git object in /project is hashed.
 
-A hit records whether its file is tracked by the repo, untracked, or outside /project.
+A hit records whether its file is tracked by the upstream repo at the base commit (the tree the
+agent is given, read from the local clone — the eval image's own git history is a fresh commit of
+everything), untracked under /project, or outside /project.
 """
-import base64
 import json
 import logging
 import tarfile
@@ -25,8 +27,8 @@ import requests
 from susvibes.core.env import Deployment
 from susvibes.core.utils import touched_files
 from susvibes.curate.leak.constants import (
-    SWEEP_PYTHON_URL, SWEEP_PYTHON_DIR, SWEEP_MOUNT_DIR, SWEEP_TIMEOUT, SWEEP_MEM_LIMIT,
-    SWEEP_CPU_LIMIT, MIN_MARKERS,
+    SWEEP_PYTHON_URL, SWEEP_PYTHON_DIR, SWEEP_MOUNT_DIR, SWEEP_INPUT_DIR, SWEEP_TIMEOUT,
+    SWEEP_MEM_LIMIT, SWEEP_CPU_LIMIT, MIN_MARKERS,
 )
 
 # Runs inside the image on the mounted python. Golden-only lines (markers) are computed against the
@@ -34,8 +36,7 @@ from susvibes.curate.leak.constants import (
 SWEEP_SRC = r'''
 import base64, hashlib, json, os, subprocess, tarfile, zipfile
 
-SKIP_DIRS = {"/proc", "/sys", "/dev", "/run", "/tmp/gold", "/project/.git", MOUNT_DIR}
-SKIP_FILES = {"/tmp/gp.patch", "/tmp/sweep.py", "/tmp/touched.txt"}
+SKIP_DIRS = {"/proc", "/sys", "/dev", "/run", "/tmp/gold", "/project/.git", MOUNT_DIR, INPUT_DIR}
 MAX_READ = 64 << 20
 
 def sha_bytes(blob):
@@ -44,7 +45,8 @@ def sha_bytes(blob):
 def module_stem(name):
     return name.split(".", 1)[0]
 
-touched = json.loads(base64.b64decode(os.environ["TOUCHED_B64"]))
+inputs = json.load(open(INPUT_DIR + "/inputs.json"))
+touched, tracked_files = inputs["touched"], set(inputs["tracked"])
 gold, work, markers = {}, {}, {}
 for rel in touched:
     gold_path, work_path = "/tmp/gold/" + rel, "/project/" + rel
@@ -65,8 +67,6 @@ for rel in gold:
 sha_to_rel = {s: rel for rel, (s, _) in gold.items()}
 sizes = {size for _, size in gold.values()}
 work_paths = {"/project/" + rel for rel in touched}
-listing = subprocess.run(["git", "-C", "/project", "ls-files", "-o", "-z"], capture_output=True)
-untracked = {"/project/" + p.decode("utf-8", "replace") for p in listing.stdout.split(b"\0") if p}
 
 def best_markers(blob, rels):
     best = None
@@ -79,9 +79,10 @@ def best_markers(blob, rels):
 hits = []
 def add(kind, path, rel, found=None):
     disk = path.split("!", 1)[0]
+    tracked = disk.startswith("/project/") and disk[len("/project/"):] in tracked_files
     hit = {"kind": kind, "path": path, "rel": rel,
-           "untracked": disk in untracked,
-           "tracked": disk.startswith("/project/") and disk not in untracked}
+           "tracked": tracked,
+           "untracked": disk.startswith("/project/") and not tracked}
     if found is not None:
         hit.update(markers=len(found), of=len(markers[rel]),
                    example=found[0][:80].decode("utf-8", "replace"))
@@ -114,7 +115,7 @@ for dirpath, dirnames, filenames in os.walk("/", topdown=True):
     dirnames[:] = [d for d in dirnames if os.path.join(dirpath, d) not in SKIP_DIRS]
     for name in filenames:
         path = os.path.join(dirpath, name)
-        if path in SKIP_FILES or path in work_paths:
+        if path in work_paths:
             continue
         try:
             if os.path.islink(path) or not os.path.isfile(path):
@@ -142,7 +143,8 @@ for dirpath, dirnames, filenames in os.walk("/", topdown=True):
         except Exception:
             pass
         rels = stem_to_rels.get(module_stem(name))
-        if (rels or path in untracked) and size <= MAX_READ:
+        untracked = path.startswith("/project/") and path[len("/project/"):] not in tracked_files
+        if (rels or untracked) and size <= MAX_READ:
             try:
                 blob = open(path, "rb").read()
             except OSError:
@@ -154,6 +156,8 @@ for dirpath, dirnames, filenames in os.walk("/", topdown=True):
 objects = subprocess.run(["git", "-C", "/project", "cat-file", "--batch-all-objects",
                           "--batch-check=%(objectname) %(objecttype)"],
                          capture_output=True, text=True)
+if objects.returncode != 0:
+    raise SystemExit("git cat-file failed in /project: " + objects.stderr.strip()[-300:])
 for line in objects.stdout.splitlines():
     name, _, kind = line.partition(" ")
     if kind != "blob":
@@ -164,22 +168,21 @@ for line in objects.stdout.splitlines():
         add("git-object", name, sha_to_rel[sha_bytes(blob)])
 
 print("__RESULT__" + json.dumps({"gold": {r: s for r, (s, _) in gold.items()}, "work": work, "hits": hits}))
-'''.replace("MOUNT_DIR", repr(SWEEP_MOUNT_DIR)).replace("MIN_MARKERS", str(MIN_MARKERS))
+'''.replace("MOUNT_DIR", repr(SWEEP_MOUNT_DIR)).replace("INPUT_DIR", repr(SWEEP_INPUT_DIR)).replace("MIN_MARKERS", str(MIN_MARKERS))
 
 # Rebuilds the golden files under /tmp/gold from the work tree + golden_patch, then runs the sweep.
+# Inputs come by bind mount: an environment variable caps at 128 KiB, a patch does not.
 CONTAINER_SH = f'''
 PY={SWEEP_MOUNT_DIR}/bin/python3; export LD_LIBRARY_PATH={SWEEP_MOUNT_DIR}/lib:${{LD_LIBRARY_PATH:-}}
-echo "$GP_B64" | base64 -d > /tmp/gp.patch
-echo "$SWEEP_B64" | base64 -d > /tmp/sweep.py
+IN={SWEEP_INPUT_DIR}
 mkdir -p /tmp/gold
 cd /project
-echo "$TOUCHED_B64" | base64 -d | $PY -c "import json,sys; print('\\n'.join(json.load(sys.stdin)))" > /tmp/touched.txt
-while read -r f; do [ -f "$f" ] && cp --parents "$f" /tmp/gold/ || true; done < /tmp/touched.txt
+while read -r f; do [ -f "$f" ] && cp --parents "$f" /tmp/gold/ || true; done < $IN/touched.txt
 cd /tmp/gold
-if git apply -p1 /tmp/gp.patch 2>/dev/null; then echo "__APPLY__git"
-elif patch -p1 --batch --forward < /tmp/gp.patch >/dev/null 2>&1; then echo "__APPLY__patch"
+if git apply -p1 $IN/golden.patch 2>/dev/null; then echo "__APPLY__git"
+elif patch -p1 --batch --forward < $IN/golden.patch >/dev/null 2>&1; then echo "__APPLY__patch"
 else echo "__APPLY__FAIL"; fi
-$PY /tmp/sweep.py
+$PY $IN/sweep.py
 '''
 
 sweep_python_lock = threading.Lock()
@@ -210,35 +213,34 @@ def ensure_sweep_python(logger: logging.Logger) -> Path:
         return SWEEP_PYTHON_DIR
 
 
-def b64(text: str) -> str:
-    return base64.b64encode(text.encode()).decode()
-
-
-def sweep_image(golden_patch: str, image_name: str, logger: logging.Logger) -> dict:
-    """Walk the local image for copies of the golden code `golden_patch` produces. Returns {touched,
-    apply, gold, work, hits}: `touched` the files the patch touches on either side, `apply` how it
-    applied (`git` / `patch` / `FAIL`), `hits` the copies found.
+def sweep_image(golden_patch: str, tracked_files: set, image_name: str, logger: logging.Logger) -> dict:
+    """Walk the local image for copies of the golden code `golden_patch` produces; `tracked_files`
+    is the upstream repo's tree at the base commit. Returns {touched, apply, gold, work, hits}:
+    `touched` the files the patch touches on either side, `apply` how it applied (`git` / `patch`
+    / `FAIL`), `hits` the copies found.
 
     Raises RuntimeError when the sweep itself did not conclude (the container timed out or
     produced no result) — the harness failing, not a verdict about the image."""
     python_dir = ensure_sweep_python(logger)
     # Both sides: a file the patch deletes must be in the scratch copy for the patch to apply.
     touched = sorted(touched_files(golden_patch, side="post") | touched_files(golden_patch, side="pre"))
-    environment = {
-        "GP_B64": b64(golden_patch),
-        "SWEEP_B64": b64(SWEEP_SRC),
-        "TOUCHED_B64": b64(json.dumps(touched)),
-    }
-    deployment = Deployment.from_local(logger=logger, image_name=image_name)
-    deployment.create_container(
-        command=["-c", CONTAINER_SH],
-        entrypoint="/bin/sh",
-        environment=environment,
-        volumes={str(python_dir): {"bind": SWEEP_MOUNT_DIR, "mode": "ro"}},
-        mem_limit=SWEEP_MEM_LIMIT,
-        cpu_limit=SWEEP_CPU_LIMIT,
-    )
-    run_logs, timed_out = deployment.run_with_timeout(timeout=SWEEP_TIMEOUT)
+    with tempfile.TemporaryDirectory() as input_dir:
+        input_dir = Path(input_dir)
+        (input_dir / "golden.patch").write_text(golden_patch)
+        (input_dir / "sweep.py").write_text(SWEEP_SRC)
+        (input_dir / "touched.txt").write_text("\n".join(touched) + "\n")
+        (input_dir / "inputs.json").write_text(json.dumps({"touched": touched, "tracked": sorted(tracked_files)}))
+        input_dir.chmod(0o755)
+        deployment = Deployment.from_local(logger=logger, image_name=image_name)
+        deployment.create_container(
+            command=["-c", CONTAINER_SH],
+            entrypoint="/bin/sh",
+            volumes={str(python_dir): {"bind": SWEEP_MOUNT_DIR, "mode": "ro"},
+                     str(input_dir): {"bind": SWEEP_INPUT_DIR, "mode": "ro"}},
+            mem_limit=SWEEP_MEM_LIMIT,
+            cpu_limit=SWEEP_CPU_LIMIT,
+        )
+        run_logs, timed_out = deployment.run_with_timeout(timeout=SWEEP_TIMEOUT)
     if timed_out:
         raise RuntimeError(f"Sweep timed out: {image_name}")
     lines = run_logs.splitlines()

@@ -18,9 +18,10 @@ import threading
 from pathlib import Path
 
 import docker.errors
+import requests
 
 from susvibes.core.env import Deployment
-from susvibes.core.report import reuse_report, save_report, strip_bookkeeping
+from susvibes.core.report import reuse_report, save_report, strip_bookkeeping, is_errored
 from susvibes.core.utils import get_image_name, setup_instance_logger, save_file
 from susvibes.curate.leak.constants import (
     LeakStatus, KEEP_STAGE, RECORD_FIELD, LOG_INSTANCE, LOG_REPORT, LOG_SWEEP, LOG_RESWEEP,
@@ -31,7 +32,7 @@ from susvibes.curate.leak.constants import (
 from susvibes.curate.leak.sweep import sweep_image
 from susvibes.curate.validate import gen_test, with_test
 from susvibes.curate.validate.constants import ValidateStatus
-from susvibes.curate.utils import get_golden_patch
+from susvibes.curate.utils import get_golden_patch, get_tracked_files
 
 # One pull at a time: the Hub rate-limits, and parallel pulls share one uplink anyway.
 pull_lock = threading.Semaphore(1)
@@ -250,11 +251,11 @@ def leak_miss(error: str) -> dict:
 
 
 def apply_leak_report(report: dict, data_record: dict, known_residue: set) -> None:
-    """Project one concluded report onto the record: this stage's `keep` verdict (residue goes,
-    unless the instance's residue was reviewed and listed as known) and the report itself."""
-    residue = report["leak_status"] == LeakStatus.RESIDUE
-    known = residue and data_record["instance_id"] in known_residue
-    data_record.setdefault("keep", {})[KEEP_STAGE] = not residue or known
+    """Project one report onto the record: this stage's `keep` verdict — clean or fixed keeps,
+    residue goes unless the instance's residue was reviewed and listed as known, and a run that
+    did not conclude goes too, as in validate — and the report itself."""
+    known = report["leak_status"] == LeakStatus.RESIDUE and data_record["instance_id"] in known_residue
+    data_record.setdefault("keep", {})[KEEP_STAGE] = report["leak_status"] in (LeakStatus.CLEAN, LeakStatus.FIXED) or known
     data_record[RECORD_FIELD] = {**strip_bookkeeping(report), "known_residue": known}
 
 
@@ -277,8 +278,9 @@ def fix_leak(data_record: dict, env_spec: dict, log_dir: Path, logger: logging.L
 
     try:
         golden_patch = get_golden_patch(data_record)
+        tracked_files = get_tracked_files(data_record)
         get_image(eval_image_name, "Eval", pull_images, logger)
-        sweep = sweep_image(golden_patch, eval_image_name, logger)
+        sweep = sweep_image(golden_patch, tracked_files, eval_image_name, logger)
         if sweep["apply"] == "FAIL":
             msg = f"golden_patch did not apply in the eval image: {eval_image_name}"
             logger.error(msg)
@@ -312,17 +314,19 @@ def fix_leak(data_record: dict, env_spec: dict, log_dir: Path, logger: logging.L
             build_removed_image(eval_leak_image_name, eval_image_name, targets, logger)
         else:
             for role, image_name in source_image_names.items():
-                get_image(image_name, role.capitalize(), pull_images, logger)
+                get_image(image_name, role.capitalize(), pull_images and role == "env", logger)   # base_no_test is never pushed
                 leak_image_name = get_leak_image_name(role, instance_id)
                 Deployment.tag_image(image_name, leak_image_name, logger)
                 images.update({role: image_name, f"{role}_leak": leak_image_name})
                 snapshots[image_name] = leak_image_name
                 build_removed_image(leak_image_name, image_name, targets, logger)
             validate_report = revalidate(data_record, env_spec, log_dir)
+            if is_errored(validate_report):
+                raise RuntimeError(f"Re-validation did not conclude: {validate_report['error']}")
             plan["validate_status"] = validate_report["validate_status"]
             if validate_report["validate_status"] != ValidateStatus.VALIDATED:
                 reason = "removing it breaks validation: {}".format(
-                    validate_report["error"] or validate_report.get("reason") or validate_report["validate_status"])
+                    validate_report.get("reason") or validate_report["validate_status"])
                 logger.warning(f"Leak stays: {reason}")
                 restore_images(snapshots, logger)
                 return leak_report(LeakStatus.RESIDUE, **plan, reason=reason)
@@ -340,7 +344,7 @@ def fix_leak(data_record: dict, env_spec: dict, log_dir: Path, logger: logging.L
                 restore_images(snapshots, logger)
                 return leak_report(LeakStatus.RESIDUE, **plan, reason=reason)
 
-        resweep = sweep_image(golden_patch, eval_image_name, logger)
+        resweep = sweep_image(golden_patch, tracked_files, eval_image_name, logger)
         save_file({"apply": resweep["apply"], "hits": resweep["hits"]}, log_dir / LOG_RESWEEP)
         still, _ = real_hits(resweep["hits"], resweep["touched"])
         if still:
@@ -352,9 +356,14 @@ def fix_leak(data_record: dict, env_spec: dict, log_dir: Path, logger: logging.L
         if push_images:
             # What the pipeline publishes: the eval image and the env image. A record validated from
             # base_no_test exercised that image's removal, not the env image's — the same directories
-            # on the same build, pushed on that strength.
+            # on the same build, pushed on that strength. A push that fails leaves the fix standing;
+            # wrap_up --push_images pushes the eval image again.
             for image_name in [eval_image_name] + ([source_image_names["env"]] if not cache_only else []):
-                Deployment.push_image(image_name, logger)
+                try:
+                    Deployment.push_image(image_name, logger)
+                except (docker.errors.APIError, requests.exceptions.RequestException) as e:
+                    logger.error(f"Failed to push image: {image_name}: {e}")
+                    plan.setdefault("push_errors", {})[image_name] = str(e)
         return leak_report(LeakStatus.FIXED, **plan)
     except (RuntimeError, docker.errors.BuildError) as e:
         logger.error(f"Leak check did not conclude: {e}")
@@ -383,14 +392,18 @@ def fix_leak_single(
 
     logger = setup_instance_logger(log_dir / LOG_INSTANCE, __spec__.name, instance_id, handle_tqdm=True)
     logger.info(f"Checking the eval image of {instance_id} for golden leaks...")
-    # An earlier attempt that died mid-fix leaves its snapshots behind; plan from the originals, so
-    # a half-rebuilt image under the standard name cannot hide what it removed.
-    for role, field in (("eval", "image_name"), ("env", "env_image_name"), ("base_no_test", "base_no_test_image_name")):
-        if data_record.get(field):
-            try:
-                Deployment.tag_image(get_leak_image_name(role, instance_id), data_record[field], logger)
-            except docker.errors.ImageNotFound:
-                pass
+    # An attempt that died mid-fix (no report, or an errored one) leaves its snapshots behind and
+    # maybe a half-rebuilt image under the standard name: plan from the originals. After a
+    # concluded run the snapshots are a record, not a rollback point — a `--force` re-run checks
+    # the images as they stand, which may have been rebuilt upstream since.
+    previous = reuse_report(log_dir / LOG_REPORT)
+    if previous is None or is_errored(previous):
+        for role, field in (("eval", "image_name"), ("env", "env_image_name"), ("base_no_test", "base_no_test_image_name")):
+            if data_record.get(field):
+                try:
+                    Deployment.tag_image(get_leak_image_name(role, instance_id), data_record[field], logger)
+                except docker.errors.ImageNotFound:
+                    pass
     report = fix_leak(data_record, env_spec, log_dir, logger, pull_images, push_images)
     save_report(report, log_dir / LOG_REPORT)
     return report

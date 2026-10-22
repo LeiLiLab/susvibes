@@ -146,6 +146,14 @@ def get_golden_patch(data_record: dict) -> str:
         return get_diff_patch(repo_dir, code_mask_commit, data_record["base_commit"])
 
 
+def get_tracked_files(data_record: dict) -> set:
+    """The files the upstream repo tracks at the record's base commit, read from the project's
+    shared clone (object store only, so no lock and no checkout)."""
+    repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
+    listing = run(["git", "ls-tree", "-r", "--name-only", "-z", data_record["base_commit"]], cwd=repo_dir)
+    return {name for name in listing.stdout.split("\0") if name}
+
+
 def should_keep(data_record, exclude=None, required=()) -> bool:
     """Whether this record should go on.
 

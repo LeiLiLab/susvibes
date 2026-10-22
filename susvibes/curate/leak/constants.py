@@ -39,6 +39,7 @@ SWEEP_PYTHON_URL = ("https://github.com/astral-sh/python-build-standalone/releas
                     "cpython-3.11.17%2B20261021-x86_64-unknown-linux-gnu-install_only.tar.gz")
 SWEEP_PYTHON_DIR = Path(os.environ.get("SV_SWEEP_PYTHON_DIR", root_dir / "build" / "sweep_python" / "python"))
 SWEEP_MOUNT_DIR = "/opt/svpy"
+SWEEP_INPUT_DIR = "/opt/svsweep"    # the sweep script and its inputs, bind-mounted read-only
 SWEEP_TIMEOUT = 3600            # seconds; a 12 GB image walks in well under an hour
 SWEEP_MEM_LIMIT = "8g"
 SWEEP_CPU_LIMIT = 4

@@ -28,12 +28,15 @@ projected onto the record as `leak` and as its `keep.leak` verdict):
   caches is applied to the eval image directly (`cache_only`), with no re-validation.
 - **residue** — a copy stays, and the instance is excluded (`keep.leak = false`): either no removal
   rule covers it (`refused`), or removing it broke one of the checks above, in which case the
-  original images are restored under their standard names. `reason` says which. A residue reviewed
+  original images are restored under their standard names. `reason` says which. A run that did
+  not conclude (`error` set) also keeps nothing, as in validate, until `--resume` concludes it. A residue reviewed
   and accepted by hand keeps its verdict: list its instance id in `datasets/<run_id>/known_residue.json`
   (a JSON list).
 
 Every image the fix touched is recorded under `images`; `sweep.json` / `resweep.json` beside the
-report hold the raw hits.
+report hold the raw hits. The `*_leak_<id>` snapshots are a record of the originals, not a rollback
+point: a `--force` re-run checks the images as they stand (so an instance rebuilt upstream since is
+simply re-checked), and only a run that died mid-fix plans from the snapshots again.
 
 ## Usage
 

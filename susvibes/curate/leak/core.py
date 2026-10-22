@@ -69,8 +69,7 @@ def fix_leak_threadpool(
                 except Exception as e:
                     raise RuntimeError(f"Internal error for {instance_id}: {e}")
                 reports[instance_id] = report
-                if not report["error"]:
-                    apply_leak_report(report, dataset_by_id[instance_id], known_residue)
+                apply_leak_report(report, dataset_by_id[instance_id], known_residue)
                 pbar.update(1)
                 residue = sum(1 for r in reports.values() if r["leak_status"] == LeakStatus.RESIDUE)
                 pbar.set_description(f"{len(reports) - residue} clean or fixed, {residue} residue")
