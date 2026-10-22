@@ -147,7 +147,7 @@ python -m susvibes.curate.env_setup.build_repo \
   [--force]                      # Optional: rebuild everything with docker's layer cache bypassed
 ```
 
-## 9. Validating and Publishing
+## 9. Validating
 
 Validation synthesizes test-suite output parsers and verifies each task instance against its environment (expected security + functional test breaks), tagging an evaluation image per validated instance:
 
@@ -178,7 +178,7 @@ python -m susvibes.curate.wrap_up \
   --run_id playground
 ```
 
-This filters to validated instances, computes each golden patch, strips records to the released schema, and writes the result to `datasets/<run_id>/susvibes_dataset.jsonl` — the final dataset the evaluation harness consumes. Pass `--push_to_hub` to also upload it to the Hugging Face dataset repo set by `HF_DATASET_REPO` in [`susvibes/core/constants.py`](../core/constants.py) (set `HF_TOKEN` with write access in your `.env` first).
+This filters to the instances that passed every stage (validation and the leak check), computes each golden patch, strips records to the released schema, and writes the result to `datasets/<run_id>/susvibes_dataset.jsonl` — the final dataset the evaluation harness consumes. Pass `--push_to_hub` to also upload it to the Hugging Face dataset repo set by `HF_DATASET_REPO` in [`susvibes/core/constants.py`](../core/constants.py) (set `HF_TOKEN` with write access in your `.env` first).
 
 ## Two Curation Pipelines
 

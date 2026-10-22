@@ -220,8 +220,8 @@ def apply_leak_report(report: dict, data_record: dict, known_residue: set) -> No
 def fix_leak(data_record: dict, env_spec: dict, log_dir: Path, logger: logging.Logger,
              pull_images: bool, push_images: bool) -> dict:
     """The check and fix of one instance; returns its report. Every early `return` is a conclusion;
-    a RuntimeError / BuildError is the harness failing, which the caller turns into a miss after
-    the standard names are restored."""
+    a RuntimeError / BuildError is the harness failing, reported as a miss once the standard names
+    are restored."""
     instance_id = data_record["instance_id"]
     eval_image_name = data_record["image_name"]
     eval_leak_image_name = get_leak_image_name("eval", instance_id)

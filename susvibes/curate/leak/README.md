@@ -24,19 +24,23 @@ projected onto the record as `leak` and as its `keep.leak` verdict):
 - **residue** — a copy stays, and the instance is excluded (`keep.leak = false`): either no removal
   rule covers it (`refused`), or removing it broke one of the checks above, in which case the
   original images are restored under their standard names. `reason` says which. A residue reviewed
-  and accepted by hand is listed in `datasets/<run_id>/known_residue.json` and keeps its verdict.
+  and accepted by hand keeps its verdict: list its instance id in `datasets/<run_id>/known_residue.json`
+  (a JSON list).
 
 Every image the fix touched is recorded under `images`; `sweep.json` / `resweep.json` beside the
 report hold the raw hits.
 
 ## Usage
 
+Runs on a `validate`d run: each gated record's eval image must be local or pullable, and a record
+that names a `base_no_test` image needs it local (the pipeline never pushes one).
+
 ```bash
 python -m susvibes.curate.leak.core \
   --run_id playground \
   --max_workers 2 \
-  [--pull_images]   # pull each eval (and env) image from the Docker Hub instead of using the local one
-  [--push_images]   # push each fixed instance's rebuilt images
+  [--pull_images]   # pull the eval (and env) images from the Docker Hub instead of requiring them locally
+  [--push_images]   # push each fixed instance's rebuilt eval and env images
   [--resume | --force]
 ```
 
