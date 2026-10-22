@@ -225,16 +225,14 @@ def restore_images(snapshots: dict, logger: logging.Logger) -> None:
 
 
 def revalidate(data_record: dict, env_spec: dict, log_dir: Path) -> dict:
-    """Re-run the validation this instance passed — gen_test or with_test by its flags, from the
-    base_no_test image when the record names one (an edited test_patch) — on the images under their
-    standard names, in a fresh log dir of its own; returns validate's report. The env_spec's logs
-    handler is reused, so no parser is re-synthesized."""
+    """Re-run the validation this instance passed — gen_test or with_test by its flags, each
+    starting from the image the record names — on the images under their standard names, in a
+    fresh log dir of its own; returns validate's report. The env_spec's logs handler is reused, so
+    no parser is re-synthesized."""
     validate_log_dir = log_dir / VALIDATE_DIR_NAME
     shutil.rmtree(validate_log_dir / data_record["instance_id"], ignore_errors=True)
-    if data_record["flags"].get("gen_test"):
-        return gen_test.validate_single(data_record, env_spec, validate_log_dir)
-    return with_test.validate_single(data_record, env_spec, validate_log_dir,
-                                     from_base_no_test_image=bool(data_record.get("base_no_test_image_name")))
+    validate = gen_test if data_record["flags"].get("gen_test") else with_test
+    return validate.validate_single(data_record, env_spec, validate_log_dir)
 
 
 # --- the report --------------------------------------------------------------------------------

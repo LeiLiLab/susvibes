@@ -170,12 +170,14 @@ def validate_single(
     validate_log_dir: Path,
     force: bool = False,
     resume: bool = False,
-    from_base_no_test_image: bool = False,
 ) -> dict:
     """Validate a single instance via test execution, reusing this instance's cached report unless
     `force`/`resume` asks to re-run it. Always returns a report: `validate_status` says how it
     concluded, `error` is set only when the harness itself failed. The caller projects a validated
-    report onto the record, env_specs and stats — the report is their cache, not their home."""
+    report onto the record, env_specs and stats — the report is their cache, not their home.
+
+    The runs start from the record's base_no_test image when it names one (`test.edit` built it, so
+    the dataset's edited test_patch is the only one applied) and from the env image otherwise."""
     instance_id = data_record["instance_id"]
     project, _ = parse_instance_id(instance_id)
 
@@ -187,10 +189,11 @@ def validate_single(
     logger = setup_instance_logger(log_dir / LOG_INSTANCE, __spec__.name, instance_id, handle_tqdm=True)
     logger.info(f"Validating environment for {instance_id}...")
 
-    image_kind = "base_no_test_image" if from_base_no_test_image else "env_image"
-    image_name = data_record.get(f"{image_kind}_name")
+    from_base_no_test_image = bool(data_record.get("base_no_test_image_name"))
+    image_role = "Base_no_test" if from_base_no_test_image else "Env"
+    image_name = data_record["base_no_test_image_name"] if from_base_no_test_image else data_record.get("env_image_name")
     if not image_name:
-        msg = f"{image_kind}_name missing from dataset."
+        msg = "env_image_name missing from dataset."
         logger.error(msg)
         raise RuntimeError(msg)
     try:
@@ -201,7 +204,7 @@ def validate_single(
             **env_spec
         )
     except (docker.errors.ImageNotFound, docker.errors.NotFound):
-        msg = f"Env image not found: {image_name}"
+        msg = f"{image_role} image not found: {image_name}"
         logger.error(msg)
         raise RuntimeError(msg)
     # The record's own flags (e.g. test_adapter) route every run; this line only re-decides gen_test.
@@ -276,7 +279,6 @@ def validate_threadpool(
     resume: bool = False,
     save_specs: bool = True,
     instance_ids: list = None,
-    from_base_no_test_image: bool = False,
 ):
     env_specs = get_env_specs(run_id, ("dev_tools", "dockerfile"))
     dataset_by_id = {data_record["instance_id"]: data_record
@@ -285,28 +287,6 @@ def validate_threadpool(
         & set(env_specs.keys())
     if instance_ids is not None:
         gated_ids = gated_ids & set(instance_ids)
-
-    if from_base_no_test_image:
-        use_bnt = set(gated_ids)
-    else:
-        use_bnt = set()
-        for iid in gated_ids:
-            bnt_name = dataset_by_id[iid].get("base_no_test_image_name")
-            if not bnt_name:
-                continue
-            try:
-                Deployment.collect_image(image_name=bnt_name)
-                use_bnt.add(iid)
-            except docker.errors.ImageNotFound:
-                pass
-        if use_bnt:
-            print(f"\n{len(use_bnt)}/{len(gated_ids)} candidate instances have base_no_test_image available locally.")
-            missing = len(gated_ids) - len(use_bnt)
-            if missing:
-                print(f"  (the other {missing} will continue to use env_image.)")
-            answer = input("Switch these to --from_base_no_test_image? [Y/n] ").strip().lower()
-            if answer not in ('', 'y'):
-                use_bnt = set()
 
     reset_llm_cost()
     reports = {}
@@ -320,7 +300,6 @@ def validate_threadpool(
                 validate_log_dir,
                 force=force,
                 resume=resume,
-                from_base_no_test_image=instance_id in use_bnt,
             ): instance_id
             for instance_id in gated_ids
         }
@@ -388,11 +367,6 @@ if __name__ == "__main__":
         default="default",
         help="Run ID for output subdirectory (datasets/<run_id>/...)",
     )
-    parser.add_argument(
-        "--from_base_no_test_image",
-        action="store_true",
-        help="Use the per-instance base_no_test image as the starting point.",
-    )
     args = parser.parse_args()
 
     dataset_path = get_dataset_path('dataset', args.run_id)
@@ -408,7 +382,6 @@ if __name__ == "__main__":
         resume=args.resume,
         save_specs=not args.skip_specs,
         instance_ids=args.instance_ids,
-        from_base_no_test_image=args.from_base_no_test_image,
     )
 
     save_file(dataset, dataset_path)
