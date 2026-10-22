@@ -4,8 +4,8 @@ prove the instance still validates the same way.
 A copy counts as a leak only when our build left it behind (`real_hits`); each counted hit maps to a
 directory to delete or is refused (`plan_removals`). A package download cache is stripped off the
 eval image directly — nothing on an import path, nothing under /project, so the tests cannot change.
-Anything else is removed from the env image, the instance is re-validated on it (which rebuilds the
-eval image), and the result must match: validated, the same expected_pf, the same Cmd/WorkingDir,
+Anything else is removed from the env image (and the base_no_test image, when the record validates
+from one), the instance is re-validated (which rebuilds the eval image), and the result must match: validated, the same expected_pf, the same Cmd/WorkingDir,
 and a re-sweep of the new eval image with no counted hit. A removal that fails any of these restores
 the original images under their standard names and leaves the instance as residue.
 """
@@ -23,7 +23,7 @@ from susvibes.core.report import reuse_report, save_report, strip_bookkeeping
 from susvibes.core.utils import get_image_name, setup_instance_logger, save_file
 from susvibes.curate.leak.constants import (
     LeakStatus, KEEP_STAGE, RECORD_FIELD, LOG_INSTANCE, LOG_REPORT, LOG_SWEEP, LOG_RESWEEP,
-    VALIDATE_DIR_NAME, ENV_LEAK_ROLE, EVAL_LEAK_ROLE, PIP_VENDORED, PIP_PATHS, STDLIB, SITE_PKG,
+    VALIDATE_DIR_NAME, LEAK_IMAGE_NAME, PIP_VENDORED, PIP_PATHS, STDLIB, SITE_PKG,
     GENERIC_DIRS, PKG_CACHES, CACHE_RULES, INSTALLED_RULES, JS_BUILD_DIR, JS_BUILD_STEP, COMPILED,
     SWEEP_MOUNT_DIR,
 )
@@ -143,6 +143,11 @@ def get_scripts_text(data_record: dict, env_spec: dict) -> str:
 
 # --- images ------------------------------------------------------------------------------------
 
+def get_leak_image_name(role: str, instance_id: str) -> str:
+    """The name the leaky `<role>_<id>` image is kept under."""
+    return get_image_name(LEAK_IMAGE_NAME.format(role=role, instance_id=instance_id))
+
+
 def get_image(image_name: str, role: str, pull_images: bool, logger: logging.Logger) -> None:
     """Make `image_name` local: pull it when `pull_images`, else require it. Raises RuntimeError
     when it is nowhere to be found."""
@@ -175,13 +180,16 @@ def restore_images(snapshots: dict, logger: logging.Logger) -> None:
 
 
 def revalidate(data_record: dict, env_spec: dict, log_dir: Path) -> dict:
-    """Re-run the validation this instance passed, on the env image under its standard name, in a
-    fresh log dir of its own; returns validate's report. The env_spec's logs handler is reused, so
-    no parser is re-synthesized."""
+    """Re-run the validation this instance passed — gen_test or with_test by its flags, from the
+    base_no_test image when the record names one (an edited test_patch) — on the images under their
+    standard names, in a fresh log dir of its own; returns validate's report. The env_spec's logs
+    handler is reused, so no parser is re-synthesized."""
     validate_log_dir = log_dir / VALIDATE_DIR_NAME
     shutil.rmtree(validate_log_dir / data_record["instance_id"], ignore_errors=True)
-    validate = gen_test if data_record["flags"].get("gen_test") else with_test
-    return validate.validate_single(data_record, env_spec, validate_log_dir)
+    if data_record["flags"].get("gen_test"):
+        return gen_test.validate_single(data_record, env_spec, validate_log_dir)
+    return with_test.validate_single(data_record, env_spec, validate_log_dir,
+                                     from_base_no_test_image=bool(data_record.get("base_no_test_image_name")))
 
 
 # --- the report --------------------------------------------------------------------------------
@@ -216,9 +224,11 @@ def fix_leak(data_record: dict, env_spec: dict, log_dir: Path, logger: logging.L
     the standard names are restored."""
     instance_id = data_record["instance_id"]
     eval_image_name = data_record["image_name"]
-    env_image_name = data_record["env_image_name"]
-    eval_leak_image_name = get_image_name(f"{EVAL_LEAK_ROLE}{instance_id}")
-    env_leak_image_name = get_image_name(f"{ENV_LEAK_ROLE}{instance_id}")
+    eval_leak_image_name = get_leak_image_name("eval", instance_id)
+    # What validate starts from: the env image, plus the base_no_test image when the record names one.
+    source_image_names = {"env": data_record["env_image_name"]}
+    if data_record.get("base_no_test_image_name"):
+        source_image_names["base_no_test"] = data_record["base_no_test_image_name"]
     images = {"eval": eval_image_name}
     snapshots = {}      # standard name -> snapshot of the image it held before the fix
 
@@ -258,11 +268,13 @@ def fix_leak(data_record: dict, env_spec: dict, log_dir: Path, logger: logging.L
             # the eval image and the re-validation is skipped. The re-sweep still has to be clean.
             build_removed_image(eval_leak_image_name, eval_image_name, targets, logger)
         else:
-            get_image(env_image_name, "Env", pull_images, logger)
-            Deployment.tag_image(env_image_name, env_leak_image_name, logger)
-            images.update(env=env_image_name, env_leak=env_leak_image_name)
-            snapshots[env_image_name] = env_leak_image_name
-            build_removed_image(env_leak_image_name, env_image_name, targets, logger)
+            for role, image_name in source_image_names.items():
+                get_image(image_name, role.capitalize(), pull_images, logger)
+                leak_image_name = get_leak_image_name(role, instance_id)
+                Deployment.tag_image(image_name, leak_image_name, logger)
+                images.update({role: image_name, f"{role}_leak": leak_image_name})
+                snapshots[image_name] = leak_image_name
+                build_removed_image(leak_image_name, image_name, targets, logger)
             validate_report = revalidate(data_record, env_spec, log_dir)
             plan["validate_status"] = validate_report["validate_status"]
             if validate_report["validate_status"] != ValidateStatus.VALIDATED:
@@ -294,8 +306,8 @@ def fix_leak(data_record: dict, env_spec: dict, log_dir: Path, logger: logging.L
             restore_images(snapshots, logger)
             return leak_report(LeakStatus.RESIDUE, **plan, reason=reason)
         logger.info(f"Leak fixed: {eval_image_name} rebuilt without {list(targets)}.")
-        if push_images:
-            for image_name in [eval_image_name] + ([env_image_name] if not cache_only else []):
+        if push_images:         # what the pipeline publishes: the eval image, and the env image it came from
+            for image_name in [eval_image_name] + ([source_image_names["env"]] if not cache_only else []):
                 Deployment.push_image(image_name, logger)
         return leak_report(LeakStatus.FIXED, **plan)
     except (RuntimeError, docker.errors.BuildError) as e:
@@ -316,7 +328,7 @@ def fix_leak_single(
     """Check and fix one instance's eval image, reusing its cached report unless `force`/`resume`
     asks to re-run it. Always returns a report: `leak_status` says how it concluded, `error` is set
     only when the harness itself failed. A fixed instance's images are rebuilt under their standard
-    names (pushed when `push_images`), with the leaky originals kept as `env_leak_` / `eval_leak_`."""
+    names (pushed when `push_images`), with the leaky originals kept as `<role>_leak_<id>`."""
     instance_id = data_record["instance_id"]
     log_dir = leak_log_dir / instance_id
     report = reuse_report(log_dir / LOG_REPORT, force=force, resume=resume)
@@ -327,12 +339,12 @@ def fix_leak_single(
     logger.info(f"Checking the eval image of {instance_id} for golden leaks...")
     # An earlier attempt that died mid-fix leaves its snapshots behind; plan from the originals, so
     # a half-rebuilt image under the standard name cannot hide what it removed.
-    for image_name, leak_role in ((data_record["image_name"], EVAL_LEAK_ROLE),
-                                  (data_record["env_image_name"], ENV_LEAK_ROLE)):
-        try:
-            Deployment.tag_image(get_image_name(f"{leak_role}{instance_id}"), image_name, logger)
-        except docker.errors.ImageNotFound:
-            pass
+    for role, field in (("eval", "image_name"), ("env", "env_image_name"), ("base_no_test", "base_no_test_image_name")):
+        if data_record.get(field):
+            try:
+                Deployment.tag_image(get_leak_image_name(role, instance_id), data_record[field], logger)
+            except docker.errors.ImageNotFound:
+                pass
     report = fix_leak(data_record, env_spec, log_dir, logger, pull_images, push_images)
     save_report(report, log_dir / LOG_REPORT)
     return report

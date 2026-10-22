@@ -28,10 +28,9 @@ LOG_RESWEEP = "resweep.json"        # the rebuilt eval image's hits
 VALIDATE_DIR_NAME = "validate"      # the re-validation's own log dir, under the instance's
 KNOWN_RESIDUE_FILE_NAME = "known_residue.json"   # under datasets/<run_id>/: residue reviewed and accepted
 
-# Image roles this stage adds: snapshots of the leaky env / eval images, kept beside the fixed
-# images that take the standard `env_` / `eval_` names.
-ENV_LEAK_ROLE = "env_leak_"
-EVAL_LEAK_ROLE = "eval_leak_"
+# A leaky `<role>_<id>` image is kept as `<role>_leak_<id>` beside the fixed one under the standard
+# name — the eval image, and whichever of env / base_no_test the fix rebuilt.
+LEAK_IMAGE_NAME = "{role}_leak_{instance_id}"
 
 # The sweep runs python inside images that may have none (node) or an old one, so it mounts a
 # self-contained build read-only. SV_SWEEP_PYTHON_DIR names an unpacked python-build-standalone

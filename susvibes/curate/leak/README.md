@@ -17,9 +17,10 @@ projected onto the record as `leak` and as its `keep.leak` verdict):
   the code, a lockfile-pinned npm package.
 - **fixed** — the copies were removed and the result verified: the instance re-validates with the
   same `expected_pf`, the eval image's `Cmd` / `WorkingDir` are unchanged, and a re-sweep finds
-  nothing. The rebuilt `env_<id>` / `eval_<id>` images take the standard names; the leaky originals
-  stay as `env_leak_<id>` / `eval_leak_<id>`. A removal that only touches package download caches
-  is applied to the eval image directly (`cache_only`), with no re-validation.
+  nothing. The rebuilt images take the standard names; the leaky originals stay as
+  `eval_leak_<id>`, `env_leak_<id>` and, for a record that validates from a `base_no_test` image
+  (an edited `test_patch`), `base_no_test_leak_<id>`. A removal that only touches package download
+  caches is applied to the eval image directly (`cache_only`), with no re-validation.
 - **residue** — a copy stays, and the instance is excluded (`keep.leak = false`): either no removal
   rule covers it (`refused`), or removing it broke one of the checks above, in which case the
   original images are restored under their standard names. `reason` says which. A residue reviewed
