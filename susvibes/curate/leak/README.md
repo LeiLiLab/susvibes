@@ -12,9 +12,14 @@ same way.
 One verdict per instance (`leak_status` in `logs/curate/<run_id>/leak/<instance_id>/report.json`,
 projected onto the record as `leak` and as its `keep.leak` verdict):
 
-- **clean** — no copy our build left behind. Copies that are not ours are set aside and counted
-  (`aside`): tracked repo files, pip's vendored copy, the CPython stdlib, a dependency that bundles
-  the code, a lockfile-pinned npm package.
+- **clean** — no copy our build left behind. Copies that are not ours are set aside, counted by
+  reason under `aside` and marked in `sweep.json`: a tracked repo file, pip's vendored copy, the
+  CPython stdlib, another project's installed package or cached archive (a dependency that bundles
+  the code), an npm dependency, and — named apart so it can be reviewed — a published release of
+  the project itself under `node_modules`. That last one is a lockfile-pinned release, so it
+  normally predates the fix (the openclaw audit in `docs/golden-leak` found no self-dependency
+  published after its record's fix); it cannot be removed, so an instance whose copy does carry
+  the golden code has to be excluded by hand.
 - **fixed** — the copies were removed and the result verified: the instance re-validates with the
   same `expected_pf`, the eval image's `Cmd` / `WorkingDir` are unchanged, and a re-sweep finds
   nothing. The rebuilt images take the standard names; the leaky originals stay as

@@ -320,7 +320,7 @@ def validate_threadpool(
                 validate_log_dir,
                 force=force,
                 resume=resume,
-                from_base_no_test_image=from_base_no_test_image,
+                from_base_no_test_image=instance_id in use_bnt,
             ): instance_id
             for instance_id in gated_ids
         }

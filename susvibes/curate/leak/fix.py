@@ -9,6 +9,7 @@ from one), the instance is re-validated (which rebuilds the eval image), and the
 and a re-sweep of the new eval image with no counted hit. A removal that fails any of these restores
 the original images under their standard names and leaves the instance as residue.
 """
+import collections
 import logging
 import re
 import shutil
@@ -57,30 +58,58 @@ def is_own_module(path: str, touched: list) -> bool:
                logical == "/".join(rel.split("/")[-2:]) for rel in touched)
 
 
+def is_own_name(name: str, own: set) -> bool:
+    """Whether an installed package / archive name belongs to this project. A name that starts with
+    one of the project's package names counts, so a dependency sharing the prefix is counted rather
+    than set aside — it then has no removal rule and the instance lands in residue, the safe side."""
+    name = name.split("-")[0].replace("-", "_").lower()
+    return name in own or any(name.startswith(o) for o in own)
+
+
+def aside_reason(hit: dict, own: set) -> str | None:
+    """Why a hit is not a leak our build left behind, or None when it is one. Set aside: tracked
+    repo files (the agent sees them anyway), git objects (wiped when the eval image is built), pip's
+    vendored copy, the sweep's own mounted python, the CPython stdlib, an installed package or cached
+    archive of another project (a dependency that shares or bundles the code — tensorflow's keras,
+    fastapi under cadwyn — is the environment), and anything under node_modules, which a lockfile
+    pins: a dependency, or a published release of the project itself (named separately, so a
+    reviewer can filter on it; a lockfile at the base commit pins a release published before the
+    fix, so that copy normally predates the golden code — the openclaw audit found no exception)."""
+    path, _, member = hit["path"].partition("!")
+    if hit["kind"] == "git-object":
+        return "git object"
+    if hit["tracked"]:
+        return "tracked repo file"
+    if path.startswith(SWEEP_MOUNT_DIR):
+        return "sweep python"
+    if PIP_VENDORED.search(path) or PIP_PATHS.search(path):
+        return "pip vendored copy"
+    if STDLIB.match(path):
+        return "CPython stdlib"
+    site = SITE_PKG.search(path)
+    if site and not is_own_name(site.group(1), own):
+        return "another project's installed package"
+    if member and PKG_CACHES.match(path) and not is_own_name(member.split("/")[0], own):
+        return "another project's cached archive"
+    if "/node_modules/" in path:
+        parts = path.split("/node_modules/")[-1].split("/")
+        name = "/".join(parts[:2]) if parts[0].startswith("@") else parts[0]
+        return "own package under node_modules" if is_own_name(name.split("/")[-1], own) else "npm dependency"
+    return None
+
+
 def real_hits(hits: list, touched: list) -> tuple[list, list]:
-    """(hits that count as a leak, hits set aside). Set aside: tracked repo files (the agent sees
-    them anyway), git objects (wiped when the eval image is built), pip's vendored copy, the sweep's
-    own mounted python, the CPython stdlib, any installed package or cached archive that is not this
-    project's own package — a dependency that shares or bundles the code (tensorflow's keras,
-    fastapi under cadwyn) is the environment, not a copy our build left behind — and npm
-    dependencies, which a lockfile pins (a published release of the project itself included).
-    An installed package is "own" when its name starts with one of the project's package names, so
-    a dependency sharing the prefix is counted rather than set aside — it then has no removal rule
-    and the instance lands in residue, the safe side."""
+    """(hits that count as a leak, hits set aside) — each hit set aside carries its `aside` reason
+    (see `aside_reason`)."""
     own = own_packages(touched)
     counted, aside = [], []
     for hit in hits:
-        path, _, member = hit["path"].partition("!")
-        site = SITE_PKG.search(path)
-        foreign = (site and site.group(1).split("-")[0].lower() not in own and
-                   not any(site.group(1).lower().startswith(o) for o in own)) or \
-                  (member and PKG_CACHES.match(path) and member.split("/")[0].replace("-", "_").lower() not in own)
-        if hit["kind"] == "git-object" or hit["tracked"] or path.startswith(SWEEP_MOUNT_DIR) \
-                or PIP_VENDORED.search(path) or PIP_PATHS.search(path) or STDLIB.match(path) or foreign \
-                or "/node_modules/" in path:
-            aside.append(hit)
-        else:
+        reason = aside_reason(hit, own)
+        if reason is None:
             counted.append(hit)
+        else:
+            hit["aside"] = reason
+            aside.append(hit)
     return counted, aside
 
 
@@ -252,15 +281,15 @@ def fix_leak(data_record: dict, env_spec: dict, log_dir: Path, logger: logging.L
         golden_patch = get_golden_patch(data_record)
         get_image(eval_image_name, "Eval", pull_images, logger)
         sweep = sweep_image(golden_patch, eval_image_name, logger)
-        save_file({"apply": sweep["apply"], "hits": sweep["hits"]}, log_dir / LOG_SWEEP)
         if sweep["apply"] == "FAIL":
             msg = f"golden_patch did not apply in the eval image: {eval_image_name}"
             logger.error(msg)
             raise RuntimeError(msg)
         counted, aside = real_hits(sweep["hits"], sweep["touched"])
-        counts = {"hits": len(counted), "aside": len(aside)}
+        save_file({"apply": sweep["apply"], "hits": sweep["hits"]}, log_dir / LOG_SWEEP)
+        counts = {"hits": len(counted), "aside": dict(collections.Counter(hit["aside"] for hit in aside))}
         if not counted:
-            logger.info(f"Eval image clean ({len(aside)} hit(s) set aside).")
+            logger.info(f"Eval image clean ({len(aside)} hit(s) set aside: {counts['aside']}).")
             return leak_report(LeakStatus.CLEAN, **counts, images=images)
 
         for hit in counted:
