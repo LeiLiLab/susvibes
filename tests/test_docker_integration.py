@@ -33,7 +33,7 @@ from tests.docker_env import (
 
 pytestmark = pytest.mark.docker
 
-AGENTS = ["claude_code", "gemini_cli"]
+AGENTS = ["claude_code", "gemini_cli", "kimi_cli"]
 
 if not docker_available():
     pytest.skip("Docker not available", allow_module_level=True)

@@ -2,6 +2,8 @@
 
 This tutorial demonstrates how to manually evaluate AI coding agents using Kimi CLI on SusVibes benchmark tasks within containerized environments. Runing a single SusVibes task typically cost you less than $1. However, if you need support, feel free to contact us for an API key. 
 
+> **Note**: For automated single-instance or batch evaluation runs, see the [Kimi CLI Evaluation Harness](kimi_cli/README.md).
+
 ## Overview
 
 This guide covers:
