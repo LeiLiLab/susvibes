@@ -20,6 +20,7 @@ class KeepStage(StrEnum):
     ADAPTIVE_GEN = "adaptive_gen"
     GEN_TEST = "gen_test"
     VALIDATE = "validate"
+    LEAK = "leak"
 
 
 def get_log_dir(run_id: str, *module: str) -> Path:
@@ -33,7 +34,7 @@ def get_log_dir(run_id: str, *module: str) -> Path:
 def get_agent_setting_path(name: str) -> Path:
     return AGENT_SETTINGS_DIR / f"{name}.yaml"
 
-LOGS_PARSER_MODEL = "claude-sonnet-5"
+LOGS_PARSER_MODEL = "bedrock/us.anthropic.claude-sonnet-5"
 
 class TaskArtifact(StrEnum):
     """Names of the files/dirs written into a task directory."""

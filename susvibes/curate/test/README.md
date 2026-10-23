@@ -31,7 +31,7 @@ Each `datasets/<run_id>/edits/<instance_id>/` contains:
 - `README.md` — meta (project, CVE, CWE, verification image, test command)
 - `test_patch_backups/` — backups of prior versions (populated on sync)
 
-By default, dump also builds a per-instance `base_no_test` image (env image with the original `test_patch` reversed) and records its name in the dataset under `base_no_test_image_name`. The next validation step then uses this image so the *edited* `test_patch` is the only one applied. Pass `--require_test false` to skip this image build.
+By default, dump also builds a per-instance `base_no_test` image (env image with the original `test_patch` reversed) and records its name in the dataset under `base_no_test_image_name`. Every later validation of that record (step 4, and the leak stage's re-validation) starts from this image, so the *edited* `test_patch` is the only one applied; the image has to stay local. Pass `--require_test false` to skip this image build.
 
 ### 2. Edit `test_patch.md`
 
@@ -50,12 +50,11 @@ Each updated record gets its prior `test_patch` snapshotted to `edits/<instance_
 
 ### 4. Validate
 
-Run validation against the per-instance `base_no_test` image so the dataset's *edited* `test_patch` is what's exercised:
+Run validation; a record that names a `base_no_test` image starts from it, so the dataset's *edited* `test_patch` is what's exercised:
 
 ```bash
 python -m susvibes.curate.validate.with_test \
   --run_id <run_id> \
-  --from_base_no_test_image \
   --max_workers <N> \
   [--resume] \
   [--force]

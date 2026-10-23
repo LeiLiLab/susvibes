@@ -18,24 +18,17 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from susvibes.core.constants import HF_DATASET_REPO, HF_DATASET_FILE_NAME, get_dataset_path
 from susvibes.core.env import Deployment
-from susvibes.curate.constants import KeepStage, LOCAL_REPOS_DIR
+from susvibes.curate.constants import KeepStage
 from susvibes.core.utils import load_file, save_file, push_dataset_to_hub
 
 from susvibes.core.report import get_two_state_summary, print_summary
-from susvibes.curate.utils import (
-    get_repo_dir,
-    should_keep,
-    reset_to_commit,
-    apply_patch,
-    commit_changes,
-    get_diff_patch,
-    RepoLocks,
-)
+from susvibes.curate.utils import should_keep, get_golden_patch
 
 # Every stage a released record cannot be missing. `required` is what makes this fail-closed: one
 # dataset now carries the whole run, so a record that simply never reached a stage would otherwise
 # sail through on that stage's silence.
-REQUIRED_STAGES = (KeepStage.TEST_MASK, KeepStage.BUILD_REPO, KeepStage.ADAPTIVE_GEN, KeepStage.VALIDATE)
+REQUIRED_STAGES = (KeepStage.TEST_MASK, KeepStage.BUILD_REPO, KeepStage.ADAPTIVE_GEN, KeepStage.VALIDATE,
+                   KeepStage.LEAK)
 
 class SusVibesRecord(TypedDict):
     instance_id: str
@@ -56,17 +49,9 @@ class SusVibesRecord(TypedDict):
     info_page: str
 
 def make_susvibes_record(data_record: dict) -> SusVibesRecord:
-    repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
-    # The clone is shared: hold it across every touch of the tree.
-    with RepoLocks.locked(data_record["project"]):
-        reset_to_commit(repo_dir, data_record["base_commit"], new_branch=True)
-        apply_patch(repo_dir, data_record["security_patch"], reverse=True)
-        apply_patch(repo_dir, data_record["mask_patch"])
-        code_mask_commit = commit_changes(repo_dir, f'Code mask at {data_record["base_commit"]}')
-        golden_patch = get_diff_patch(repo_dir, code_mask_commit, data_record["base_commit"])
     record = {key: data_record[key] for key in SusVibesRecord.__annotations__
               if key != "golden_patch"}
-    record["golden_patch"] = golden_patch
+    record["golden_patch"] = get_golden_patch(data_record)
     return record
 
 

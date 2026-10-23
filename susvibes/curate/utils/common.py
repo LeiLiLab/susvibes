@@ -5,7 +5,7 @@ import time
 from pathlib import Path
 from textwrap import dedent
 from susvibes.core.utils import save_file, touched_files
-from susvibes.curate.constants import TaskArtifact, PATCH_TEMPLATE
+from susvibes.curate.constants import TaskArtifact, PATCH_TEMPLATE, LOCAL_REPOS_DIR
 from susvibes.env_specs import DOCKERFILE_PATTERN
 
 
@@ -131,6 +131,28 @@ def rollback(repo_dir, base_commit, security_patch, test_patch=None):
         apply_patch(repo_dir, test_patch, reverse=True)
     rollback_commit = commit_changes(repo_dir, f"Rollback at {base_commit}")
     return rollback_commit
+
+def get_golden_patch(data_record: dict) -> str:
+    """The patch from the task state (security fix reversed, mask applied) back to the fixed code —
+    what `wrap_up` publishes as `golden_patch`. Computed in the project's shared clone."""
+    from susvibes.curate.utils.lock import RepoLocks     # lock.py imports this module
+    repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
+    # The clone is shared: hold it across every touch of the tree.
+    with RepoLocks.locked(data_record["project"]):
+        reset_to_commit(repo_dir, data_record["base_commit"], new_branch=True)
+        apply_patch(repo_dir, data_record["security_patch"], reverse=True)
+        apply_patch(repo_dir, data_record["mask_patch"])
+        code_mask_commit = commit_changes(repo_dir, f'Code mask at {data_record["base_commit"]}')
+        return get_diff_patch(repo_dir, code_mask_commit, data_record["base_commit"])
+
+
+def get_tracked_files(data_record: dict) -> set:
+    """The files the upstream repo tracks at the record's base commit, read from the project's
+    shared clone (object store only, so no lock and no checkout)."""
+    repo_dir = get_repo_dir(data_record["project"], root_dir=LOCAL_REPOS_DIR)
+    listing = run(["git", "ls-tree", "-r", "--name-only", "-z", data_record["base_commit"]], cwd=repo_dir)
+    return {name for name in listing.stdout.split("\0") if name}
+
 
 def should_keep(data_record, exclude=None, required=()) -> bool:
     """Whether this record should go on.

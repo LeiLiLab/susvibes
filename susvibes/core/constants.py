@@ -44,7 +44,9 @@ def _calc_mem_limit() -> str:
 
 class ContainerLimits:
     """Resource limits and run timeout for analysis / test containers."""
-    RUN_TIMEOUT = 1800  # seconds
+    # A repository whose own suite needs longer than this per run cannot be validated at all, so the
+    # timeout is raisable for such a run (`SV_RUN_TIMEOUT=7200`) without moving it for everything.
+    RUN_TIMEOUT = int(os.environ.get("SV_RUN_TIMEOUT", 1800))  # seconds
     MEM_LIMIT = _calc_mem_limit()
     CPU_LIMIT = min(16, max(1, int((os.cpu_count() or 4) * 0.75)))
 
